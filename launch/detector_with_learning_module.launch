@@ -1,0 +1,4 @@
+<launch>
+    <include file="$(find onboard_detector)/launch/run_detector.launch" />
+    <node pkg="onboard_detector" type="yolo_detector_node.py" name="yolo_detector_node" output="screen" />
+</launch>

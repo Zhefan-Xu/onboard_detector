@@ -1,0 +1,69 @@
+localization_mode: 0 # 0: pose (default) 1: odom
+
+depth_image_topic: /camera/depth/image_rect_raw
+aligned_depth_image_topic: /camera/depth/image_raw
+pose_topic: /CERLAB/quadcopter/pose
+odom_topic: /CERLAB/quadcopter/odom
+
+# Camera Parameters
+depth_intrinsics: [386.22674560546875, 386.22674560546875, 321.3246154785156, 233.5471954345703] # fx,  fy, cx, cy realsense
+color_intrinsics: [608.08740234375, 608.08740234375, 317.48284912109375, 234.11557006835938] # intel realsense
+depth_scale_factor: 1000 # 1000 for Intel Realsense Camera
+depth_min_value: 0.5
+depth_max_value: 5.0
+depth_filter_margin: 10 # filter
+depth_skip_pixel: 2  # filter
+image_cols: 640
+image_rows: 480
+body_to_camera: [0.0,  0.0,  1.0,  0.065,
+                -1.0,  0.0,  0.0,  0.01,   
+                 0.0, -1.0,  0.0,  0.11,
+                 0.0,  0.0,  0.0,  1.0]
+body_to_camera_color: [0.0,  0.0,  1.0,  0.065,
+                      -1.0,  0.0,  0.0,  0.01,   
+                       0.0, -1.0,  0.0,  0.11,
+                       0.0,  0.0,  0.0,  1.0]
+
+# Raycasting (max depth)
+raycast_max_length: 5.0
+
+# time difference
+time_difference: 0.033
+
+# sensor data processing
+voxel_occupied_thresh: 15 # min num of points for a voxel to be occupied in voxel filter
+
+# dbscan
+ground_height: -0.1 # height of ground to remove ground points
+dbscan_min_points_cluster: 10 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
+dbscan_search_range_epsilon: 0.1 # searching range radius
+
+# bounding box filtering
+filtering_BBox_IOU_threshold: 0.05
+yolo_overwrite_distance: 3
+
+# tracking and data association
+history_size: 100 # size of tracking history. history[0] is current detection
+similarity_threshold: 0.02 # similiary threshold for data association matching comparison
+fix_size_history_threshold: 10 # History threshold (num of frames) to fix box size
+fix_size_dimension_threshold: 0.4 # dimension threshold (size of proportional) to fix box size
+
+e_p: 0.25
+e_q_pos: 0.01
+e_q_vel: 0.05
+e_q_acc: 0.05
+e_r_pos: 0.04
+e_r_vel: 0.3
+e_r_acc: 0.6
+
+kalman_filter_averaging_frames: 10
+
+# classification
+frame_skip: 5 # num of frames skiped when comparing 2 point clouds
+dynamic_velocity_threshold: 0.15
+dynamic_voting_threshold: 0.8
+maximum_skip_ratio: 0.5 # the upper limit of points that are skipped(out of previous FOV) to be classfified as dynamic
+frames_force_dynamic: 10 # Range of searching dynamic obstacles in box history
+frames_force_dynamic_check_range: 30 # threshold for forcing dynamic obstacles
+dynamic_consistency_threshold: 1 # obstacles being voted as dynamic for continuous k frames are eligible to be classified as dynamic
+

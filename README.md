@@ -21,8 +21,32 @@ catkin_make
 ```
 
 ## Run demo
+### Run on dataset
+Please download the rosbag file from this link:
+```
+rosbag play -l multiple-objects.bag
+roslaunch onboard_detector run_detector.launch
+```
 
+### Run on your device
+Please adjust the configuration file under ```cfg/detector_param.yaml``` of your camera device.
 
+From the parameter file, you can find that the algorithm expects the following data from the robot:
+
+- Depth image: ```/camera/depth/image_rect_raw```
+
+- Robot pose: ```/mavros/local_position/pose```
+
+- Robot odom: ```/mavros/local_position/odom```
+
+- Color image (optional): ```/camera/color/image_rect_raw```
+
+- Aligned depth image (optional): ```/camera/aligned_depth_to_color/image_raw```
+
+```
+# Launch your device first. Make sure it has the above data.
+roslaunch onboard_detector run_detector.launch
+```
 
 ## Issue
 for ```ImportError: No module named yaml``` on Ubuntu 20.04, please run: 

@@ -55,3 +55,11 @@ sudo ln -sf /usr/bin/python3 /usr/local/bin/python
 ```
 
 ## Citation and Reference:
+If you find this work useful, please cite the paper:
+```
+@article{xu2023onboard,
+  title={Onboard dynamic-object detection and tracking for autonomous robot navigation with RGB-D camera},
+  author={Xu, Zhefan and Zhan, Xiaoyang and Xiu, Yumeng and Suzuki, Christopher and Shimada, Kenji},
+  journal={IEEE Robotics and Automation Letters},
+  year={2023}
+}

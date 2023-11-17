@@ -13,10 +13,21 @@ https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/d5e794d3-d446-43da
 
 ## Installation
 This package has been tested on Ubuntu 18.04/20.04 LTS with ROS Melodic/Noetic on [Intel Realsense D435i](https://www.intelrealsense.com/depth-camera-d435i/) and NVIDIA Jetson [Xavier NX](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-xavier-series/), [Orin NX](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) and [Intel NUC](https://www.intel.com/content/www/us/en/products/details/nuc.html). Make sure you have installed the compatible ROS version. 
+```
+cd ~/catkin_ws/src
+git clone https://github.com/Zhefan-Xu/onboard_detector.git
+cd ..
+catkin_make
+```
+
+## Run demo
 
 
-### issue
-for ```ImportError: No module named yaml```: 
+
+## Issue
+for ```ImportError: No module named yaml``` on Ubuntu 20.04, please run: 
 ```
-ln -sf /usr/bin/python3 /usr/local/bin/python
+sudo ln -sf /usr/bin/python3 /usr/local/bin/python
 ```
+
+## Citation and Reference:

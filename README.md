@@ -28,6 +28,12 @@ Please download the rosbag file from this [link](https://cmu.box.com/s/aiixv3p3p
 rosbag play -l multiple-objects.bag
 roslaunch onboard_detector run_detector.launch
 ```
+Example with single dynamic object:
+
+
+https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/d5988751-b182-4793-8a18-def01f01ec23
+
+
 
 ### b. Run on your device
 Please adjust the configuration file under ```cfg/detector_param.yaml``` of your camera device. Also, change the color image topic name in ```scripts/yolo_detector/yolo_detector.py```

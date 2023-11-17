@@ -28,10 +28,18 @@ Please download the rosbag file from this [link](https://cmu.box.com/s/aiixv3p3p
 rosbag play -l multiple-objects.bag
 roslaunch onboard_detector run_detector.launch
 ```
-Example with single dynamic object:
+- Example with single dynamic object:
 
 
-https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/d5988751-b182-4793-8a18-def01f01ec23
+https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/126c02a8-9d50-42b2-923e-3b79d300314f
+
+- Example with multiple dynamic objects:
+
+
+
+https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/5e121d41-b798-41e8-b074-6a8c8a1e9e31
+
+
 
 
 

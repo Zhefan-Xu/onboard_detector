@@ -29,7 +29,7 @@ roslaunch onboard_detector run_detector.launch
 ```
 
 ### Run on your device
-Please adjust the configuration file under ```cfg/detector_param.yaml``` of your camera device.
+Please adjust the configuration file under ```cfg/detector_param.yaml``` of your camera device. Also, change the color image topic name in ```scripts/yolo_detector/yolo_detector.py```
 
 From the parameter file, you can find that the algorithm expects the following data from the robot:
 
@@ -37,9 +37,9 @@ From the parameter file, you can find that the algorithm expects the following d
 
 - Robot pose: ```/mavros/local_position/pose```
 
-- Robot odom: ```/mavros/local_position/odom```
+- Robot odom (optional): ```/mavros/local_position/odom```
 
-- Color image (optional): ```/camera/color/image_rect_raw```
+- Color image (optional if YOLO is applied): ```/camera/color/image_rect_raw```
 
 - Aligned depth image (optional): ```/camera/aligned_depth_to_color/image_raw```
 

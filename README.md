@@ -22,7 +22,7 @@ catkin_make
 
 ## Run demo
 ### Run on dataset
-Please download the rosbag file from this link:
+Please download the rosbag file from this [link](https://cmu.box.com/s/aiixv3p3pzufodsrcv8a2yqpiibu28ds):
 ```
 rosbag play -l multiple-objects.bag
 roslaunch onboard_detector run_detector.launch
@@ -49,7 +49,7 @@ roslaunch onboard_detector run_detector.launch
 ```
 
 ## Issue
-for ```ImportError: No module named yaml``` on Ubuntu 20.04, please run: 
+For ```ImportError: No module named yaml``` on Ubuntu 20.04, please run: 
 ```
 sudo ln -sf /usr/bin/python3 /usr/local/bin/python
 ```

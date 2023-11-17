@@ -5,7 +5,7 @@ The related paper can be found on:
 
 **Zhefan Xu\*, Xiaoyang Zhan\*, Yumeng Xiu, Christopher Suzuki, Kenji Shimada, "Onboard dynamic-object detection and tracking for autonomous robot navigation with RGB-D camera,” IEEE Robotics and Automation Letters (RA-L), 2023.** [\[arxiv preprint\]](https://arxiv.org/pdf/2303.00132.pdf)
 
-*The authors contribute equally.
+*The authors contributed equally.
 
 
 

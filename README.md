@@ -1,4 +1,4 @@
-# Dynamic Object Detection and Tracking for Autonomous Robots  
+# Onboard Dynamic Object Detection and Tracking for Autonomous Mobile Robots  
 This repository contains the implementation of Dynamic Obstacle Detection and Tracking (DODT) algorithm which aims at detecting and tracking dynamic obstacles for robots with extremely constraint computational resources.
 
 The related paper can be found on:

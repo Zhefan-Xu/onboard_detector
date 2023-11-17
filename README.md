@@ -7,6 +7,10 @@ The related paper can be found on:
 
 *The authors contribute equally.
 
+
+https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/3db9e44c-2f90-4b95-8bd4-dc210d1ade00
+
+
 ### issue
 for ```ImportError: No module named yaml```: 
 ```

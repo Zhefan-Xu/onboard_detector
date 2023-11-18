@@ -31,12 +31,18 @@ roslaunch onboard_detector run_detector.launch
 - Example with single dynamic object:
 
 
-https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/126c02a8-9d50-42b2-923e-3b79d300314f
+
+https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/be2d6103-1579-4daf-aefb-9d18f42e2dfe
+
+
 
 - Example with multiple dynamic objects:
 
 
-https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/d28c3941-614b-430d-86a8-7a78393c7048
+
+https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/3b6a0feb-7b2c-4d67-8696-3a489abb9043
+
+
 
 
 

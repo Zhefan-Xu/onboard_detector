@@ -36,8 +36,8 @@ https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/126c02a8-9d50-42b2
 - Example with multiple dynamic objects:
 
 
+https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/d28c3941-614b-430d-86a8-7a78393c7048
 
-https://github.com/Zhefan-Xu/onboard_detector/assets/55560905/5e121d41-b798-41e8-b074-6a8c8a1e9e31
 
 
 

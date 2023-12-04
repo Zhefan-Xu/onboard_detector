@@ -132,6 +132,7 @@ add_library(${PROJECT_NAME}
    include/${PROJECT_NAME}/uvDetector.cpp
    include/${PROJECT_NAME}/dbscan.cpp
    include/${PROJECT_NAME}/kalmanFilter.cpp
+   include/${PROJECT_NAME}/fakeDetector.cpp
 )
 
 ## Add cmake target dependencies of the library
@@ -144,6 +145,7 @@ add_library(${PROJECT_NAME}
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/onboard_detector_node.cpp)
 add_executable(detector_node src/detector_node.cpp)
+add_executable(fake_detector_node src/fake_detector_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -161,6 +163,7 @@ add_executable(detector_node src/detector_node.cpp)
 # )
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 target_link_libraries(detector_node ${PROJECT_NAME})
+target_link_libraries(fake_detector_node ${PROJECT_NAME})
 
 #############
 ## Install ##

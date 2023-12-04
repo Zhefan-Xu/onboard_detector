@@ -1,0 +1,5 @@
+<launch>
+	<rosparam file="$(find onboard_detector)/cfg/fake_detector_param.yaml" />
+	<node pkg="onboard_detector" type="fake_detector_node" name="fake_detector_node" output="screen" />
+
+</launch>

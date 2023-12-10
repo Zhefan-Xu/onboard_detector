@@ -1,3 +1,8 @@
+/*
+	FILE: detector_node.cpp
+	--------------------------
+	Run detector node
+*/
 #include <ros/ros.h>
 #include <onboard_detector/dynamicDetector.h>
 

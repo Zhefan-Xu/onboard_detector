@@ -104,7 +104,6 @@ class yolo_detector:
         H, W, _ = ori_img.shape
         scale_h, scale_w = H / 352., W / 352.
 
-        # 绘制预测框
         detected_boxes = []
         for box in output[0]:
             box = box.tolist()

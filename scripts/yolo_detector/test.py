@@ -33,10 +33,8 @@ if __name__ == '__main__':
     time = (end - start) * 1000.
     print("forward time:%fms"%time)
 
-    # 特征图后处理
     output = handle_preds(preds, device, thresh)
 
-    # 加载label names
     LABEL_NAMES = []
     with open(class_names, 'r') as f:
 	    for line in f.readlines():
@@ -45,7 +43,6 @@ if __name__ == '__main__':
     H, W, _ = ori_img.shape
     scale_h, scale_w = H / 352., W / 352.
 
-    # 绘制预测框
     for box in output[0]:
         print(box)
         box = box.tolist()

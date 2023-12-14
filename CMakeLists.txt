@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   message_filters
   image_transport
+  vision_msgs
 )
 
 ## System dependencies are found with CMake's conventions

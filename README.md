@@ -26,7 +26,7 @@ cd ..
 catkin_make
 ```
 
-## III. Run demo
+## III. Run DEMO
 ### a. Run on dataset
 Please download the rosbag file from this [link](https://cmu.box.com/s/aiixv3p3pzufodsrcv8a2yqpiibu28ds):
 ```

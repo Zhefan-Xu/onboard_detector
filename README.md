@@ -80,7 +80,7 @@ For ```ImportError: No module named yaml``` on Ubuntu 20.04, please run:
 sudo ln -sf /usr/bin/python3 /usr/local/bin/python
 ```
 
-## V. Citation and Reference:
+## V. Citation and Reference
 If you find this work useful, please cite the paper:
 ```
 @article{xu2023onboard,

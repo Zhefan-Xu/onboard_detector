@@ -5,6 +5,7 @@ aligned_depth_image_topic: /camera/aligned_depth_to_color/image_raw
 pose_topic: /mavros/local_position/pose
 odom_topic: /mavros/local_position/odom
 
+
 # Camera Parameters
 depth_intrinsics: [387.1536560058594, 387.1536560058594, 321.3246154785156, 233.5471954345703] # fx,  fy, cx, cy realsense
 color_intrinsics: [604.404296875, 604.404296875, 325.03704833984375, 245.77059936523438] # intel realsense
@@ -67,3 +68,6 @@ frames_force_dynamic: 10 # Range of searching dynamic obstacles in box history
 frames_force_dynamic_check_range: 30 # threshold for forcing dynamic obstacles
 dynamic_consistency_threshold: 1 # obstacles being voted as dynamic for continuous k frames are eligible to be classified as dynamic
 
+# constrain size
+constrain_size: true
+target_object_size: [0.5, 0.5, 1.7]

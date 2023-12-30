@@ -326,7 +326,7 @@ namespace onboardDetector{
         // History threshold for fixing box size
         if (not this->nh_.getParam(this->ns_ + "/fix_size_history_threshold", this->fixSizeHistThresh_)){
             this->fixSizeHistThresh_ = 10;
-            std::cout << this->hint_ << ": History threshold for fixing size parameter found. Use default: 10." << std::endl;
+            std::cout << this->hint_ << ": No history threshold for fixing size parameter found. Use default: 10." << std::endl;
         }
         else{
             std::cout << this->hint_ << ": History threshold for fixing size parameter is set to: " << this->fixSizeHistThresh_ << std::endl;
@@ -335,7 +335,7 @@ namespace onboardDetector{
         // Dimension threshold for fixing box size
         if (not this->nh_.getParam(this->ns_ + "/fix_size_dimension_threshold", this->fixSizeDimThresh_)){
             this->fixSizeDimThresh_ = 0.4;
-            std::cout << this->hint_ << ": Dimension threshold for fixing size parameter found. Use default: 0.4." << std::endl;
+            std::cout << this->hint_ << ": No dimension threshold for fixing size parameter found. Use default: 0.4." << std::endl;
         }
         else{
             std::cout << this->hint_ << ": Dimension threshold for fixing size parameter is set to: " << this->fixSizeDimThresh_ << std::endl;
@@ -407,7 +407,7 @@ namespace onboardDetector{
         // num of frames used in KF for observation
         if (not this->nh_.getParam(this->ns_ + "/kalman_filter_averaging_frames", this->kfAvgFrames_)){
             this->kfAvgFrames_ = 10;
-            std::cout << this->hint_ << ": Number of frames used in KF for observation parameter found. Use default: 10." << std::endl;
+            std::cout << this->hint_ << ": No number of frames used in KF for observation parameter found. Use default: 10." << std::endl;
         }
         else{
             std::cout << this->hint_ << ": Number of frames used in KF for observation is set to: " << this->kfAvgFrames_ << std::endl;
@@ -416,7 +416,7 @@ namespace onboardDetector{
         // frames to froce dynamic
         if (not this->nh_.getParam(this->ns_ + "/frames_force_dynamic", this->forceDynaFrames_)){
             this->forceDynaFrames_ = 20;
-            std::cout << this->hint_ << ": Range of searching dynamic obstacles in box history found. Use default: 20." << std::endl;
+            std::cout << this->hint_ << ": No range of searching dynamic obstacles in box history found. Use default: 20." << std::endl;
         }
         else{
             std::cout << this->hint_ << ": Range of searching dynamic obstacles in box history is set to: " << this->forceDynaFrames_ << std::endl;
@@ -424,7 +424,7 @@ namespace onboardDetector{
 
         if (not this->nh_.getParam(this->ns_ + "/frames_force_dynamic_check_range", this->forceDynaCheckRange_)){
             this->forceDynaCheckRange_ = 30;
-            std::cout << this->hint_ << ": Threshold for forcing dynamic obstacles found. Use default: 30." << std::endl;
+            std::cout << this->hint_ << ": No threshold for forcing dynamic obstacles found. Use default: 30." << std::endl;
         }
         else{
             std::cout << this->hint_ << ": Threshold for forcing dynamic obstacles is set to: " << this->forceDynaCheckRange_ << std::endl;
@@ -433,7 +433,7 @@ namespace onboardDetector{
         // dynamic consistency check
         if (not this->nh_.getParam(this->ns_ + "/dynamic_consistency_threshold", this->dynamicConsistThresh_)){
             this->dynamicConsistThresh_ = 3;
-            std::cout << this->hint_ << ": Threshold for dynamic-consistency check found. Use default: 3." << std::endl;
+            std::cout << this->hint_ << ": No threshold for dynamic-consistency check found. Use default: 3." << std::endl;
         }
         else{
             std::cout << this->hint_ << ": Threshold for dynamic consistency check is set to: " << this->dynamicConsistThresh_ << std::endl;
@@ -441,6 +441,29 @@ namespace onboardDetector{
 
         if ( this->histSize_ < this->forceDynaCheckRange_+1){
             ROS_ERROR("history length is too short to perform force-dynamic");
+        }
+
+        // constrain target object size
+        if (not this->nh_.getParam(this->ns_ + "/constrain_size", this->constrainSize_)){
+            this->constrainSize_ = false;
+            std::cout << this->hint_ << ": No target object constrain size param found. Use default: false." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Target object constrain is set to: " << this->constrainSize_ << std::endl;
+        }  
+
+        // object target sizes
+        std::vector<double> targetObjectSizeTemp;
+        if (not this->nh_.getParam(this->ns_ + "/target_object_size", targetObjectSizeTemp)){
+            std::cout << this->hint_ << ": No target object size found. Do not apply target object size." << std::endl;
+        }
+        else{
+            for (size_t i=0; i<targetObjectSizeTemp.size(); i+=3){
+                Eigen::Vector3d targetSize (targetObjectSizeTemp[i+0], targetObjectSizeTemp[i+1], targetObjectSizeTemp[i+2]);
+                this->targetObjectSize_.push_back(targetSize);
+                std::cout << this->hint_ << ": target object size is set to: [" << targetObjectSizeTemp[i+0]  << ", " << targetObjectSizeTemp[i+1] << ", " <<  targetObjectSizeTemp[i+2] << "]." << std::endl;
+            }
+            
         }
     }
 
@@ -738,6 +761,29 @@ namespace onboardDetector{
                 }
             }
         }
+
+        // filter the dynamic obstacles based on the target sizes
+        if (this->constrainSize_){
+            std::vector<onboardDetector::box3D> dynamicBBoxesBeforeConstrain = dynamicBBoxesTemp;
+            dynamicBBoxesTemp.clear();
+
+            for (onboardDetector::box3D ob : dynamicBBoxesBeforeConstrain){
+                bool findMatch = false;
+                for (Eigen::Vector3d targetSize : this->targetObjectSize_){
+                    double xdiff = std::abs(ob.x_width - targetSize(0));
+                    double ydiff = std::abs(ob.y_width - targetSize(1));
+                    double zdiff = std::abs(ob.z_width - targetSize(2)); 
+                    if (xdiff < 0.5 and ydiff < 0.5 and zdiff < 0.5){
+                        findMatch = true;
+                    }
+                }
+
+                if (findMatch){
+                    dynamicBBoxesTemp.push_back(ob);
+                }
+            }
+        }
+
         this->dynamicBBoxes_ = dynamicBBoxesTemp;
     }
 

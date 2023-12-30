@@ -114,6 +114,8 @@ namespace onboardDetector{
         int forceDynaCheckRange_;
         int dynamicConsistThresh_;
         int kfAvgFrames_;
+        bool constrainSize_;
+        std::vector<Eigen::Vector3d> targetObjectSize_; 
 
         // SENSOR DATA
         cv::Mat depthImage_;

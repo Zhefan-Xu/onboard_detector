@@ -2,6 +2,10 @@
 ## I. Introduction
 This repository contains the implementation of Dynamic Obstacle Detection and Tracking (DODT) algorithm which aims at detecting and tracking dynamic obstacles for robots with extremely constraint computational resources.
 
+If you find this work helpful, kindly show your support by giving us a free ⭐️. Your recognition is truly valued.
+
+This repo can be used as a standalone package and also comes as a module of our [autonomy framework](https://github.com/Zhefan-Xu/CERLAB-UAV-Autonomy).
+
 The related paper can be found on:
 
 **Zhefan Xu\*, Xiaoyang Zhan\*, Yumeng Xiu, Christopher Suzuki, Kenji Shimada, "Onboard dynamic-object detection and tracking for autonomous robot navigation with RGB-D camera”, IEEE Robotics and Automation Letters (RA-L), 2024.** [\[paper\]](https://ieeexplore.ieee.org/document/10323166) [\[video\]](https://youtu.be/9dKX3BRnxyw).

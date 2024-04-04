@@ -91,5 +91,10 @@ If you find this work useful, please cite the paper:
   title={Onboard dynamic-object detection and tracking for autonomous robot navigation with RGB-D camera},
   author={Xu, Zhefan and Zhan, Xiaoyang and Xiu, Yumeng and Suzuki, Christopher and Shimada, Kenji},
   journal={IEEE Robotics and Automation Letters},
-  year={2023}
+  volume={9},
+  number={1},
+  pages={651--658},
+  year={2023},
+  publisher={IEEE}
 }
+```

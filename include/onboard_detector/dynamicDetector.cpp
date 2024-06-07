@@ -903,6 +903,22 @@ namespace onboardDetector{
             }
         }
 
+
+        // Instead of using YOLO for ensembling, only use YOLO for dynamic object identification
+        // For each 2D YOLO detected bounding box, find the best match projected 2D bounding boxes
+        if (this->yoloDetectionResults_.detections.size() != 0){
+            for (int i=0; i<int(this->yoloDetectionResults_.detections.size()); ++i){
+                int topX = int(this->yoloDetectionResults_.detections[i].bbox.center.x);
+                int topY = int(this->yoloDetectionResults_.detections[i].bbox.center.y);
+                int xWidth = int(this->yoloDetectionResults_.detections[i].bbox.size_x);
+                int yWidth = int(this->yoloDetectionResults_.detections[i].bbox.size_y);
+                for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
+                    // TODO find 2D bounding boxes in the color frame
+                }
+            }
+        }
+
+
         // yolo bounding box filter
         if (this->yoloBBoxes_.size() != 0){ // if no detected or not using yolo, this will not triggered
             std::vector<onboardDetector::box3D> filteredBBoxesTempCopy = filteredBBoxesTemp;

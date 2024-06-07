@@ -912,8 +912,50 @@ namespace onboardDetector{
                 int topY = int(this->yoloDetectionResults_.detections[i].bbox.center.y);
                 int xWidth = int(this->yoloDetectionResults_.detections[i].bbox.size_x);
                 int yWidth = int(this->yoloDetectionResults_.detections[i].bbox.size_y);
+
+                double bestIOU = 0.0;
                 for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
                     // TODO find 2D bounding boxes in the color frame
+                    onboardDetector::box3D bbox = filteredBBoxesTemp[j];
+
+                    // 1. transform the bounding boxes into the camera frame
+                    Eigen::Vector3d centerWorld (bbox.x, bbox.y, bbox.z);
+                    Eigen::Vector3d sizeWorld (bbox.x_width, bbox.y_width, bbox.z_width);
+                    Eigen::Vector3d centerCam, widthCam;
+                    this->transformBBox(centerWorld, sizeWorld, -this->positionColor_, this->orientationColor_.inverse(), centerCam, widthCam);
+
+
+                    // 2. find the top left and bottom right corner 3D position of the transformed bbox
+                    Eigen::Vector3d topleft (centerCam(0)-widthCam(0)/2, centerCam(1)-widthCam(1)/2, centerCam(2));
+                    Eigen::Vector3d bottomright (centerCam(0)+widthCam(0)/2, centerCam(1)+widthCam(1)/2, centerCam(2));
+
+                    // 3. project those two points into the camera image plane
+                    int tlX = this->fxC_ * topleft(0) + this->cxC_ * topleft(2) / topleft(2);
+                    int tlY = this->fyC_ * topleft(1) + this->cyC_ * topleft(2) / topleft(2);
+                    int brX = this->fxC_ * bottomright(0) + this->cxC_ * bottomright(2) / bottomright(2);
+                    int brY = this->fyC_ * bottomright(1) + this->cyC_ * bottomright(2) / bottomright(2);
+
+
+                    // 4. check the IOU between yolo and projected bbox
+                    int tlXTarget = topX;
+                    int tlYTarget = topY;
+                    int brXTarget = topX + xWidth;
+                    int brYTarget = topY + yWidth;
+
+                    double xOverlap = std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget));
+                    double yOverlap = std::max(0, std::min(brY, brYTarget) - std::max(tlY, tlYTarget));
+                    double intersection = xOverlap * yOverlap;
+
+                    // Calculate union area
+                    double areaBox = (brX - tlX) * (brY - tlY);
+                    double areaBoxTarget = (brXTarget - tlXTarget) * (brYTarget - tlYTarget);
+                    double unionArea = areaBox + areaBoxTarget - intersection;
+
+                    double IOU = (unionArea == 0) ? 0 : intersection / unionArea;
+
+                    if (IOU > bestIOU){
+                        bestIOU = IOU;
+                    }
                 }
             }
         }

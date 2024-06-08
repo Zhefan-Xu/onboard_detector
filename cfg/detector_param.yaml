@@ -32,7 +32,7 @@ raycast_max_length: 5.0
 time_difference: 0.033
 
 # sensor data processing
-voxel_occupied_thresh: 15 # min num of points for a voxel to be occupied in voxel filter
+voxel_occupied_thresh: 5 # min num of points for a voxel to be occupied in voxel filter
 
 # dbscan
 ground_height: 0.2  # height of ground to remove ground points

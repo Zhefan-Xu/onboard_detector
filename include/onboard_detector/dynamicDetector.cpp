@@ -936,13 +936,13 @@ namespace onboardDetector{
                 // 1. transform the bounding boxes into the camera frame
                 Eigen::Vector3d centerWorld (bbox.x, bbox.y, bbox.z);
                 Eigen::Vector3d sizeWorld (bbox.x_width, bbox.y_width, bbox.z_width);
-                Eigen::Vector3d centerCam, widthCam;
-                this->transformBBox(centerWorld, sizeWorld, -this->positionColor_, this->orientationColor_.inverse(), centerCam, widthCam);
+                Eigen::Vector3d centerCam, sizeCam;
+                this->transformBBox(centerWorld, sizeWorld, -this->orientationColor_.inverse() * this->positionColor_, this->orientationColor_.inverse(), centerCam, sizeCam);
 
 
                 // 2. find the top left and bottom right corner 3D position of the transformed bbox
-                Eigen::Vector3d topleft (centerCam(0)-widthCam(0)/2, centerCam(1)-widthCam(1)/2, centerCam(2));
-                Eigen::Vector3d bottomright (centerCam(0)+widthCam(0)/2, centerCam(1)+widthCam(1)/2, centerCam(2));
+                Eigen::Vector3d topleft (centerCam(0)-sizeCam(0)/2, centerCam(1)-sizeCam(1)/2, centerCam(2));
+                Eigen::Vector3d bottomright (centerCam(0)+sizeCam(0)/2, centerCam(1)+sizeCam(1)/2, centerCam(2));
 
                 // 3. project those two points into the camera image plane
                 int tlX = (this->fxC_ * topleft(0) + this->cxC_ * topleft(2)) / topleft(2);

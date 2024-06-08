@@ -972,14 +972,35 @@ namespace onboardDetector{
                 int brXTarget = tlXTarget + int(this->yoloDetectionResults_.detections[i].bbox.size_x);
                 int brYTarget = tlYTarget + int(this->yoloDetectionResults_.detections[i].bbox.size_y);
 
+                cv::Rect bboxVis;
+                bboxVis.x = tlXTarget;
+                bboxVis.y = tlYTarget;
+                bboxVis.height = brYTarget - tlYTarget;
+                bboxVis.width = brXTarget - tlXTarget;
+                cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(255, 0, 0), 5, 8, 0);
+
+                // Define the text to be added
+                std::string text = "dynamic";
+
+                // Define the position for the text (above the bounding box)
+                int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+                double fontScale = 1.0;
+                int thickness = 2;
+                int baseline;
+                cv::getTextSize(text, fontFace, fontScale, thickness, &baseline);
+                cv::Point textOrg(bboxVis.x, bboxVis.y - 10);  // 10 pixels above the bounding box
+
+                // Add the text to the image
+                cv::putText(this->detectedColorImage_, text, textOrg, fontFace, fontScale, cv::Scalar(255, 0, 0), thickness, 8);
+
                 double bestIOU = 0.0;
+                int bestIdx = -1;
                 for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
                     int tlX = int(filteredDetectionResults.detections[i].bbox.center.x);
                     int tlY = int(filteredDetectionResults.detections[i].bbox.center.y);
                     int brX = tlX + int(filteredDetectionResults.detections[i].bbox.size_x);
                     int brY = tlY + int(filteredDetectionResults.detections[i].bbox.size_y);
                     
-
 
                     // check the IOU between yolo and projected bbox
                     double xOverlap = std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget));
@@ -995,75 +1016,82 @@ namespace onboardDetector{
 
                     if (IOU > bestIOU){
                         bestIOU = IOU;
+                        bestIdx = j;
                     }
                 }
+
+                if (bestIOU > 0.5){
+                    filteredBBoxesTemp[bestIdx].is_dynamic = true;
+                    filteredBBoxesTemp[bestIdx].is_human = true;
+                }
+            
             }
         }
 
 
-        // yolo bounding box filter
-        if (this->yoloBBoxes_.size() != 0){ // if no detected or not using yolo, this will not triggered
-            std::vector<onboardDetector::box3D> filteredBBoxesTempCopy = filteredBBoxesTemp;
-            std::vector<std::vector<Eigen::Vector3d>> filteredPcClustersTempCopy = filteredPcClustersTemp;
-            std::vector<Eigen::Vector3d> filteredPcClusterCentersTempCopy = filteredPcClusterCentersTemp;
-            std::vector<Eigen::Vector3d> filteredPcClusterStdsTempCopy = filteredPcClusterStdsTemp;
-            std::vector<Eigen::Vector3d> emptyPoints {};
-            Eigen::Vector3d emptyPcFeat {0,0,0};
-            for (size_t i=0; i<this->yoloBBoxes_.size(); ++i){
-                onboardDetector::box3D yoloBBox = this->yoloBBoxes_[i]; yoloBBox.is_dynamic = true; yoloBBox.is_human = true; // dynamic obstacle detected by yolo
-                Eigen::Vector3d bboxPos (this->yoloBBoxes_[i].x, this->yoloBBoxes_[i].y, this->yoloBBoxes_[i].z);
-                double distanceToCamera = (bboxPos - this->position_).norm();
-                if (distanceToCamera >= this->raycastMaxLength_){
-                    continue; // do not use unreliable YOLO resutls which are distance too far from camera
-                }
-                double bestIOUForYoloBBox, bestIOUForFilteredBBox;
-                int bestMatchForYoloBBox = this->getBestOverlapBBox(yoloBBox, filteredBBoxesTemp, bestIOUForYoloBBox);
-                if (bestMatchForYoloBBox == -1){ // no match for yolo bounding boxes with any filtered bbox. 2 reasons: a) distance too far, filtered boxes no detection, b) distance not far but cannot match. Probably Yolo error
-                    if (distanceToCamera >= this->yoloOverwriteDistance_){ // a) distance too far, filtered boxes no detection. directly add results
-                        filteredBBoxesTempCopy.push_back(yoloBBox); // add yolo bbox because filtered bbox is not able to get detection results at far distance
-                        filteredPcClustersTempCopy.push_back(emptyPoints); // no pc need for yolo 
-                        filteredPcClusterCentersTempCopy.push_back(emptyPcFeat);
-                        filteredPcClusterStdsTempCopy.push_back(emptyPcFeat);
-                    }
-                    else{ // b) distance not far but cannot match. Probably Yolo error, ignore results
-                        continue;
-                    }
-                }
-                else{ // find best match for yolo bbox
-                    onboardDetector::box3D matchedFilteredBBox = filteredBBoxesTemp[bestMatchForYoloBBox];
-                    int bestMatchForFilteredBBox = this->getBestOverlapBBox(matchedFilteredBBox, this->yoloBBoxes_, bestIOUForFilteredBBox);
-                    // if best match is each other and both the IOU is greater than the threshold
-                    if (bestMatchForFilteredBBox == int(i) and bestIOUForYoloBBox > this->boxIOUThresh_ and bestIOUForFilteredBBox > this->boxIOUThresh_){
-                        onboardDetector::box3D bbox; bbox.is_dynamic = true; bbox.is_human = true;
+        // // yolo bounding box filter
+        // if (this->yoloBBoxes_.size() != 0){ // if no detected or not using yolo, this will not triggered
+        //     std::vector<onboardDetector::box3D> filteredBBoxesTempCopy = filteredBBoxesTemp;
+        //     std::vector<std::vector<Eigen::Vector3d>> filteredPcClustersTempCopy = filteredPcClustersTemp;
+        //     std::vector<Eigen::Vector3d> filteredPcClusterCentersTempCopy = filteredPcClusterCentersTemp;
+        //     std::vector<Eigen::Vector3d> filteredPcClusterStdsTempCopy = filteredPcClusterStdsTemp;
+        //     std::vector<Eigen::Vector3d> emptyPoints {};
+        //     Eigen::Vector3d emptyPcFeat {0,0,0};
+        //     for (size_t i=0; i<this->yoloBBoxes_.size(); ++i){
+        //         onboardDetector::box3D yoloBBox = this->yoloBBoxes_[i]; yoloBBox.is_dynamic = true; yoloBBox.is_human = true; // dynamic obstacle detected by yolo
+        //         Eigen::Vector3d bboxPos (this->yoloBBoxes_[i].x, this->yoloBBoxes_[i].y, this->yoloBBoxes_[i].z);
+        //         double distanceToCamera = (bboxPos - this->position_).norm();
+        //         if (distanceToCamera >= this->raycastMaxLength_){
+        //             continue; // do not use unreliable YOLO resutls which are distance too far from camera
+        //         }
+        //         double bestIOUForYoloBBox, bestIOUForFilteredBBox;
+        //         int bestMatchForYoloBBox = this->getBestOverlapBBox(yoloBBox, filteredBBoxesTemp, bestIOUForYoloBBox);
+        //         if (bestMatchForYoloBBox == -1){ // no match for yolo bounding boxes with any filtered bbox. 2 reasons: a) distance too far, filtered boxes no detection, b) distance not far but cannot match. Probably Yolo error
+        //             if (distanceToCamera >= this->yoloOverwriteDistance_){ // a) distance too far, filtered boxes no detection. directly add results
+        //                 filteredBBoxesTempCopy.push_back(yoloBBox); // add yolo bbox because filtered bbox is not able to get detection results at far distance
+        //                 filteredPcClustersTempCopy.push_back(emptyPoints); // no pc need for yolo 
+        //                 filteredPcClusterCentersTempCopy.push_back(emptyPcFeat);
+        //                 filteredPcClusterStdsTempCopy.push_back(emptyPcFeat);
+        //             }
+        //             else{ // b) distance not far but cannot match. Probably Yolo error, ignore results
+        //                 continue;
+        //             }
+        //         }
+        //         else{ // find best match for yolo bbox
+        //             onboardDetector::box3D matchedFilteredBBox = filteredBBoxesTemp[bestMatchForYoloBBox];
+        //             int bestMatchForFilteredBBox = this->getBestOverlapBBox(matchedFilteredBBox, this->yoloBBoxes_, bestIOUForFilteredBBox);
+        //             // if best match is each other and both the IOU is greater than the threshold
+        //             if (bestMatchForFilteredBBox == int(i) and bestIOUForYoloBBox > this->boxIOUThresh_ and bestIOUForFilteredBBox > this->boxIOUThresh_){
+        //                 onboardDetector::box3D bbox; bbox.is_dynamic = true; bbox.is_human = true;
                         
-                        // take concervative strategy
-                        double xmax = std::max(yoloBBox.x+yoloBBox.x_width/2, matchedFilteredBBox.x+matchedFilteredBBox.x_width/2);
-                        double xmin = std::min(yoloBBox.x-yoloBBox.x_width/2, matchedFilteredBBox.x-matchedFilteredBBox.x_width/2);
-                        double ymax = std::max(yoloBBox.y+yoloBBox.y_width/2, matchedFilteredBBox.y+matchedFilteredBBox.y_width/2);
-                        double ymin = std::min(yoloBBox.y-yoloBBox.y_width/2, matchedFilteredBBox.y-matchedFilteredBBox.y_width/2);
-                        double zmax = std::max(yoloBBox.z+yoloBBox.z_width/2, matchedFilteredBBox.z+matchedFilteredBBox.z_width/2);
-                        double zmin = std::min(yoloBBox.z-yoloBBox.z_width/2, matchedFilteredBBox.z-matchedFilteredBBox.z_width/2);
-                        bbox.x = (xmin+xmax)/2;
-                        bbox.y = (ymin+ymax)/2;
-                        bbox.z = (zmin+zmax)/2;
-                        bbox.x_width = xmax-xmin;
-                        bbox.y_width = ymax-ymin;
-                        bbox.z_width = zmax-zmin;
-                        bbox.Vx = 0;
-                        bbox.Vy = 0;
+        //                 // take concervative strategy
+        //                 double xmax = std::max(yoloBBox.x+yoloBBox.x_width/2, matchedFilteredBBox.x+matchedFilteredBBox.x_width/2);
+        //                 double xmin = std::min(yoloBBox.x-yoloBBox.x_width/2, matchedFilteredBBox.x-matchedFilteredBBox.x_width/2);
+        //                 double ymax = std::max(yoloBBox.y+yoloBBox.y_width/2, matchedFilteredBBox.y+matchedFilteredBBox.y_width/2);
+        //                 double ymin = std::min(yoloBBox.y-yoloBBox.y_width/2, matchedFilteredBBox.y-matchedFilteredBBox.y_width/2);
+        //                 double zmax = std::max(yoloBBox.z+yoloBBox.z_width/2, matchedFilteredBBox.z+matchedFilteredBBox.z_width/2);
+        //                 double zmin = std::min(yoloBBox.z-yoloBBox.z_width/2, matchedFilteredBBox.z-matchedFilteredBBox.z_width/2);
+        //                 bbox.x = (xmin+xmax)/2;
+        //                 bbox.y = (ymin+ymax)/2;
+        //                 bbox.z = (zmin+zmax)/2;
+        //                 bbox.x_width = xmax-xmin;
+        //                 bbox.y_width = ymax-ymin;
+        //                 bbox.z_width = zmax-zmin;
+        //                 bbox.Vx = 0;
+        //                 bbox.Vy = 0;
                         
-                        filteredBBoxesTempCopy[bestMatchForYoloBBox] = bbox; // replace the filtered bbox with the new fused bounding box
-                        filteredPcClustersTempCopy[bestMatchForYoloBBox] = emptyPoints;      // since it is yolo based, we dont need pointcloud for classification                     
-                        filteredPcClusterCentersTempCopy[bestMatchForYoloBBox] = emptyPcFeat;
-                        filteredPcClusterStdsTempCopy[bestMatchForYoloBBox] = emptyPcFeat;
-                    }
-                }
-            }
-            filteredBBoxesTemp = filteredBBoxesTempCopy;
-            filteredPcClustersTemp = filteredPcClustersTempCopy;
-            filteredPcClusterCentersTemp = filteredPcClusterCentersTempCopy;
-            filteredPcClusterStdsTemp = filteredPcClusterStdsTempCopy;
-        }
+        //                 filteredBBoxesTempCopy[bestMatchForYoloBBox] = bbox; // replace the filtered bbox with the new fused bounding box
+        //                 filteredPcClustersTempCopy[bestMatchForYoloBBox] = emptyPoints;      // since it is yolo based, we dont need pointcloud for classification                     
+        //                 filteredPcClusterCentersTempCopy[bestMatchForYoloBBox] = emptyPcFeat;
+        //                 filteredPcClusterStdsTempCopy[bestMatchForYoloBBox] = emptyPcFeat;
+        //             }
+        //         }
+        //     }
+        //     filteredBBoxesTemp = filteredBBoxesTempCopy;
+        //     filteredPcClustersTemp = filteredPcClustersTempCopy;
+        //     filteredPcClusterCentersTemp = filteredPcClusterCentersTempCopy;
+        //     filteredPcClusterStdsTemp = filteredPcClusterStdsTempCopy;
+        // }
 
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;

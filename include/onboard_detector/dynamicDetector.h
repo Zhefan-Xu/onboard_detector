@@ -45,6 +45,7 @@ namespace onboardDetector{
         std::shared_ptr<message_filters::Synchronizer<depthOdomSync>> depthOdomSync_;
         ros::Subscriber alignedDepthSub_; 
         ros::Subscriber yoloDetectionSub_;
+        ros::Subscriber colorImgSub_;
         ros::Timer detectionTimer_;
         ros::Timer trackingTimer_;
         ros::Timer classificationTimer_;
@@ -53,6 +54,7 @@ namespace onboardDetector{
         image_transport::Publisher uDepthMapPub_;
         image_transport::Publisher uvBirdViewPub_;
         image_transport::Publisher detectedAlignedDepthImgPub_;
+        image_transport::Publisher detectedColorImgPub_;
         ros::Publisher uvBBoxesPub_;
         ros::Publisher dynamicPointsPub_;
         ros::Publisher filteredPointsPub_;
@@ -85,6 +87,7 @@ namespace onboardDetector{
         int localizationMode_;
         std::string depthTopicName_;
         std::string alignedDepthTopicName_;
+        std::string colorImgTopicName_;
         std::string poseTopicName_;
         std::string odomTopicName_;
         double raycastMaxLength_;
@@ -156,6 +159,7 @@ namespace onboardDetector{
         std::vector<onboardDetector::box3D> yoloBBoxes_; // yolo detected bounding boxes
         vision_msgs::Detection2DArray yoloDetectionResults_; // yolo detected 2D results
         cv::Mat detectedAlignedDepthImg_;
+        cv::Mat detectedColorImage_;
 
     public:
         dynamicDetector();
@@ -172,6 +176,7 @@ namespace onboardDetector{
         void depthOdomCB(const sensor_msgs::ImageConstPtr& img, const nav_msgs::OdometryConstPtr& odom);
         void alignedDepthCB(const sensor_msgs::ImageConstPtr& img);
         void yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections);
+        void colorImgCB(const sensor_msgs::ImageConstPtr& img);
         void detectionCB(const ros::TimerEvent&);
         void trackingCB(const ros::TimerEvent&);
         void classificationCB(const ros::TimerEvent&);
@@ -217,6 +222,7 @@ namespace onboardDetector{
         void getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc);
         void publishUVImages(); 
         void publishYoloImages();
+        void publishColorImages();
         void publishPoints(const std::vector<Eigen::Vector3d>& points, const ros::Publisher& publisher);
         void publish3dBox(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
         void publishHistoryTraj();

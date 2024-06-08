@@ -55,6 +55,15 @@ namespace onboardDetector{
             cout << this->hint_ << ": Aligned depth topic: " << this->alignedDepthTopicName_ << endl;
         }
 
+        // color topic name
+        if (not this->nh_.getParam(this->ns_ + "/color_image_topic", this->colorImgTopicName_)){
+            this->colorImgTopicName_ = "/camera/color/image_raw";
+            cout << this->hint_ << ": No aligned depth image topic name. Use default: /camera/color/image_raw" << endl;
+        }
+        else{
+            cout << this->hint_ << ": Color image topic: " << this->colorImgTopicName_ << endl;
+        }
+
         if (this->localizationMode_ == 0){
             // odom topic name
             if (not this->nh_.getParam(this->ns_ + "/pose_topic", this->poseTopicName_)){
@@ -481,6 +490,9 @@ namespace onboardDetector{
         // Yolo 2D bounding box on depth map pub
         this->detectedAlignedDepthImgPub_ = it.advertise(this->ns_ + "/detected_aligned_depth_map_yolo", 1);
 
+        // color 2D bounding boxes pub
+        this->detectedColorImgPub_ = it.advertise(this->ns_ + "/detected_color_image", 1);
+
         // uv detector bounding box pub
         this->uvBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/uv_bboxes", 10);
 
@@ -532,6 +544,9 @@ namespace onboardDetector{
 
         // aligned depth subscriber
         this->alignedDepthSub_ = this->nh_.subscribe(this->alignedDepthTopicName_, 10, &dynamicDetector::alignedDepthCB, this);
+
+        // color image subscriber
+        this->colorImgSub_ = this->nh_.subscribe(this->colorImgTopicName_, 10, &dynamicDetector::colorImgCB, this);
 
         // yolo detection results subscriber
         this->yoloDetectionSub_ = this->nh_.subscribe("yolo_detector/detected_bounding_boxes", 10, &dynamicDetector::yoloDetectionCB, this);
@@ -615,6 +630,11 @@ namespace onboardDetector{
 
     void dynamicDetector::yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections){
         this->yoloDetectionResults_ = *detections;
+    }
+
+    void dynamicDetector::colorImgCB(const sensor_msgs::ImageConstPtr& img){
+        cv_bridge::CvImagePtr imgPtr = cv_bridge::toCvCopy(img, img->encoding);
+        imgPtr->image.copyTo(this->detectedColorImage_);
     }
 
     void dynamicDetector::detectionCB(const ros::TimerEvent&){
@@ -796,6 +816,7 @@ namespace onboardDetector{
         this->publishPoints(this->filteredPoints_, this->filteredPointsPub_);
         this->publish3dBox(this->dbBBoxes_, this->dbBBoxesPub_, 1, 0, 0);
         this->publishYoloImages();
+        this->publishColorImages();
         this->publish3dBox(this->yoloBBoxes_, this->yoloBBoxesPub_, 1, 0, 1);
         this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
         this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
@@ -907,41 +928,60 @@ namespace onboardDetector{
         // Instead of using YOLO for ensembling, only use YOLO for dynamic object identification
         // For each 2D YOLO detected bounding box, find the best match projected 2D bounding boxes
         if (this->yoloDetectionResults_.detections.size() != 0){
+            // Project 2D bbox in color image plane from 3D
+            vision_msgs::Detection2DArray filteredDetectionResults;
+            for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
+                onboardDetector::box3D bbox = filteredBBoxesTemp[j];
+
+                // 1. transform the bounding boxes into the camera frame
+                Eigen::Vector3d centerWorld (bbox.x, bbox.y, bbox.z);
+                Eigen::Vector3d sizeWorld (bbox.x_width, bbox.y_width, bbox.z_width);
+                Eigen::Vector3d centerCam, widthCam;
+                this->transformBBox(centerWorld, sizeWorld, -this->positionColor_, this->orientationColor_.inverse(), centerCam, widthCam);
+
+
+                // 2. find the top left and bottom right corner 3D position of the transformed bbox
+                Eigen::Vector3d topleft (centerCam(0)-widthCam(0)/2, centerCam(1)-widthCam(1)/2, centerCam(2));
+                Eigen::Vector3d bottomright (centerCam(0)+widthCam(0)/2, centerCam(1)+widthCam(1)/2, centerCam(2));
+
+                // 3. project those two points into the camera image plane
+                int tlX = (this->fxC_ * topleft(0) + this->cxC_ * topleft(2)) / topleft(2);
+                int tlY = (this->fyC_ * topleft(1) + this->cyC_ * topleft(2)) / topleft(2);
+                int brX = (this->fxC_ * bottomright(0) + this->cxC_ * bottomright(2)) / bottomright(2);
+                int brY = (this->fyC_ * bottomright(1) + this->cyC_ * bottomright(2)) / bottomright(2);
+
+                vision_msgs::Detection2D result;
+                result.bbox.center.x = tlX;
+                result.bbox.center.y = tlY;
+                result.bbox.size_x = brX - tlX;
+                result.bbox.size_y = brY - tlY;
+                filteredDetectionResults.detections.push_back(result);
+
+                cv::Rect bboxVis;
+                bboxVis.x = tlX;
+                bboxVis.y = tlY;
+                bboxVis.height = brY - tlY;
+                bboxVis.width = brX - tlX;
+                cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
+            }
+
+
             for (int i=0; i<int(this->yoloDetectionResults_.detections.size()); ++i){
-                int topX = int(this->yoloDetectionResults_.detections[i].bbox.center.x);
-                int topY = int(this->yoloDetectionResults_.detections[i].bbox.center.y);
-                int xWidth = int(this->yoloDetectionResults_.detections[i].bbox.size_x);
-                int yWidth = int(this->yoloDetectionResults_.detections[i].bbox.size_y);
+                int tlXTarget = int(this->yoloDetectionResults_.detections[i].bbox.center.x);
+                int tlYTarget = int(this->yoloDetectionResults_.detections[i].bbox.center.y);
+                int brXTarget = tlXTarget + int(this->yoloDetectionResults_.detections[i].bbox.size_x);
+                int brYTarget = tlYTarget + int(this->yoloDetectionResults_.detections[i].bbox.size_y);
 
                 double bestIOU = 0.0;
                 for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
-                    // TODO find 2D bounding boxes in the color frame
-                    onboardDetector::box3D bbox = filteredBBoxesTemp[j];
-
-                    // 1. transform the bounding boxes into the camera frame
-                    Eigen::Vector3d centerWorld (bbox.x, bbox.y, bbox.z);
-                    Eigen::Vector3d sizeWorld (bbox.x_width, bbox.y_width, bbox.z_width);
-                    Eigen::Vector3d centerCam, widthCam;
-                    this->transformBBox(centerWorld, sizeWorld, -this->positionColor_, this->orientationColor_.inverse(), centerCam, widthCam);
+                    int tlX = int(filteredDetectionResults.detections[i].bbox.center.x);
+                    int tlY = int(filteredDetectionResults.detections[i].bbox.center.y);
+                    int brX = tlX + int(filteredDetectionResults.detections[i].bbox.size_x);
+                    int brY = tlY + int(filteredDetectionResults.detections[i].bbox.size_y);
+                    
 
 
-                    // 2. find the top left and bottom right corner 3D position of the transformed bbox
-                    Eigen::Vector3d topleft (centerCam(0)-widthCam(0)/2, centerCam(1)-widthCam(1)/2, centerCam(2));
-                    Eigen::Vector3d bottomright (centerCam(0)+widthCam(0)/2, centerCam(1)+widthCam(1)/2, centerCam(2));
-
-                    // 3. project those two points into the camera image plane
-                    int tlX = this->fxC_ * topleft(0) + this->cxC_ * topleft(2) / topleft(2);
-                    int tlY = this->fyC_ * topleft(1) + this->cyC_ * topleft(2) / topleft(2);
-                    int brX = this->fxC_ * bottomright(0) + this->cxC_ * bottomright(2) / bottomright(2);
-                    int brY = this->fyC_ * bottomright(1) + this->cyC_ * bottomright(2) / bottomright(2);
-
-
-                    // 4. check the IOU between yolo and projected bbox
-                    int tlXTarget = topX;
-                    int tlYTarget = topY;
-                    int brXTarget = topX + xWidth;
-                    int brYTarget = topY + yWidth;
-
+                    // check the IOU between yolo and projected bbox
                     double xOverlap = std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget));
                     double yOverlap = std::max(0, std::min(brY, brYTarget) - std::max(tlY, tlYTarget));
                     double intersection = xOverlap * yOverlap;
@@ -1732,6 +1772,10 @@ namespace onboardDetector{
         this->detectedAlignedDepthImgPub_.publish(detectedAlignedImgMsg);
     }
 
+    void dynamicDetector::publishColorImages(){
+        sensor_msgs::ImagePtr detectedColorImgMsg = cv_bridge::CvImage(std_msgs::Header(), "rgb8", this->detectedColorImage_).toImageMsg();
+        this->detectedColorImgPub_.publish(detectedColorImgMsg);
+    }
 
     void dynamicDetector::publishPoints(const std::vector<Eigen::Vector3d>& points, const ros::Publisher& publisher){
         pcl::PointXYZ pt;

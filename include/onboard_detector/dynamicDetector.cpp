@@ -667,9 +667,12 @@ namespace onboardDetector{
 
         // Iterate through all pointcloud/bounding boxes history (note that yolo's pointclouds are dummy pointcloud (empty))
         // NOTE: There are 3 cases which we don't need to perform dynamic obstacle identification.
+        // cout << "======================" << endl;
         for (size_t i=0; i<this->pcHist_.size() ; ++i){
             // ===================================================================================
             // CASE I: yolo recognized as dynamic dynamic obstacle
+            // cout << "box: " << i <<  "x y z: " << this->boxHist_[i][0].x << " " << this->boxHist_[i][0].y << " " << this->boxHist_[i][0].z << endl;
+            // cout << "box is human: " << this->boxHist_[i][0].is_human << endl;
             if (this->boxHist_[i][0].is_human){
                 dynamicBBoxesTemp.push_back(this->boxHist_[i][0]);
                 continue;
@@ -996,22 +999,22 @@ namespace onboardDetector{
                 double bestIOU = 0.0;
                 int bestIdx = -1;
                 for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
-                    int tlX = int(filteredDetectionResults.detections[i].bbox.center.x);
-                    int tlY = int(filteredDetectionResults.detections[i].bbox.center.y);
-                    int brX = tlX + int(filteredDetectionResults.detections[i].bbox.size_x);
-                    int brY = tlY + int(filteredDetectionResults.detections[i].bbox.size_y);
+                    int tlX = int(filteredDetectionResults.detections[j].bbox.center.x);
+                    int tlY = int(filteredDetectionResults.detections[j].bbox.center.y);
+                    int brX = tlX + int(filteredDetectionResults.detections[j].bbox.size_x);
+                    int brY = tlY + int(filteredDetectionResults.detections[j].bbox.size_y);
                     
 
                     // check the IOU between yolo and projected bbox
-                    double xOverlap = std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget));
-                    double yOverlap = std::max(0, std::min(brY, brYTarget) - std::max(tlY, tlYTarget));
+                    double xOverlap = double(std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget)));
+                    double yOverlap = double(std::max(0, std::min(brY, brYTarget) - std::max(tlY, tlYTarget)));
                     double intersection = xOverlap * yOverlap;
 
                     // Calculate union area
-                    double areaBox = (brX - tlX) * (brY - tlY);
-                    double areaBoxTarget = (brXTarget - tlXTarget) * (brYTarget - tlYTarget);
+                    double areaBox = double((brX - tlX) * (brY - tlY));
+                    double areaBoxTarget = double((brXTarget - tlXTarget) * (brYTarget - tlYTarget));
                     double unionArea = areaBox + areaBoxTarget - intersection;
-
+                    // cout << "box " << j << " unionarea: " << unionArea << " intersection: " << intersection << endl;
                     double IOU = (unionArea == 0) ? 0 : intersection / unionArea;
 
                     if (IOU > bestIOU){
@@ -1024,9 +1027,15 @@ namespace onboardDetector{
                     filteredBBoxesTemp[bestIdx].is_dynamic = true;
                     filteredBBoxesTemp[bestIdx].is_human = true;
                 }
-            
+                // cout << "i: " << i << " best IOU: " << bestIOU << endl;
             }
         }
+
+        // for (int i=0; i<int(filteredBBoxesTemp.size()); ++i){
+        //     cout << "filterd box i: " << i << " x y z d: " << filteredBBoxesTemp[i].x << " " << filteredBBoxesTemp[i].y 
+        //     << " " <<filteredBBoxesTemp[i].z << " " << filteredBBoxesTemp[i].is_human << endl;
+        // }
+        // cout << "---------------------------------------" << endl;
 
 
         // // yolo bounding box filter

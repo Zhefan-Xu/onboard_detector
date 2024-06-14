@@ -26,6 +26,7 @@ namespace onboardDetector{
         bool is_dynamic=false; // false: not detected as dynamic(either yolo or classificationCB), true: detected as dynamic
         bool fix_size=false; // flag to force future boxes to fix size
         bool is_dynamic_candidate=false;
+        bool is_estimated=false;
     };
 
     inline geometry_msgs::Quaternion quaternion_from_rpy(double roll, double pitch, double yaw)

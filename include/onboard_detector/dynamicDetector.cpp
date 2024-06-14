@@ -273,9 +273,19 @@ namespace onboardDetector{
         if (not this->nh_.getParam(this->ns_ + "/history_size", this->histSize_)){
             this->histSize_ = 5;
             std::cout << this->hint_ << ": No tracking history size parameter found. Use default: 5." << std::endl;
+            std::cout << this->hint_ << ": No tracking history size parameter found. Use default: 5." << std::endl;
         }
         else{
             std::cout << this->hint_ << ": The history for tracking is set to: " << this->histSize_ << std::endl;
+        }  
+
+        // prediction size
+        if (not this->nh_.getParam(this->ns_ + "/prediction_size", this->predSize_)){
+            this->predSize_ = 5;
+            std::cout << this->hint_ << ": No prediction size parameter found. Use default: 5." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": The prediction size is set to: " << this->predSize_ << std::endl;
         }  
 
         // prediction size
@@ -678,6 +688,14 @@ namespace onboardDetector{
         // NOTE: There are 3 cases which we don't need to perform dynamic obstacle identification.
         // cout << "======================" << endl;
         for (size_t i=0; i<this->pcHist_.size() ; ++i){
+            // ===================================================================================
+            // CASE 0: predicted dynamic obstacle
+            if (this->boxHist_[i][0].is_estimated){
+                onboardDetector::box3D estimatedBBox;
+                this->getEstimateBox(this->boxHist_[i], estimatedBBox);
+                dynamicBBoxesTemp.push_back(estimatedBBox);
+                continue; 
+            }
             // ===================================================================================
             // CASE 0: predicted dynamic obstacle
             if (this->boxHist_[i][0].is_estimated){
@@ -1519,6 +1537,7 @@ namespace onboardDetector{
             // start association only if a new detection is available
             if (this->newDetectFlag_){
                 this->boxAssociationHelper(bestMatch, boxOOR);
+                this->boxAssociationHelper(bestMatch, boxOOR);
             }
         }
 
@@ -1706,6 +1725,7 @@ namespace onboardDetector{
                 newEstimatedBBox.z_width = currDetectedBBox.z_width;
                 newEstimatedBBox.is_dynamic = currDetectedBBox.is_dynamic;
                 newEstimatedBBox.is_human = currDetectedBBox.is_human;
+                newEstimatedBBox.is_estimated = false;
                 newEstimatedBBox.is_estimated = false;
             }
             else{

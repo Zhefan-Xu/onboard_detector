@@ -702,7 +702,6 @@ namespace onboardDetector{
             if (this->boxHist_[i][0].is_estimated){
                 onboardDetector::box3D estimatedBBox;
                 this->getEstimateBox(this->boxHist_[i], estimatedBBox);
-                cout<<this->boxHist_[i][0].x_width<<this->boxHist_[i][0].y_width<<this->boxHist_[i][0].z_width<<endl;
                 if (this->constrainSize_){
                     bool findMatch = false;
                     for (Eigen::Vector3d targetSize : this->targetObjectSize_){

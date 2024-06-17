@@ -702,7 +702,25 @@ namespace onboardDetector{
             if (this->boxHist_[i][0].is_estimated){
                 onboardDetector::box3D estimatedBBox;
                 this->getEstimateBox(this->boxHist_[i], estimatedBBox);
-                dynamicBBoxesTemp.push_back(estimatedBBox);
+                cout<<this->boxHist_[i][0].x_width<<this->boxHist_[i][0].y_width<<this->boxHist_[i][0].z_width<<endl;
+                if (this->constrainSize_){
+                    bool findMatch = false;
+                    for (Eigen::Vector3d targetSize : this->targetObjectSize_){
+                        double xdiff = std::abs(this->boxHist_[i][0].x_width - targetSize(0));
+                        double ydiff = std::abs(this->boxHist_[i][0].y_width - targetSize(1));
+                        double zdiff = std::abs(this->boxHist_[i][0].z_width - targetSize(2)); 
+                        if (xdiff < 0.5 and ydiff < 0.5 and zdiff < 0.5){
+                            findMatch = true;
+                        }
+                    }
+                    if (findMatch){
+                        dynamicBBoxesTemp.push_back(estimatedBBox);
+                    }
+                }
+                else{
+                    dynamicBBoxesTemp.push_back(estimatedBBox);
+                }
+                
                 continue; 
             }
             // ===================================================================================

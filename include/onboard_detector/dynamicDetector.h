@@ -98,9 +98,9 @@ namespace onboardDetector{
         double yoloOverwriteDistance_; // distance that yolo can overwrite the detection results
         int histSize_;
         int predSize_;
-        int predSize_;
         double dt_;
         double simThresh_;
+        double simThreshRetrack_;
         int skipFrame_;
         double dynaVelThresh_;
         double dynaVoteThresh_;
@@ -208,8 +208,6 @@ namespace onboardDetector{
         void calculateMAD(std::vector<double>& depthValues, double& depthMedian, double& MAD);
 
         // Data association and tracking functions
-        void boxAssociation(std::vector<int>& bestMatch, std::vector<int> &boxOOR);
-        void boxAssociationHelper(std::vector<int>& bestMatch, std::vector<int> &boxOOR);
         void boxAssociation(std::vector<int>& bestMatch, std::vector<int> &boxOOR);
         void boxAssociationHelper(std::vector<int>& bestMatch, std::vector<int> &boxOOR);
         void genFeat(const std::vector<onboardDetector::box3D>& propedBoxes, int numObjs, std::vector<Eigen::VectorXd>& propedBoxesFeat, std::vector<Eigen::VectorXd>& currBoxesFeat);

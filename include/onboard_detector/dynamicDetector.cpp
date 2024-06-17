@@ -315,6 +315,15 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": The similarity threshold for data association is set to: " << this->simThresh_ << std::endl;
         }  
 
+        // retrack similarity threshold
+        if (not this->nh_.getParam(this->ns_ + "/retrack_similarity_threshold", this->simThreshRetrack_)){
+            this->simThreshRetrack_ = 0.5;
+            std::cout << this->hint_ << ": No similarity threshold parameter found. Use default: 0.5." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": The similarity threshold for data association is set to: " << this->simThreshRetrack_ << std::endl;
+        }  
+
         // similarity threshold for data association 
         if (not this->nh_.getParam(this->ns_ + "/frame_skip", this->skipFrame_)){
             this->skipFrame_ = 5;
@@ -668,10 +677,10 @@ namespace onboardDetector{
     void dynamicDetector::trackingCB(const ros::TimerEvent&){
         // data association thread
         std::vector<int> bestMatch; // for each current detection, which index of previous obstacle match
-        std::vector<int> boxOOR;
+        std::vector<int> boxOOR; // whether the box in hist is detected in this time step
         this->boxAssociation(bestMatch, boxOOR);
         // kalman filter tracking
-        if (bestMatch.size()){
+        if (bestMatch.size() or boxOOR.size()){
             this->kalmanFilterAndUpdateHist(bestMatch, boxOOR);
         }
         else {
@@ -1537,7 +1546,6 @@ namespace onboardDetector{
             // start association only if a new detection is available
             if (this->newDetectFlag_){
                 this->boxAssociationHelper(bestMatch, boxOOR);
-                this->boxAssociationHelper(bestMatch, boxOOR);
             }
         }
 
@@ -1560,22 +1568,18 @@ namespace onboardDetector{
 
         // calculate association: find best match
         this->findBestMatch(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch);  
-        // boxOOR.resize(0);     
-        // std::vector<int> boxOOR;
         if (this->boxHist_.size()){
             this->getBoxOutofRange(boxOOR, bestMatch);
+            int numOORBox = 0;
+            for (int i=0; i<boxOOR.size();i++){
+                if (boxOOR[i]){
+                    numOORBox++;
+                }
+            }
+            if (numOORBox){
+                this->findBestMatchEstimate(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch, boxOOR);
+            }
         }
-        // int numOORBox = 0;
-        // if(boxOOR.size()){
-        //     for (int i=0; i<boxOOR.size();i++){
-        //         if (boxOOR[i]){
-        //             numOORBox++;
-        //         }
-        //     }
-        //     if (numOORBox){
-        //         this->findBestMatchEstimate(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch, boxOOR);
-        //     }
-        // }
     
     }
 
@@ -1664,18 +1668,15 @@ namespace onboardDetector{
                         }
                     }
                 }
-                // onboardDetector::box3D estimatedBox;
-                // this->getEstimateBox(this->boxHist_[bestMatchInd], estimatedBox);
-                // double iou = this->calBoxIOU(this->filteredBBoxes_[i], estimatedBox);
                 double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
-                if(!(bestSims[i]>this->simThresh_ && iou)){
+                if(!(bestSims[i]>this->simThreshRetrack_ && iou)){
                     bestSims[i] = 0;
                     bestMatch[i] = -1;
                 }
                 else {
                     boxOOR[bestMatchInd] = 0;
                     bestMatch[i] = bestMatchInd;
-                    cout<<"retrack"<<endl;
+                    // cout<<"retrack"<<endl;
                 }
             }
         }
@@ -1726,7 +1727,6 @@ namespace onboardDetector{
                 newEstimatedBBox.is_dynamic = currDetectedBBox.is_dynamic;
                 newEstimatedBBox.is_human = currDetectedBBox.is_human;
                 newEstimatedBBox.is_estimated = false;
-                newEstimatedBBox.is_estimated = false;
             }
             else{
                 boxHistTemp.push_back(newSingleBoxHist);
@@ -1757,58 +1757,51 @@ namespace onboardDetector{
             trackedBBoxesTemp.push_back(newEstimatedBBox);
         }
         if (boxOOR.size()){
-            // cout<<"1.1"<<endl;
             for (int i =0;i<boxOOR.size();i++){
-                onboardDetector::box3D newEstimatedBBox; // from kalman filter 
+            onboardDetector::box3D newEstimatedBBox; // from kalman filter 
                 if (boxOOR[i] and this->getEstimateFrameNum(this->boxHist_[i]) < min(this->predSize_,this->histSize_-1)){
-                    // cout<<"1.3"<<endl;
                     onboardDetector::box3D currDetectedBBox;
                     currDetectedBBox = this->boxHist_[i][0];
                     currDetectedBBox.x += this->dt_* currDetectedBBox.Vx;
                     currDetectedBBox.y += this->dt_* currDetectedBBox.Vy;
 
-                    Eigen::Vector3d point;
-                    point << currDetectedBBox.x, currDetectedBBox.y, currDetectedBBox.z;
-                    // if (not this->isInFov(this->position_, this->orientation_, point)){
-                        boxHistTemp.push_back(this->boxHist_[i]);
-                        pcHistTemp.push_back(this->pcHist_[i]);
-                        filtersTemp.push_back(this->filters_[i]);
+                    boxHistTemp.push_back(this->boxHist_[i]);
+                    pcHistTemp.push_back(this->pcHist_[i]);
+                    filtersTemp.push_back(this->filters_[i]);
 
-                        Eigen::MatrixXd Z;
-                        this->getKalmanObservationAcc(currDetectedBBox, i, Z);
-                        filtersTemp.back().estimate(Z, MatrixXd::Zero(6,1));
-                        
-                        newEstimatedBBox.x = filtersTemp.back().output(0);
-                        newEstimatedBBox.y = filtersTemp.back().output(1);
-                        newEstimatedBBox.z = currDetectedBBox.z;
-                        newEstimatedBBox.Vx = filtersTemp.back().output(2);
-                        newEstimatedBBox.Vy = filtersTemp.back().output(3);
-                        newEstimatedBBox.Ax = filtersTemp.back().output(4);
-                        newEstimatedBBox.Ay = filtersTemp.back().output(5);   
-                                
-                        
-                        newEstimatedBBox.x_width = currDetectedBBox.x_width;
-                        newEstimatedBBox.y_width = currDetectedBBox.y_width;
-                        newEstimatedBBox.z_width = currDetectedBBox.z_width;
-                        newEstimatedBBox.is_dynamic = true;
-                        newEstimatedBBox.is_human = currDetectedBBox.is_human;
-                        newEstimatedBBox.is_estimated = true;
+                    Eigen::MatrixXd Z;
+                    this->getKalmanObservationAcc(currDetectedBBox, i, Z);
+                    filtersTemp.back().estimate(Z, MatrixXd::Zero(6,1));
+                    
+                    newEstimatedBBox.x = filtersTemp.back().output(0);
+                    newEstimatedBBox.y = filtersTemp.back().output(1);
+                    newEstimatedBBox.z = currDetectedBBox.z;
+                    newEstimatedBBox.Vx = filtersTemp.back().output(2);
+                    newEstimatedBBox.Vy = filtersTemp.back().output(3);
+                    newEstimatedBBox.Ax = filtersTemp.back().output(4);
+                    newEstimatedBBox.Ay = filtersTemp.back().output(5);   
+                            
+                    
+                    newEstimatedBBox.x_width = currDetectedBBox.x_width;
+                    newEstimatedBBox.y_width = currDetectedBBox.y_width;
+                    newEstimatedBBox.z_width = currDetectedBBox.z_width;
+                    newEstimatedBBox.is_dynamic = true;
+                    newEstimatedBBox.is_human = currDetectedBBox.is_human;
+                    newEstimatedBBox.is_estimated = true;
+                    newEstimatedBBox.is_dynamic_candidate = true;
 
-                        // }
-                        // pop old data if len of hist > size limit
-                        if (int(boxHistTemp.back().size()) == this->histSize_){
-                            boxHistTemp.back().pop_back();
-                            pcHistTemp.back().pop_back();
-                        }
+                    // pop old data if len of hist > size limit
+                    if (int(boxHistTemp.back().size()) == this->histSize_){
+                        boxHistTemp.back().pop_back();
+                        pcHistTemp.back().pop_back();
+                    }
 
-                        // push new data into history
-                        boxHistTemp.back().push_front(newEstimatedBBox);
-                        pcHistTemp.back().push_front(this->pcHist_[i][1]);
-                        trackedBBoxesTemp.push_back(newEstimatedBBox);
-                    // }
+                    // push new data into history
+                    boxHistTemp.back().push_front(newEstimatedBBox);
+                    pcHistTemp.back().push_front(this->pcHist_[i][0]);
+                    trackedBBoxesTemp.push_back(newEstimatedBBox);
                 }
             }
-            // cout<<"1.2"<<endl;
         }
 
         if (boxHistTemp.size()){
@@ -2265,14 +2258,14 @@ namespace onboardDetector{
                     boxOOR[i] = 0;
                 }
             }
-            for (int i=0; i<boxOOR.size();i++){
-                if (boxOOR[i]){
-                    numOORBox++;
-                }
-            }
-            if (numOORBox){
-                cout<<numOORBox<<"out of range"<<endl;
-            }
+            // for (int i=0; i<boxOOR.size();i++){
+            //     if (boxOOR[i]){
+            //         numOORBox++;
+            //     }
+            // }
+            // if (numOORBox){
+            //     cout<<boxOOR.size()<<" boxes, "<<numOORBox<<"out of range"<<endl;
+            // }
         }     
 
     }

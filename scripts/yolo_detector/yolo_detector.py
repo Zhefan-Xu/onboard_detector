@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import sys
-sys.path.append('/home/jhy/catkin_ws/src/CERLAB-UAV-Autonomy/onboard_detector/scripts/yolo_detector')
 import rospy
 import cv2
 import numpy as np

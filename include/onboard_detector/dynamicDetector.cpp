@@ -708,7 +708,7 @@ namespace onboardDetector{
                         double xdiff = std::abs(this->boxHist_[i][0].x_width - targetSize(0));
                         double ydiff = std::abs(this->boxHist_[i][0].y_width - targetSize(1));
                         double zdiff = std::abs(this->boxHist_[i][0].z_width - targetSize(2)); 
-                        if (xdiff < 0.5 and ydiff < 0.5 and zdiff < 0.5){
+                        if (xdiff < 0.8 and ydiff < 0.8 and zdiff < 1.0){
                             findMatch = true;
                         }
                     }
@@ -858,7 +858,7 @@ namespace onboardDetector{
                         double xdiff = std::abs(ob.x_width - targetSize(0));
                         double ydiff = std::abs(ob.y_width - targetSize(1));
                         double zdiff = std::abs(ob.z_width - targetSize(2)); 
-                        if (xdiff < 0.5 and ydiff < 0.5 and zdiff < 0.5){
+                        if (xdiff < 0.8 and ydiff < 0.8 and zdiff < 1.0){
                             findMatch = true;
                         }
                     }

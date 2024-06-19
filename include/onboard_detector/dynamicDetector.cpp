@@ -1571,7 +1571,7 @@ namespace onboardDetector{
         if (this->boxHist_.size()){
             this->getBoxOutofRange(boxOOR, bestMatch);
             int numOORBox = 0;
-            for (int i=0; i<boxOOR.size();i++){
+            for (int i=0; i<int(boxOOR.size());i++){
                 if (boxOOR[i]){
                     numOORBox++;
                 }
@@ -1683,7 +1683,6 @@ namespace onboardDetector{
     }    
     
     void dynamicDetector::getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch){
-        int numOORBox = 0;
         if (int(this->boxHist_.size())>0){
             boxOOR.resize(this->boxHist_.size(), 1);
             for (int i=0; i<int(bestMatch.size()); i++){
@@ -1706,7 +1705,7 @@ namespace onboardDetector{
     int dynamicDetector::getEstimateFrameNum(const std::deque<onboardDetector::box3D> &boxHist){
         int frameNum = 0;
         if (boxHist.size()){
-            for (int i=0; i<boxHist.size();i++){
+            for (int i=0; i<int(boxHist.size()); i++){
                 if (boxHist[i].is_estimated){
                     frameNum++;
                 }
@@ -1719,7 +1718,7 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::getEstimateBox(const std::deque<onboardDetector::box3D> &boxHist, onboardDetector::box3D &estimatedBBox){
-        onboardDetector::box3D lastDetect;
+        onboardDetector::box3D lastDetect; lastDetect.x = 0; lastDetect.y = 0;
         for (int i=0; i<int(boxHist.size()); i++){
             if (not boxHist[i].is_estimated){
                 lastDetect = boxHist[i];

@@ -18,7 +18,7 @@ target_classes = ["person"]
 
 path_curr = os.path.dirname(__file__)
 img_topic = "/camera/color/image_raw"
-device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 weight = "weights/weight_AP05:0.253207_280-epoch.pth"
 class_names = "config/coco.names"
 thresh = 0.65

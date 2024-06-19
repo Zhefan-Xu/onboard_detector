@@ -1660,7 +1660,7 @@ namespace onboardDetector{
                 int bestMatchInd = -1;
                 for (size_t j=0 ; j<propedBoxes.size() ; j++){
                     if (propedBoxes[j].is_estimated and boxOOR[j]){
-                        double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm())*1.2;//TODO: 1.1 in param
+                        double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
                         if (sim >= bestSim){
                             bestSim = sim;
                             bestSims[i] = sim;

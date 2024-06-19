@@ -2046,6 +2046,14 @@ namespace onboardDetector{
         line.lifetime = ros::Duration(0.1);
         
         for(size_t i = 0; i < boxes.size(); i++){
+            // for estimated bbox, using a different color
+            if (boxes[i].is_estimated){
+                 line.color.r = 0.8;
+                 line.color.g = 0.2;
+                 line.color.b = 0.0;
+                 line.color.a = 1.0;
+            }
+
             // visualization msgs
             line.text = " Vx " + std::to_string(boxes[i].Vx) + " Vy " + std::to_string(boxes[i].Vy);
             double x = boxes[i].x; 

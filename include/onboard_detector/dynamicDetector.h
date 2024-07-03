@@ -257,6 +257,9 @@ namespace onboardDetector{
 
         // user functions
         void getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes);
+        void getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, 
+									 std::vector<std::vector<Eigen::Vector3d>>& velHist, 
+									 std::vector<std::vector<Eigen::Vector3d>>& sizeHist);
     };
 
 

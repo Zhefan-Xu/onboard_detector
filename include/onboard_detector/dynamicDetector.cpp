@@ -2286,6 +2286,26 @@ namespace onboardDetector{
         incomeDynamicBBoxes = this->dynamicBBoxes_;
     }
 
+    void dynamicDetector::getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, std::vector<std::vector<Eigen::Vector3d>>& velHist, std::vector<std::vector<Eigen::Vector3d>>& sizeHist){
+		posHist.clear();
+        velHist.clear();
+        sizeHist.clear();
+        for (size_t i=0 ; i<this->boxHist_.size() ; ++i){
+			std::vector<Eigen::Vector3d> obPosHist, obVelHist, obSizeHist;
+			for (size_t j=0; j<this->boxHist_[i].size() ; ++j){
+				Eigen::Vector3d pos(this->boxHist_[i][j].x, this->boxHist_[i][j].y, this->boxHist_[i][j].z);
+				Eigen::Vector3d vel(this->boxHist_[i][j].Vx, this->boxHist_[i][j].Vy, 0);
+				Eigen::Vector3d size(this->boxHist_[i][j].x_width, this->boxHist_[i][j].y_width, this->boxHist_[i][j].z_width);
+				obPosHist.push_back(pos);
+				obVelHist.push_back(vel);
+				obSizeHist.push_back(size);
+			}
+			posHist.push_back(obPosHist);
+			velHist.push_back(obVelHist);
+			sizeHist.push_back(obSizeHist);
+		}
+	}
+
     void dynamicDetector::updatePoseHist(){
         if (int(this->positionHist_.size()) == this->skipFrame_){
             this->positionHist_.pop_back();

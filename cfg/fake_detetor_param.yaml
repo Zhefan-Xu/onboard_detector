@@ -1,4 +1,0 @@
-# this is only used in simulation
-color_distance: 7.0
-target_obstacle: ["person", "obstacle"]
-odom_topic: "mavros/local_position/odom"

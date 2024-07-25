@@ -2,4 +2,4 @@
 color_distance: 7.0
 target_obstacle: ["person", "dynamic_box", "dynamic_cylinder"]
 # odom_topic: "mavros/local_position/odom"
-odom_topic: "CERLAB/local_position/odom"
+odom_topic: "/CERLAB/quadcopter/odom"

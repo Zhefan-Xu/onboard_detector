@@ -2301,13 +2301,13 @@ namespace onboardDetector{
 
     // user functions
     void dynamicDetector::getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes){
-        // incomeDynamicBBoxes.clear();
-        // for (int i=0;i<this->dynamicBBoxes_.size();i++){
-        //     if (not this->dynamicBBoxes_[i].is_estimated){
-        //         incomeDynamicBBoxes.push_back(this->dynamicBBoxes_[i]);
-        //     }
-        // }
-        incomeDynamicBBoxes = this->dynamicBBoxes_;
+        incomeDynamicBBoxes.clear();
+        for (int i=0;i<this->dynamicBBoxes_.size();i++){
+            if (not this->dynamicBBoxes_[i].is_estimated){
+                incomeDynamicBBoxes.push_back(this->dynamicBBoxes_[i]);
+            }
+        }
+        // incomeDynamicBBoxes = this->dynamicBBoxes_;
     }
 
     void dynamicDetector::getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, std::vector<std::vector<Eigen::Vector3d>>& velHist, std::vector<std::vector<Eigen::Vector3d>>& sizeHist){
@@ -2318,7 +2318,7 @@ namespace onboardDetector{
         if (this->boxHist_.size()){
             for (size_t i=0 ; i<this->boxHist_.size() ; ++i){
                 if (this->boxHist_[i][0].is_dynamic or this->boxHist_[i][0].is_human){   
-                    // if (not this->boxHist_[i][0].is_estimated){
+                    if (not this->boxHist_[i][0].is_estimated){
                         bool findMatch = false;     
                         if (this->constrainSize_){
                             for (Eigen::Vector3d targetSize : this->targetObjectSize_){
@@ -2347,7 +2347,7 @@ namespace onboardDetector{
                             velHist.push_back(obVelHist);
                             sizeHist.push_back(obSizeHist);
                         }
-                    // }
+                    }
                 }
             }
         }

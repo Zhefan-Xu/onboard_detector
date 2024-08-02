@@ -15,6 +15,7 @@
 #include <nav_msgs/Odometry.h>
 #include <thread>
 #include <mutex>
+#include <deque>
 
 using std::cout; using std::endl;
 
@@ -24,10 +25,13 @@ namespace onboardDetector{
 		ros::NodeHandle nh_;
 		ros::Timer obstaclePubTimer_;
 		ros::Timer visTimer_;
+		ros::Timer histTimer_;
 		ros::Subscriber gazeboSub_;
 		ros::Publisher visPub_; // publish bounding box
+		ros::Publisher historyTrajPub_; //publish obstacle history
 		ros::Subscriber odomSub_;
 
+		int histSize_;
 		std::vector<std::string> targetObstacle_;
 		std::vector<int> targetIndex_;
 		bool firstTime_;
@@ -35,6 +39,7 @@ namespace onboardDetector{
 		std::vector<onboardDetector::box3D> lastObVec_;
 		std::vector<ros::Time> lastTimeVec_;
 		std::vector<std::vector<double>> lastTimeVel_;
+		std::vector<std::deque<onboardDetector::box3D>> obstacleHist_;
 
 		// visualization:
 		nav_msgs::Odometry odom_;
@@ -47,13 +52,16 @@ namespace onboardDetector{
 		void visCB(const ros::TimerEvent&);
 		void stateCB(const gazebo_msgs::ModelStatesConstPtr& allStates);
 		void odomCB(const nav_msgs::OdometryConstPtr& odom);
+		void histCB(const ros::TimerEvent&);
 		std::vector<int>& findTargetIndex(const std::vector<std::string>& modelNames);
 		void updateVisMsg();
 		void publishObstacles();
 		void publishVisualization();
+		void publishHistoryTraj();
 		bool isObstacleInSensorRange(const onboardDetector::box3D& ob, double fov);
 		void getObstacles(std::vector<onboardDetector::box3D>& obstacles);
 		void getObstaclesInSensorRange(double fov, std::vector<onboardDetector::box3D>& obstacles);
+		void getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, std::vector<std::vector<Eigen::Vector3d>>& velHist, std::vector<std::vector<Eigen::Vector3d>>& sizeHist, const Eigen::Vector3d &robotSize = Eigen::Vector3d(0.0,0.0,0.0));
 	};
 }
 

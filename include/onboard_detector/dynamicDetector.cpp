@@ -273,19 +273,9 @@ namespace onboardDetector{
         if (not this->nh_.getParam(this->ns_ + "/history_size", this->histSize_)){
             this->histSize_ = 5;
             std::cout << this->hint_ << ": No tracking history size parameter found. Use default: 5." << std::endl;
-            std::cout << this->hint_ << ": No tracking history size parameter found. Use default: 5." << std::endl;
         }
         else{
             std::cout << this->hint_ << ": The history for tracking is set to: " << this->histSize_ << std::endl;
-        }  
-
-        // prediction size
-        if (not this->nh_.getParam(this->ns_ + "/prediction_size", this->predSize_)){
-            this->predSize_ = 5;
-            std::cout << this->hint_ << ": No prediction size parameter found. Use default: 5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The prediction size is set to: " << this->predSize_ << std::endl;
         }  
 
         // prediction size
@@ -722,14 +712,7 @@ namespace onboardDetector{
                 
                 continue; 
             }
-            // ===================================================================================
-            // CASE 0: predicted dynamic obstacle
-            if (this->boxHist_[i][0].is_estimated){
-                onboardDetector::box3D estimatedBBox;
-                this->getEstimateBox(this->boxHist_[i], estimatedBBox);
-                dynamicBBoxesTemp.push_back(estimatedBBox);
-                continue; 
-            }
+
             // ===================================================================================
             // CASE I: yolo recognized as dynamic dynamic obstacle
             // cout << "box: " << i <<  "x y z: " << this->boxHist_[i][0].x << " " << this->boxHist_[i][0].y << " " << this->boxHist_[i][0].z << endl;
@@ -1542,7 +1525,7 @@ namespace onboardDetector{
 
 
     void dynamicDetector::boxAssociation(std::vector<int>& bestMatch, std::vector<int> &boxOOR){
-        int numObjs = this->filteredBBoxes_.size();
+        int numObjs = int(this->filteredBBoxes_.size());
         
         if (this->boxHist_.size() == 0){ // initialize new bounding box history if no history exists
             this->boxHist_.resize(numObjs);
@@ -1570,7 +1553,7 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::boxAssociationHelper(std::vector<int>& bestMatch, std::vector<int> &boxOOR){
-        int numObjs = this->filteredBBoxes_.size();
+        int numObjs = int(this->filteredBBoxes_.size());
         std::vector<onboardDetector::box3D> propedBoxes;
         std::vector<Eigen::VectorXd> propedBoxesFeat;
         std::vector<Eigen::VectorXd> currBoxesFeat;
@@ -1588,7 +1571,7 @@ namespace onboardDetector{
         if (this->boxHist_.size()){
             this->getBoxOutofRange(boxOOR, bestMatch);
             int numOORBox = 0;
-            for (int i=0; i<boxOOR.size();i++){
+            for (int i=0; i<int(boxOOR.size());i++){
                 if (boxOOR[i]){
                     numOORBox++;
                 }
@@ -1667,17 +1650,17 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::findBestMatchEstimate(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch, std::vector<int>& boxOOR){
-        int numObjs = this->filteredBBoxes_.size();
+        int numObjs = int(this->filteredBBoxes_.size());
         std::vector<double> bestSims; // best similarity
         bestSims.resize(numObjs);
 
         for (int i=0 ; i<numObjs ; i++){
-            if (bestMatch[i]<0){
+            if (bestMatch[i] < 0){
                 double bestSim = -1.;
                 int bestMatchInd = -1;
                 for (size_t j=0 ; j<propedBoxes.size() ; j++){
                     if (propedBoxes[j].is_estimated and boxOOR[j]){
-                        double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm())*1.2;//TODO: 1.1 in param
+                        double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
                         if (sim >= bestSim){
                             bestSim = sim;
                             bestSims[i] = sim;
@@ -1700,30 +1683,21 @@ namespace onboardDetector{
     }    
     
     void dynamicDetector::getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch){
-        int numOORBox = 0;
-        if(this->boxHist_.size()>0){
-            boxOOR.resize(this->boxHist_.size(),1);
-            for (int i=0; i<bestMatch.size();i++){
+        if (int(this->boxHist_.size())>0){
+            boxOOR.resize(this->boxHist_.size(), 1);
+            for (int i=0; i<int(bestMatch.size()); i++){
                 if (bestMatch[i]>=0){
                     boxOOR[bestMatch[i]] = 0;
                 }
             }
-            for (int i=0; i<boxOOR.size();i++){
-                if (boxOOR[i] and this->boxHist_[i][0].is_dynamic ){
+            for (int i=0; i<int(boxOOR.size()); i++){
+                if (boxOOR[i] and this->boxHist_[i][0].is_dynamic){
                     // cout<<"dynamic obstacle out of range"<<endl;
                 }
                 else{
                     boxOOR[i] = 0;
                 }
             }
-            // for (int i=0; i<boxOOR.size();i++){
-            //     if (boxOOR[i]){
-            //         numOORBox++;
-            //     }
-            // }
-            // if (numOORBox){
-            //     cout<<boxOOR.size()<<" boxes, "<<numOORBox<<"out of range"<<endl;
-            // }
         }     
 
     }
@@ -1731,7 +1705,7 @@ namespace onboardDetector{
     int dynamicDetector::getEstimateFrameNum(const std::deque<onboardDetector::box3D> &boxHist){
         int frameNum = 0;
         if (boxHist.size()){
-            for (int i=0; i<boxHist.size();i++){
+            for (int i=0; i<int(boxHist.size()); i++){
                 if (boxHist[i].is_estimated){
                     frameNum++;
                 }
@@ -1744,8 +1718,8 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::getEstimateBox(const std::deque<onboardDetector::box3D> &boxHist, onboardDetector::box3D &estimatedBBox){
-        onboardDetector::box3D lastDetect;
-        for (int i=0; i<boxHist.size();i++){
+        onboardDetector::box3D lastDetect; lastDetect.x = 0; lastDetect.y = 0;
+        for (int i=0; i<int(boxHist.size()); i++){
             if (not boxHist[i].is_estimated){
                 lastDetect = boxHist[i];
                 break;
@@ -1835,8 +1809,8 @@ namespace onboardDetector{
             trackedBBoxesTemp.push_back(newEstimatedBBox);
         }
         if (boxOOR.size()){
-            for (int i =0;i<boxOOR.size();i++){
-            onboardDetector::box3D newEstimatedBBox; // from kalman filter 
+            for (int i=0; i<int(boxOOR.size()); i++){
+                onboardDetector::box3D newEstimatedBBox; // from kalman filter 
                 if (boxOOR[i] and this->getEstimateFrameNum(this->boxHist_[i]) < min(this->predSize_,this->histSize_-1)){
                     onboardDetector::box3D currDetectedBBox;
                     currDetectedBBox = this->boxHist_[i][0];
@@ -2072,6 +2046,14 @@ namespace onboardDetector{
         line.lifetime = ros::Duration(0.1);
         
         for(size_t i = 0; i < boxes.size(); i++){
+            // for estimated bbox, using a different color
+            if (boxes[i].is_estimated){
+                 line.color.r = 0.8;
+                 line.color.g = 0.2;
+                 line.color.b = 0.0;
+                 line.color.a = 1.0;
+            }
+
             // visualization msgs
             line.text = " Vx " + std::to_string(boxes[i].Vx) + " Vy " + std::to_string(boxes[i].Vy);
             double x = boxes[i].x; 

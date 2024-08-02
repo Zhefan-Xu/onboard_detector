@@ -121,8 +121,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 1.70525324344635
-        Min Value: 0.4102227985858917
+        Max Value: 1.8219603300094604
+        Min Value: 0.3957968056201935
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -148,7 +148,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /camera/color/image_raw
+      Image Topic: /onboard_detector/detected_color_image
       Max Value: 1
       Median window: 5
       Min Value: 0

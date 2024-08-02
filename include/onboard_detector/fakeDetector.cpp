@@ -62,21 +62,19 @@ namespace onboardDetector{
 			this->targetIndex_ = this->findTargetIndex(allStates->name);
 			this->firstTime_ = false;
 		}
-		
 		std::vector<onboardDetector::box3D> obVec;
 		onboardDetector::box3D ob;
 		geometry_msgs::Pose p;
 		geometry_msgs::Twist tw;
-		for (int i : this->targetIndex_){
-			std::string name = allStates->name[i];
+		for (int i=0; i<int(this->targetIndex_.size()); ++i){
+			std::string name = allStates->name[this->targetIndex_[i]];
 
 			// 1. get position and velocity
-			p = allStates->pose[i];
-			tw = allStates->twist[i];
+			p = allStates->pose[this->targetIndex_[i]];
+			tw = allStates->twist[this->targetIndex_[i]];
 			ob.x = p.position.x;
 			ob.y = p.position.y;
 			ob.z = p.position.z;
-
 			if (this->lastObVec_.size() == 0){
 				ob.Vx = 0.0;
 				ob.Vy = 0.0;
@@ -85,7 +83,6 @@ namespace onboardDetector{
 				this->lastTimeVel_.push_back(std::vector<double> {0, 0, 0});
 				update = true;
 			}
-	
 			else{
 				ros::Time currTime = ros::Time::now();
 				double dT = (currTime.toSec() - this->lastTimeVec_[i].toSec());
@@ -106,7 +103,6 @@ namespace onboardDetector{
 					ob.Vy = this->lastTimeVel_[i][1];
 				}
 			}
-
 			// 2. get size (gazebo name contains size):
 			double xsize, ysize, zsize;
 			int xsizeStartIdx = name.size() - 1 - 1 - 3 * 3;

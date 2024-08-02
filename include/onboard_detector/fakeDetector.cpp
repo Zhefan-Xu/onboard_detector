@@ -33,7 +33,7 @@ namespace onboardDetector{
 		// tracking history size
         if (not this->nh_.getParam("history_size", this->histSize_)){
             this->histSize_ = 5;
-            std::cout << "[Fake Detector]: No tracking history isze parameter found. Use default: 5." << std::endl;
+            std::cout << "[Fake Detector]: No tracking history size parameter found. Use default: 5." << std::endl;
         }
         else{
             std::cout << "[Fake Detector]: The history for tracking is set to: " << this->histSize_ << std::endl;
@@ -244,28 +244,30 @@ namespace onboardDetector{
 			visualization_msgs::MarkerArray trajMsg;
 			int countMarker = 0;
 			for (size_t i=0; i<this->obstacleHist_.size(); ++i){
-				visualization_msgs::Marker traj;
-				traj.header.frame_id = "map";
-				traj.header.stamp = ros::Time::now();
-				traj.ns = "fake_detector";
-				traj.id = countMarker;
-				traj.type = visualization_msgs::Marker::LINE_STRIP;
-				traj.scale.x = 0.1;
-				traj.scale.y = 0.1;
-				traj.scale.z = 0.1;
-				traj.color.a = 1.0; 
-				traj.color.r = 0.0;
-				traj.color.g = 1.0;
-				traj.color.b = 0.0;
-				for (size_t j=0; j<this->obstacleHist_[i].size(); ++j){
-					geometry_msgs::Point p1;
-					onboardDetector::box3D box1 = this->obstacleHist_[i][j];
-					p1.x = box1.x; p1.y = box1.y; p1.z = box1.z;
-					traj.points.push_back(p1);
-				}
+				if (this->isObstacleInSensorRange(this->obstacleHist_[i][0],2*M_PI)){
+					visualization_msgs::Marker traj;
+					traj.header.frame_id = "map";
+					traj.header.stamp = ros::Time::now();
+					traj.ns = "fake_detector";
+					traj.id = countMarker;
+					traj.type = visualization_msgs::Marker::LINE_STRIP;
+					traj.scale.x = 0.1;
+					traj.scale.y = 0.1;
+					traj.scale.z = 0.1;
+					traj.color.a = 1.0; 
+					traj.color.r = 0.0;
+					traj.color.g = 1.0;
+					traj.color.b = 0.0;
+					for (size_t j=0; j<this->obstacleHist_[i].size(); ++j){
+						geometry_msgs::Point p1;
+						onboardDetector::box3D box1 = this->obstacleHist_[i][j];
+						p1.x = box1.x; p1.y = box1.y; p1.z = box1.z;
+						traj.points.push_back(p1);
+					}
 
-				++countMarker;
-				trajMsg.markers.push_back(traj);
+					++countMarker;
+					trajMsg.markers.push_back(traj);
+				}
 			}
 			this->historyTrajPub_.publish(trajMsg);
 		}
@@ -311,26 +313,27 @@ namespace onboardDetector{
 	}
 
 	void fakeDetector::getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, std::vector<std::vector<Eigen::Vector3d>>& velHist, std::vector<std::vector<Eigen::Vector3d>>& sizeHist, const Eigen::Vector3d &robotSize){
-		cout<<"get hist"<<endl;
 		posHist.clear();
         velHist.clear();
         sizeHist.clear();
 
         if (this->obstacleHist_.size()){
             for (size_t i=0 ; i<this->obstacleHist_.size() ; ++i){
-				std::vector<Eigen::Vector3d> obPosHist, obVelHist, obSizeHist;
-				for (size_t j=0; j<this->obstacleHist_[i].size() ; ++j){
-					Eigen::Vector3d pos(this->obstacleHist_[i][j].x, this->obstacleHist_[i][j].y, this->obstacleHist_[i][j].z);
-					Eigen::Vector3d vel(this->obstacleHist_[i][j].Vx, this->obstacleHist_[i][j].Vy, 0);
-					Eigen::Vector3d size(this->obstacleHist_[i][j].x_width, this->obstacleHist_[i][j].y_width, this->obstacleHist_[i][j].z_width);
-					size += robotSize;
-					obPosHist.push_back(pos);
-					obVelHist.push_back(vel);
-					obSizeHist.push_back(size);
+				if (this->isObstacleInSensorRange(this->obstacleHist_[i][0],2*M_PI)){
+					std::vector<Eigen::Vector3d> obPosHist, obVelHist, obSizeHist;
+					for (size_t j=0; j<this->obstacleHist_[i].size() ; ++j){
+						Eigen::Vector3d pos(this->obstacleHist_[i][j].x, this->obstacleHist_[i][j].y, this->obstacleHist_[i][j].z);
+						Eigen::Vector3d vel(this->obstacleHist_[i][j].Vx, this->obstacleHist_[i][j].Vy, 0);
+						Eigen::Vector3d size(this->obstacleHist_[i][j].x_width, this->obstacleHist_[i][j].y_width, this->obstacleHist_[i][j].z_width);
+						size += robotSize;
+						obPosHist.push_back(pos);
+						obVelHist.push_back(vel);
+						obSizeHist.push_back(size);
+					}
+					posHist.push_back(obPosHist);
+					velHist.push_back(obVelHist);
+					sizeHist.push_back(obSizeHist);
 				}
-				posHist.push_back(obPosHist);
-				velHist.push_back(obVelHist);
-				sizeHist.push_back(obSizeHist);
             }
         }
 	}

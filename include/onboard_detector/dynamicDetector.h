@@ -27,6 +27,7 @@
 #include <onboard_detector/uvDetector.h>
 #include <onboard_detector/kalmanFilter.h>
 #include <onboard_detector/utils.h>
+#include <onboard_detector/GetDynamicObstacles.h>
 
 namespace onboardDetector{
     class dynamicDetector{
@@ -172,6 +173,10 @@ namespace onboardDetector{
         void initParam();
         void registerPub();
         void registerCallback();
+
+        // service
+		bool getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
+								 onboard_detector::GetDynamicObstacles::Response& res);
 
         // callback
         void depthPoseCB(const sensor_msgs::ImageConstPtr& img, const geometry_msgs::PoseStampedConstPtr& pose);

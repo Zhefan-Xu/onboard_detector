@@ -582,6 +582,36 @@ namespace onboardDetector{
         this->visTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::visCB, this);
     }
 
+	bool dynamicDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
+								 		      onboard_detector::GetDynamicObstacles::Response& res){
+		// get dynamic obstacles in the range in asceding order based on the distance to robot position
+		Eigen::Vector3d currPos = this->position_;
+
+		// go through all obstacles
+		for (const onboardDetector::box3D& bbox : this->dynamicBBoxes_){
+			Eigen::Vector3d obsPos (bbox.x, bbox.y, bbox.z);
+			double distance = (currPos - obsPos).norm();
+			if (distance <= req.range){
+				geometry_msgs::Vector3 pos;
+				geometry_msgs::Vector3 vel;
+				geometry_msgs::Vector3 size;
+				pos.x = bbox.x;
+				pos.y = bbox.y;
+				pos.z = bbox.z;
+				vel.x = bbox.Vx;
+				vel.y = bbox.Vy;
+				vel.z = 0.;
+				size.x = bbox.x_width;
+				size.y = bbox.y_width;
+				size.z = bbox.z_width;
+				res.position.push_back(pos);
+				res.velocity.push_back(vel);
+				res.size.push_back(size);
+			}
+		}
+
+		return true;
+	}
 
     void dynamicDetector::depthPoseCB(const sensor_msgs::ImageConstPtr& img, const geometry_msgs::PoseStampedConstPtr& pose){
         // store current depth image

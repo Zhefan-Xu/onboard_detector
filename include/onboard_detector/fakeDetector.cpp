@@ -44,36 +44,56 @@ namespace onboardDetector{
 
 
 
-	bool fakeDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
-								 		   onboard_detector::GetDynamicObstacles::Response& res){
-		// get dynamic obstacles in the range in asceding order based on the distance to robot position
+    bool fakeDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
+                                              onboard_detector::GetDynamicObstacles::Response& res) {
+        // Get the current robot position
 		Eigen::Vector3d currPos (this->odom_.pose.pose.position.x, this->odom_.pose.pose.position.y, this->odom_.pose.pose.position.z);
 
-		// go through all obstacles
-		for (const onboardDetector::box3D& bbox : this->obstacleMsg_){
-			Eigen::Vector3d obsPos (bbox.x, bbox.y, bbox.z);
-			double distance = (currPos - obsPos).norm();
-			if (distance <= req.range){
-				geometry_msgs::Vector3 pos;
-				geometry_msgs::Vector3 vel;
-				geometry_msgs::Vector3 size;
-				pos.x = bbox.x;
-				pos.y = bbox.y;
-				pos.z = bbox.z;
-				vel.x = bbox.Vx;
-				vel.y = bbox.Vy;
-				vel.z = bbox.Vz;
-				size.x = bbox.x_width;
-				size.y = bbox.y_width;
-				size.z = bbox.z_width;
-				res.position.push_back(pos);
-				res.velocity.push_back(vel);
-				res.size.push_back(size);
-			}
-		}
+        // Vector to store obstacles along with their distances
+        std::vector<std::pair<double, onboardDetector::box3D>> obstaclesWithDistances;
 
-		return true;
-	}
+        // Go through all obstacles and calculate distances
+        for (const onboardDetector::box3D& bbox : this->obstacleMsg_) {
+            Eigen::Vector3d obsPos(bbox.x, bbox.y, bbox.z);
+            double distance = (currPos - obsPos).norm();
+            if (distance <= req.range) {
+                obstaclesWithDistances.push_back(std::make_pair(distance, bbox));
+            }
+        }
+
+        // Sort obstacles by distance in ascending order
+        std::sort(obstaclesWithDistances.begin(), obstaclesWithDistances.end(), 
+                [](const std::pair<double, onboardDetector::box3D>& a, const std::pair<double, onboardDetector::box3D>& b) {
+                    return a.first < b.first;
+                });
+
+        // Push sorted obstacles into the response
+        for (const auto& item : obstaclesWithDistances) {
+            const onboardDetector::box3D& bbox = item.second;
+
+            geometry_msgs::Vector3 pos;
+            geometry_msgs::Vector3 vel;
+            geometry_msgs::Vector3 size;
+
+            pos.x = bbox.x;
+            pos.y = bbox.y;
+            pos.z = bbox.z;
+
+            vel.x = bbox.Vx;
+            vel.y = bbox.Vy;
+            vel.z = bbox.Vz;
+
+            size.x = bbox.x_width;
+            size.y = bbox.y_width;
+            size.z = bbox.z_width;
+
+            res.position.push_back(pos);
+            res.velocity.push_back(vel);
+            res.size.push_back(size);
+        }
+
+        return true;
+    }
 
 
 	void fakeDetector::visCB(const ros::TimerEvent&){

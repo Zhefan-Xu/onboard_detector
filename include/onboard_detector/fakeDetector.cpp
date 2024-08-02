@@ -37,6 +37,42 @@ namespace onboardDetector{
 		// this->odomSub_ = this->nh_.subscribe("/mavros/local_position/odom", 10, &fakeDetector::odomCB, this);
 		this->visPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>("onboard_detector/GT_obstacle_bbox", 10);
 		this->visTimer_ = this->nh_.createTimer(ros::Duration(0.05), &fakeDetector::visCB, this);
+	
+		// get dynamic obstacle service
+		this->getDynamicObstacleServer_ = this->nh_.advertiseService("fake_detector/getDynamicObstacles", &fakeDetector::getDynamicObstacles, this);
+	}
+
+
+
+	bool fakeDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
+								 		   onboard_detector::GetDynamicObstacles::Response& res){
+		// get dynamic obstacles in the range in asceding order based on the distance to robot position
+		Eigen::Vector3d currPos (this->odom_.pose.pose.position.x, this->odom_.pose.pose.position.y, this->odom_.pose.pose.position.z);
+
+		// go through all obstacles
+		for (const onboardDetector::box3D& bbox : this->obstacleMsg_){
+			Eigen::Vector3d obsPos (bbox.x, bbox.y, bbox.z);
+			double distance = (currPos - obsPos).norm();
+			if (distance <= req.range){
+				geometry_msgs::Vector3 pos;
+				geometry_msgs::Vector3 vel;
+				geometry_msgs::Vector3 size;
+				pos.x = bbox.x;
+				pos.y = bbox.y;
+				pos.z = bbox.z;
+				vel.x = bbox.Vx;
+				vel.y = bbox.Vy;
+				vel.z = bbox.Vz;
+				size.x = bbox.x_width;
+				size.y = bbox.y_width;
+				size.z = bbox.z_width;
+				res.position.push_back(pos);
+				res.velocity.push_back(vel);
+				res.size.push_back(size);
+			}
+		}
+
+		return true;
 	}
 
 
@@ -66,6 +102,7 @@ namespace onboardDetector{
 			if (this->lastObVec_.size() == 0){
 				ob.Vx = 0.0;
 				ob.Vy = 0.0;
+				ob.Vz = 0.0;
 				ros::Time lastTime = ros::Time::now();
 				this->lastTimeVec_.push_back(lastTime);
 				this->lastTimeVel_.push_back(std::vector<double> {0, 0, 0});
@@ -80,6 +117,7 @@ namespace onboardDetector{
 					double vz = (ob.z - this->lastObVec_[i].z)/dT;
 					ob.Vx = vx;
 					ob.Vy = vy;
+					ob.Vz = vz;
 					this->lastTimeVel_[i][0] = vx;
 					this->lastTimeVel_[i][1] = vy;
 					this->lastTimeVel_[i][2] = vz;
@@ -89,6 +127,7 @@ namespace onboardDetector{
 				else{
 					ob.Vx = this->lastTimeVel_[i][0];
 					ob.Vy = this->lastTimeVel_[i][1];
+					ob.Vz = this->lastTimeVel_[i][2];
 				}
 			}
 			// 2. get size (gazebo name contains size):

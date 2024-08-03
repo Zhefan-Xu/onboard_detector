@@ -585,7 +585,7 @@ namespace onboardDetector{
     bool dynamicDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
                                               onboard_detector::GetDynamicObstacles::Response& res) {
         // Get the current robot position
-        Eigen::Vector3d currPos = this->position_;
+        Eigen::Vector3d currPos = Eigen::Vector3d (req.current_position.x, req.current_position.y, req.current_position.z);
 
         // Vector to store obstacles along with their distances
         std::vector<std::pair<double, onboardDetector::box3D>> obstaclesWithDistances;

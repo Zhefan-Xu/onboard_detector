@@ -45,9 +45,9 @@ namespace onboardDetector{
 
 
     bool fakeDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
-                                              onboard_detector::GetDynamicObstacles::Response& res) {
+                                           onboard_detector::GetDynamicObstacles::Response& res) {
         // Get the current robot position
-		Eigen::Vector3d currPos (this->odom_.pose.pose.position.x, this->odom_.pose.pose.position.y, this->odom_.pose.pose.position.z);
+		Eigen::Vector3d currPos (req.current_position.x, req.current_position.y, req.current_position.z);
 
         // Vector to store obstacles along with their distances
         std::vector<std::pair<double, onboardDetector::box3D>> obstaclesWithDistances;
@@ -68,7 +68,7 @@ namespace onboardDetector{
                 });
 
         // Push sorted obstacles into the response
-        for (const auto& item : obstaclesWithDistances) {
+        for (const auto& item : obstaclesWithDistances){
             const onboardDetector::box3D& bbox = item.second;
 
             geometry_msgs::Vector3 pos;

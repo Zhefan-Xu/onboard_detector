@@ -55,8 +55,10 @@ namespace onboardDetector{
         // Go through all obstacles and calculate distances
         for (const onboardDetector::box3D& bbox : this->obstacleMsg_) {
             Eigen::Vector3d obsPos(bbox.x, bbox.y, bbox.z);
-            double distance = (currPos - obsPos).norm();
-            if (distance <= req.range) {
+            Eigen::Vector3d diff = currPos - obsPos;
+            diff(2) = 0.;
+            double distance = diff.norm();            
+			if (distance <= req.range) {
                 obstaclesWithDistances.push_back(std::make_pair(distance, bbox));
             }
         }

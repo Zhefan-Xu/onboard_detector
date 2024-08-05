@@ -140,9 +140,9 @@ namespace onboardDetector{
 		}
 		for (int i=0; i<this->obstacleMsg_.size();i++){
 			if (this->obstacleHist_[i].size() >= this->histSize_){
-				this->obstacleHist_[i].pop_front();
+				this->obstacleHist_[i].pop_back();
 			}
-			this->obstacleHist_[i].push_back(this->obstacleMsg_[i]);
+			this->obstacleHist_[i].push_front(this->obstacleMsg_[i]);
 		}
 	}
 

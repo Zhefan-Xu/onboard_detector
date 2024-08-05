@@ -13,6 +13,7 @@
 #include <gazebo_msgs/ModelStates.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <nav_msgs/Odometry.h>
+#include <onboard_detector/GetDynamicObstacles.h>
 #include <thread>
 #include <mutex>
 #include <deque>
@@ -30,6 +31,7 @@ namespace onboardDetector{
 		ros::Publisher visPub_; // publish bounding box
 		ros::Publisher historyTrajPub_; //publish obstacle history
 		ros::Subscriber odomSub_;
+		ros::ServiceServer getDynamicObstacleServer_;
 
 		int histSize_;
 		std::vector<std::string> targetObstacle_;
@@ -48,6 +50,9 @@ namespace onboardDetector{
 
 	public:
 		fakeDetector(const ros::NodeHandle& nh);
+
+		bool getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
+								 onboard_detector::GetDynamicObstacles::Response& res);
 
 		void visCB(const ros::TimerEvent&);
 		void stateCB(const gazebo_msgs::ModelStatesConstPtr& allStates);

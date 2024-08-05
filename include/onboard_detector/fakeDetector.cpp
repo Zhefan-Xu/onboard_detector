@@ -48,7 +48,65 @@ namespace onboardDetector{
 		this->histTimer_ = this->nh_.createTimer(ros::Duration(0.033), &fakeDetector::histCB, this);
 		this->visPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>("onboard_detector/GT_obstacle_bbox", 10);
 		this->visTimer_ = this->nh_.createTimer(ros::Duration(0.05), &fakeDetector::visCB, this);
+	
+		// get dynamic obstacle service
+		this->getDynamicObstacleServer_ = this->nh_.advertiseService("fake_detector/getDynamicObstacles", &fakeDetector::getDynamicObstacles, this);
 	}
+
+
+
+    bool fakeDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
+                                           onboard_detector::GetDynamicObstacles::Response& res) {
+        // Get the current robot position
+		Eigen::Vector3d currPos (req.current_position.x, req.current_position.y, req.current_position.z);
+
+        // Vector to store obstacles along with their distances
+        std::vector<std::pair<double, onboardDetector::box3D>> obstaclesWithDistances;
+
+        // Go through all obstacles and calculate distances
+        for (const onboardDetector::box3D& bbox : this->obstacleMsg_) {
+            Eigen::Vector3d obsPos(bbox.x, bbox.y, bbox.z);
+            Eigen::Vector3d diff = currPos - obsPos;
+            diff(2) = 0.;
+            double distance = diff.norm();            
+			if (distance <= req.range) {
+                obstaclesWithDistances.push_back(std::make_pair(distance, bbox));
+            }
+        }
+
+        // Sort obstacles by distance in ascending order
+        std::sort(obstaclesWithDistances.begin(), obstaclesWithDistances.end(), 
+                [](const std::pair<double, onboardDetector::box3D>& a, const std::pair<double, onboardDetector::box3D>& b) {
+                    return a.first < b.first;
+                });
+
+        // Push sorted obstacles into the response
+        for (const auto& item : obstaclesWithDistances){
+            const onboardDetector::box3D& bbox = item.second;
+
+            geometry_msgs::Vector3 pos;
+            geometry_msgs::Vector3 vel;
+            geometry_msgs::Vector3 size;
+
+            pos.x = bbox.x;
+            pos.y = bbox.y;
+            pos.z = bbox.z;
+
+            vel.x = bbox.Vx;
+            vel.y = bbox.Vy;
+            vel.z = bbox.Vz;
+
+            size.x = bbox.x_width;
+            size.y = bbox.y_width;
+            size.z = bbox.z_width;
+
+            res.position.push_back(pos);
+            res.velocity.push_back(vel);
+            res.size.push_back(size);
+        }
+
+        return true;
+    }
 
 
 	void fakeDetector::visCB(const ros::TimerEvent&){
@@ -78,6 +136,7 @@ namespace onboardDetector{
 			if (this->lastObVec_.size() == 0){
 				ob.Vx = 0.0;
 				ob.Vy = 0.0;
+				ob.Vz = 0.0;
 				ros::Time lastTime = ros::Time::now();
 				this->lastTimeVec_.push_back(lastTime);
 				this->lastTimeVel_.push_back(std::vector<double> {0, 0, 0});
@@ -92,6 +151,7 @@ namespace onboardDetector{
 					double vz = (ob.z - this->lastObVec_[i].z)/dT;
 					ob.Vx = vx;
 					ob.Vy = vy;
+					ob.Vz = vz;
 					this->lastTimeVel_[i][0] = vx;
 					this->lastTimeVel_[i][1] = vy;
 					this->lastTimeVel_[i][2] = vz;
@@ -101,6 +161,7 @@ namespace onboardDetector{
 				else{
 					ob.Vx = this->lastTimeVel_[i][0];
 					ob.Vy = this->lastTimeVel_[i][1];
+					ob.Vz = this->lastTimeVel_[i][2];
 				}
 			}
 			// 2. get size (gazebo name contains size):
@@ -163,20 +224,20 @@ namespace onboardDetector{
 	void fakeDetector::updateVisMsg(){
 		std::vector<visualization_msgs::Marker> bboxVec;
 		int obIdx = 0;
-		for (onboardDetector:: box3D obstacle : this->obstacleMsg_){
+		for (const onboardDetector:: box3D& obstacle : this->obstacleMsg_){
 
 			// 12 lines for each obstacle
 			geometry_msgs::Point p1, p2, p3, p4, p5, p6, p7, p8;
 			// upper four points
-			p1.x = obstacle.x+obstacle.x_width/2; p1.y = obstacle.y+obstacle.y_width/2; p1.z = obstacle.z+obstacle.z_width;
-			p2.x = obstacle.x-obstacle.x_width/2; p2.y = obstacle.y+obstacle.y_width/2; p2.z = obstacle.z+obstacle.z_width;
-			p3.x = obstacle.x+obstacle.x_width/2; p3.y = obstacle.y-obstacle.y_width/2; p3.z = obstacle.z+obstacle.z_width;
-			p4.x = obstacle.x-obstacle.x_width/2; p4.y = obstacle.y-obstacle.y_width/2; p4.z = obstacle.z+obstacle.z_width;
+			p1.x = obstacle.x+obstacle.x_width/2; p1.y = obstacle.y+obstacle.y_width/2; p1.z = obstacle.z+obstacle.z_width/2;
+			p2.x = obstacle.x-obstacle.x_width/2; p2.y = obstacle.y+obstacle.y_width/2; p2.z = obstacle.z+obstacle.z_width/2;
+			p3.x = obstacle.x+obstacle.x_width/2; p3.y = obstacle.y-obstacle.y_width/2; p3.z = obstacle.z+obstacle.z_width/2;
+			p4.x = obstacle.x-obstacle.x_width/2; p4.y = obstacle.y-obstacle.y_width/2; p4.z = obstacle.z+obstacle.z_width/2;
 
-			p5.x = obstacle.x+obstacle.x_width/2; p5.y = obstacle.y+obstacle.y_width/2; p5.z = obstacle.z;
-			p6.x = obstacle.x-obstacle.x_width/2; p6.y = obstacle.y+obstacle.y_width/2; p6.z = obstacle.z;
-			p7.x = obstacle.x+obstacle.x_width/2; p7.y = obstacle.y-obstacle.y_width/2; p7.z = obstacle.z;
-			p8.x = obstacle.x-obstacle.x_width/2; p8.y = obstacle.y-obstacle.y_width/2; p8.z = obstacle.z;
+			p5.x = obstacle.x+obstacle.x_width/2; p5.y = obstacle.y+obstacle.y_width/2; p5.z = obstacle.z-obstacle.z_width/2;
+			p6.x = obstacle.x-obstacle.x_width/2; p6.y = obstacle.y+obstacle.y_width/2; p6.z = obstacle.z-obstacle.z_width/2;
+			p7.x = obstacle.x+obstacle.x_width/2; p7.y = obstacle.y-obstacle.y_width/2; p7.z = obstacle.z-obstacle.z_width/2;
+			p8.x = obstacle.x-obstacle.x_width/2; p8.y = obstacle.y-obstacle.y_width/2; p8.z = obstacle.z-obstacle.z_width/2;
 
 			std::vector<geometry_msgs::Point> line1Vec {p1, p2};
 			std::vector<geometry_msgs::Point> line2Vec {p1, p3};

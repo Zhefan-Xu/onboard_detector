@@ -360,14 +360,24 @@ namespace onboardDetector{
 	
 	}
 
-	void fakeDetector::getObstacles(std::vector<onboardDetector::box3D>& obstacles){
-		obstacles = this->obstacleMsg_;
+	void fakeDetector::getObstacles(std::vector<onboardDetector::box3D>& obstacles, const Eigen::Vector3d &robotSize){
+		obstacles.clear();
+		for (onboardDetector::box3D ob : this->obstacleMsg_){
+			ob.x_width += robotSize(0);
+			ob.y_width += robotSize(1);
+			ob.z_width += robotSize(2);
+			obstacles.push_back(ob);
+		}
+		// obstacles = this->obstacleMsg_;
 	}
 
-	void fakeDetector::getObstaclesInSensorRange(double fov, std::vector<onboardDetector::box3D>& obstacles){
+	void fakeDetector::getObstaclesInSensorRange(double fov, std::vector<onboardDetector::box3D>& obstacles, const Eigen::Vector3d &robotSize){
 		obstacles.clear();
 		for (onboardDetector::box3D obstacle : this->obstacleMsg_){
 			if (this->isObstacleInSensorRange(obstacle, fov)){
+				obstacle.x_width += robotSize(0);
+				obstacle.y_width += robotSize(1);
+				obstacle.z_width += robotSize(2);
 				obstacles.push_back(obstacle);
 			}
 		}

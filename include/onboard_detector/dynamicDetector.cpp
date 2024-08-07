@@ -2336,17 +2336,15 @@ namespace onboardDetector{
     // user functions
     void dynamicDetector::getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes, const Eigen::Vector3d &robotSize){
         incomeDynamicBBoxes.clear();
-        for (int i=0;i<this->dynamicBBoxes_.size();i++){
-            // if (not this->dynamicBBoxes_[i].is_estimated){
-                onboardDetector::box3D box = this->dynamicBBoxes_[i];
-                box.x_width += robotSize(0);
-                box.y_width += robotSize(1);
-                box.z_width += robotSize(2);
-                incomeDynamicBBoxes.push_back(box);
-            // }
+        for (int i=0; i<int(this->dynamicBBoxes_.size()); i++){
+            onboardDetector::box3D box = this->dynamicBBoxes_[i];
+            box.x_width += robotSize(0);
+            box.y_width += robotSize(1);
+            box.z_width += robotSize(2);
+            incomeDynamicBBoxes.push_back(box);
         }
-        // incomeDynamicBBoxes = this->dynamicBBoxes_;
     }
+
     void dynamicDetector::getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, std::vector<std::vector<Eigen::Vector3d>>& velHist, std::vector<std::vector<Eigen::Vector3d>>& sizeHist, const Eigen::Vector3d &robotSize){
 		posHist.clear();
         velHist.clear();
@@ -2355,37 +2353,35 @@ namespace onboardDetector{
         if (this->boxHist_.size()){
             for (size_t i=0 ; i<this->boxHist_.size() ; ++i){
                 if (this->boxHist_[i][0].is_dynamic or this->boxHist_[i][0].is_human){   
-                    // if (not this->boxHist_[i][0].is_estimated){
-                        bool findMatch = false;     
-                        if (this->constrainSize_){
-                            for (Eigen::Vector3d targetSize : this->targetObjectSize_){
-                                double xdiff = std::abs(this->boxHist_[i][0].x_width - targetSize(0));
-                                double ydiff = std::abs(this->boxHist_[i][0].y_width - targetSize(1));
-                                double zdiff = std::abs(this->boxHist_[i][0].z_width - targetSize(2)); 
-                                if (xdiff < 0.8 and ydiff < 0.8 and zdiff < 1.0){
-                                    findMatch = true;
-                                }
+                    bool findMatch = false;     
+                    if (this->constrainSize_){
+                        for (Eigen::Vector3d targetSize : this->targetObjectSize_){
+                            double xdiff = std::abs(this->boxHist_[i][0].x_width - targetSize(0));
+                            double ydiff = std::abs(this->boxHist_[i][0].y_width - targetSize(1));
+                            double zdiff = std::abs(this->boxHist_[i][0].z_width - targetSize(2)); 
+                            if (xdiff < 0.8 and ydiff < 0.8 and zdiff < 1.0){
+                                findMatch = true;
                             }
                         }
-                        else{
-                            findMatch = true;
+                    }
+                    else{
+                        findMatch = true;
+                    }
+                    if (findMatch){
+                        std::vector<Eigen::Vector3d> obPosHist, obVelHist, obSizeHist;
+                        for (size_t j=0; j<this->boxHist_[i].size() ; ++j){
+                            Eigen::Vector3d pos(this->boxHist_[i][j].x, this->boxHist_[i][j].y, this->boxHist_[i][j].z);
+                            Eigen::Vector3d vel(this->boxHist_[i][j].Vx, this->boxHist_[i][j].Vy, 0);
+                            Eigen::Vector3d size(this->boxHist_[i][j].x_width, this->boxHist_[i][j].y_width, this->boxHist_[i][j].z_width);
+                            size += robotSize;
+                            obPosHist.push_back(pos);
+                            obVelHist.push_back(vel);
+                            obSizeHist.push_back(size);
                         }
-                        if (findMatch){
-                            std::vector<Eigen::Vector3d> obPosHist, obVelHist, obSizeHist;
-                            for (size_t j=0; j<this->boxHist_[i].size() ; ++j){
-                                Eigen::Vector3d pos(this->boxHist_[i][j].x, this->boxHist_[i][j].y, this->boxHist_[i][j].z);
-                                Eigen::Vector3d vel(this->boxHist_[i][j].Vx, this->boxHist_[i][j].Vy, 0);
-                                Eigen::Vector3d size(this->boxHist_[i][j].x_width, this->boxHist_[i][j].y_width, this->boxHist_[i][j].z_width);
-                                size += robotSize;
-                                obPosHist.push_back(pos);
-                                obVelHist.push_back(vel);
-                                obSizeHist.push_back(size);
-                            }
-                            posHist.push_back(obPosHist);
-                            velHist.push_back(obVelHist);
-                            sizeHist.push_back(obSizeHist);
-                        }
-                    // }
+                        posHist.push_back(obPosHist);
+                        velHist.push_back(obVelHist);
+                        sizeHist.push_back(obSizeHist);
+                    }
                 }
             }
         }
@@ -2406,5 +2402,3 @@ namespace onboardDetector{
         }
     }
 }
-
-

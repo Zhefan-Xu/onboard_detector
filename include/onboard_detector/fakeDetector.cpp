@@ -30,11 +30,22 @@ namespace onboardDetector{
 			cout << "[Fake Detector]: No odom topic param. Use default: /CERLAB/quadcopter/odom" << endl;
 		}
 
+		// tracking history size
+        if (not this->nh_.getParam("history_size", this->histSize_)){
+            this->histSize_ = 5;
+            std::cout << "[Fake Detector]: No tracking history size parameter found. Use default: 5." << std::endl;
+        }
+        else{
+            std::cout << "[Fake Detector]: The history for tracking is set to: " << this->histSize_ << std::endl;
+        }  
+
 
 		this->firstTime_ = true;
 		this->gazeboSub_ = this->nh_.subscribe("/gazebo/model_states", 10, &fakeDetector::stateCB, this);
 		this->odomSub_ = this->nh_.subscribe(odomTopicName, 10, &fakeDetector::odomCB, this);
 		// this->odomSub_ = this->nh_.subscribe("/mavros/local_position/odom", 10, &fakeDetector::odomCB, this);
+		this->historyTrajPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>("onboard_detector/history_trajectories", 10);
+		this->histTimer_ = this->nh_.createTimer(ros::Duration(0.033), &fakeDetector::histCB, this);
 		this->visPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>("onboard_detector/GT_obstacle_bbox", 10);
 		this->visTimer_ = this->nh_.createTimer(ros::Duration(0.05), &fakeDetector::visCB, this);
 	
@@ -99,6 +110,7 @@ namespace onboardDetector{
 
 
 	void fakeDetector::visCB(const ros::TimerEvent&){
+		this->publishHistoryTraj();
 		this->publishVisualization();
 	}
 
@@ -114,13 +126,18 @@ namespace onboardDetector{
 		geometry_msgs::Twist tw;
 		for (int i=0; i<int(this->targetIndex_.size()); ++i){
 			std::string name = allStates->name[this->targetIndex_[i]];
-
 			// 1. get position and velocity
 			p = allStates->pose[this->targetIndex_[i]];
 			tw = allStates->twist[this->targetIndex_[i]];
 			ob.x = p.position.x;
 			ob.y = p.position.y;
-			ob.z = p.position.z;
+			if (name.size() >= 6 and name.compare(0, 6, "person") == 0){
+				ob.z = p.position.z + 0.9;
+			}
+			else{
+				ob.z = p.position.z;
+			}
+			
 			if (this->lastObVec_.size() == 0){
 				ob.Vx = 0.0;
 				ob.Vy = 0.0;
@@ -181,6 +198,18 @@ namespace onboardDetector{
 
 	void fakeDetector::odomCB(const nav_msgs::OdometryConstPtr& odom){
 		this->odom_ = *odom;
+	}
+
+	void fakeDetector::histCB(const ros::TimerEvent&){
+		if (this->obstacleHist_.size() == 0){
+			this->obstacleHist_.resize(this->obstacleMsg_.size());
+		}
+		for (int i=0; i<int(this->obstacleMsg_.size());i++){
+			if (int(this->obstacleHist_[i].size()) >= this->histSize_){
+				this->obstacleHist_[i].pop_back();
+			}
+			this->obstacleHist_[i].push_front(this->obstacleMsg_[i]);
+		}
 	}
 
 	std::vector<int>& fakeDetector::findTargetIndex(const std::vector<std::string>& modelNames){
@@ -276,6 +305,40 @@ namespace onboardDetector{
 		this->visMsg_.markers = bboxVec;
 	}
 
+	void fakeDetector::publishHistoryTraj(){
+		if (this->obstacleHist_.size() != 0){
+			visualization_msgs::MarkerArray trajMsg;
+			int countMarker = 0;
+			for (size_t i=0; i<this->obstacleHist_.size(); ++i){
+				if (this->isObstacleInSensorRange(this->obstacleHist_[i][0],2*M_PI)){
+					visualization_msgs::Marker traj;
+					traj.header.frame_id = "map";
+					traj.header.stamp = ros::Time::now();
+					traj.ns = "fake_detector";
+					traj.id = countMarker;
+					traj.type = visualization_msgs::Marker::LINE_STRIP;
+					traj.scale.x = 0.1;
+					traj.scale.y = 0.1;
+					traj.scale.z = 0.1;
+					traj.color.a = 1.0; 
+					traj.color.r = 0.0;
+					traj.color.g = 1.0;
+					traj.color.b = 0.0;
+					for (size_t j=0; j<this->obstacleHist_[i].size(); ++j){
+						geometry_msgs::Point p1;
+						onboardDetector::box3D box1 = this->obstacleHist_[i][j];
+						p1.x = box1.x; p1.y = box1.y; p1.z = box1.z;
+						traj.points.push_back(p1);
+					}
+
+					++countMarker;
+					trajMsg.markers.push_back(traj);
+				}
+			}
+			this->historyTrajPub_.publish(trajMsg);
+		}
+	}
+
 
 	void fakeDetector::publishVisualization(){
 		this->updateVisMsg();
@@ -313,5 +376,31 @@ namespace onboardDetector{
 				obstacles.push_back(obstacle);
 			}
 		}
+	}
+
+	void fakeDetector::getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, std::vector<std::vector<Eigen::Vector3d>>& velHist, std::vector<std::vector<Eigen::Vector3d>>& sizeHist, const Eigen::Vector3d &robotSize){
+		posHist.clear();
+        velHist.clear();
+        sizeHist.clear();
+
+        if (this->obstacleHist_.size()){
+            for (size_t i=0 ; i<this->obstacleHist_.size() ; ++i){
+				if (this->isObstacleInSensorRange(this->obstacleHist_[i][0],2*M_PI)){
+					std::vector<Eigen::Vector3d> obPosHist, obVelHist, obSizeHist;
+					for (size_t j=0; j<this->obstacleHist_[i].size() ; ++j){
+						Eigen::Vector3d pos(this->obstacleHist_[i][j].x, this->obstacleHist_[i][j].y, this->obstacleHist_[i][j].z);
+						Eigen::Vector3d vel(this->obstacleHist_[i][j].Vx, this->obstacleHist_[i][j].Vy, 0);
+						Eigen::Vector3d size(this->obstacleHist_[i][j].x_width, this->obstacleHist_[i][j].y_width, this->obstacleHist_[i][j].z_width);
+						size += robotSize;
+						obPosHist.push_back(pos);
+						obVelHist.push_back(vel);
+						obSizeHist.push_back(size);
+					}
+					posHist.push_back(obPosHist);
+					velHist.push_back(obVelHist);
+					sizeHist.push_back(obSizeHist);
+				}
+            }
+        }
 	}
 }

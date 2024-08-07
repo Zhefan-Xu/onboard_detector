@@ -126,13 +126,18 @@ namespace onboardDetector{
 		geometry_msgs::Twist tw;
 		for (int i=0; i<int(this->targetIndex_.size()); ++i){
 			std::string name = allStates->name[this->targetIndex_[i]];
-
 			// 1. get position and velocity
 			p = allStates->pose[this->targetIndex_[i]];
 			tw = allStates->twist[this->targetIndex_[i]];
 			ob.x = p.position.x;
 			ob.y = p.position.y;
-			ob.z = p.position.z;
+			if (name.size() >= 6 and name.compare(0, 6, "person") == 0){
+				ob.z = p.position.z + 0.9;
+			}
+			else{
+				ob.z = p.position.z;
+			}
+			
 			if (this->lastObVec_.size() == 0){
 				ob.Vx = 0.0;
 				ob.Vy = 0.0;
@@ -199,8 +204,8 @@ namespace onboardDetector{
 		if (this->obstacleHist_.size() == 0){
 			this->obstacleHist_.resize(this->obstacleMsg_.size());
 		}
-		for (int i=0; i<this->obstacleMsg_.size();i++){
-			if (this->obstacleHist_[i].size() >= this->histSize_){
+		for (int i=0; i<int(this->obstacleMsg_.size());i++){
+			if (int(this->obstacleHist_[i].size()) >= this->histSize_){
 				this->obstacleHist_[i].pop_back();
 			}
 			this->obstacleHist_[i].push_front(this->obstacleMsg_[i]);

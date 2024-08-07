@@ -261,10 +261,10 @@ namespace onboardDetector{
         void eigenToDBPointVec(const std::vector<Eigen::Vector3d>& points, std::vector<onboardDetector::Point>& pointsDB, int size);
 
         // user functions
-        void getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes);
+        void getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes, const Eigen::Vector3d &robotSize = Eigen::Vector3d(0.0,0.0,0.0));
         void getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, 
 									 std::vector<std::vector<Eigen::Vector3d>>& velHist, 
-									 std::vector<std::vector<Eigen::Vector3d>>& sizeHist);
+									 std::vector<std::vector<Eigen::Vector3d>>& sizeHist, const Eigen::Vector3d &robotSize = Eigen::Vector3d(0.0,0.0,0.0));
     };
 
 

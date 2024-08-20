@@ -1939,8 +1939,15 @@ namespace onboardDetector{
     }
 
     // user functions
-    void dynamicDetector::getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes){
-        incomeDynamicBBoxes = this->dynamicBBoxes_;
+    void dynamicDetector::getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes, const Eigen::Vector3d &robotSize){
+        incomeDynamicBBoxes.clear();
+        for (int i=0; i<int(this->dynamicBBoxes_.size()); i++){
+            onboardDetector::box3D box = this->dynamicBBoxes_[i];
+            box.x_width += robotSize(0);
+            box.y_width += robotSize(1);
+            box.z_width += robotSize(2);
+            incomeDynamicBBoxes.push_back(box);
+        }
     }
 
     void dynamicDetector::updatePoseHist(){

@@ -66,6 +66,7 @@ namespace onboardDetector{
         ros::Publisher dynamicBBoxesPub_;
         ros::Publisher historyTrajPub_;
         ros::Publisher velVisPub_;
+        ros::ServiceServer getDynamicObstacleServer_;
 
         // DETECTOR
         std::shared_ptr<onboardDetector::UVdetector> uvDetector_;

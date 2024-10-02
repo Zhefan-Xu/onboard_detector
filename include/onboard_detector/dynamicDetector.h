@@ -25,6 +25,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <onboard_detector/dbscan.h>
 #include <onboard_detector/uvDetector.h>
+#include <onboard_detector/lidarDetector.h>
 #include <onboard_detector/kalmanFilter.h>
 #include <onboard_detector/utils.h>
 #include <onboard_detector/GetDynamicObstacles.h>
@@ -48,6 +49,7 @@ namespace onboardDetector{
         ros::Subscriber yoloDetectionSub_;
         ros::Subscriber colorImgSub_;
         ros::Timer detectionTimer_;
+        ros::Timer lidarDetectionTimer_;
         ros::Timer trackingTimer_;
         ros::Timer classificationTimer_;
         ros::Timer visTimer_;
@@ -186,6 +188,7 @@ namespace onboardDetector{
         void yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections);
         void colorImgCB(const sensor_msgs::ImageConstPtr& img);
         void detectionCB(const ros::TimerEvent&);
+        void lidarDetectionCB(const ros::TimerEvent&);
         void trackingCB(const ros::TimerEvent&);
         void classificationCB(const ros::TimerEvent&);
         void visCB(const ros::TimerEvent&);

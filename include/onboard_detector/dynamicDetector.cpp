@@ -572,6 +572,9 @@ namespace onboardDetector{
         // detection timer
         this->detectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::detectionCB, this);
 
+        // detection timer
+        this->lidarDetectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::lidarDetectionCB, this);
+        
         // tracking timer
         this->trackingTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::trackingCB, this);
 
@@ -717,6 +720,13 @@ namespace onboardDetector{
         this->yoloDetectionTo3D();
         this->filterBBoxes();
         this->newDetectFlag_ = true; // get a new detection
+    }
+
+    void dynamicDetector::lidarDetectionCB(const ros::TimerEvent&){
+        // TODO: lidar detection thread
+        // use class in lidarDetector to detect obstacles into bounding boxes. 
+        // this function should not be long
+        
     }
 
     void dynamicDetector::trackingCB(const ros::TimerEvent&){

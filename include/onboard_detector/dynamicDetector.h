@@ -68,11 +68,14 @@ namespace onboardDetector{
         ros::Publisher dynamicBBoxesPub_;
         ros::Publisher historyTrajPub_;
         ros::Publisher velVisPub_;
+        ros::Publisher lidarClustersPub_;
         ros::ServiceServer getDynamicObstacleServer_;
+    
 
         // DETECTOR
         std::shared_ptr<onboardDetector::UVdetector> uvDetector_;
         std::shared_ptr<onboardDetector::DBSCAN> dbCluster_;
+        std::shared_ptr<onboardDetector::lidarDetector> lidarDetector_;
 
         // CAMERA
         double fx_, fy_, cx_, cy_; // depth camera intrinsics
@@ -92,6 +95,7 @@ namespace onboardDetector{
         std::string depthTopicName_;
         std::string alignedDepthTopicName_;
         std::string colorImgTopicName_;
+        std::string lidarTopicName_;
         std::string poseTopicName_;
         std::string odomTopicName_;
         double raycastMaxLength_;
@@ -134,6 +138,10 @@ namespace onboardDetector{
         Eigen::Vector3d positionColor_; // color camera position
         Eigen::Matrix3d orientationColor_; // color camera orientation
         Eigen::Vector3d localSensorRange_ {5.0, 5.0, 5.0};
+
+        //LIDAR DATA
+        pcl::PointCloud<pcl::PointXYZ>::Ptr lidarCloud_;
+        std::vector<onboardDetector::Cluster> lidarClusters_;
 
         // DETECTOR DATA
         std::vector<onboardDetector::box3D> uvBBoxes_; // uv detector bounding boxes
@@ -196,6 +204,7 @@ namespace onboardDetector{
         // detect function
         void uvDetect();
         void dbscanDetect();
+        void lidarDetect();
         void yoloDetectionTo3D();
         void filterBBoxes();
 
@@ -243,6 +252,7 @@ namespace onboardDetector{
         void publish3dBox(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
         void publishHistoryTraj();
         void publishVelVis();
+        void publishLidarClusters();
 
         // helper function
         void transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,

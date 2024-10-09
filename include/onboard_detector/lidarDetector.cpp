@@ -59,6 +59,7 @@ namespace onboardDetector{
             cluster.dimensions = Eigen::Vector3f(maxPt.x - minPt.x, maxPt.y - minPt.y, maxPt.z - minPt.z); 
         }
 
-        ROS_INFO("DBSCAN clustering finished. %d clusters found.", this->clusters_.size());
+        // ROS_INFO("DBSCAN clustering finished. %d clusters found.", this->clusters_.size());
     }
+    
 }

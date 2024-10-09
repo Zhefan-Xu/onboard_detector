@@ -48,6 +48,7 @@ namespace onboardDetector{
         ros::Subscriber alignedDepthSub_; 
         ros::Subscriber yoloDetectionSub_;
         ros::Subscriber colorImgSub_;
+        ros::Subscriber lidarCloudSub_;
         ros::Timer detectionTimer_;
         ros::Timer lidarDetectionTimer_;
         ros::Timer trackingTimer_;
@@ -142,7 +143,7 @@ namespace onboardDetector{
         Eigen::Vector3d localSensorRange_ {5.0, 5.0, 5.0};
 
         //LIDAR DATA
-        pcl::PointCloud<pcl::PointXYZ>::Ptr lidarCloud_;
+        pcl::PointCloud<pcl::PointXYZ>::Ptr lidarCloud_; 
         std::vector<onboardDetector::Cluster> lidarClusters_;
 
         // DETECTOR DATA
@@ -193,6 +194,7 @@ namespace onboardDetector{
 
         // callback
         void depthPoseCB(const sensor_msgs::ImageConstPtr& img, const geometry_msgs::PoseStampedConstPtr& pose);
+        void lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
         void depthOdomCB(const sensor_msgs::ImageConstPtr& img, const nav_msgs::OdometryConstPtr& odom);
         void alignedDepthCB(const sensor_msgs::ImageConstPtr& img);
         void yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections);

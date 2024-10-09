@@ -64,6 +64,15 @@ namespace onboardDetector{
             cout << this->hint_ << ": Color image topic: " << this->colorImgTopicName_ << endl;
         }
 
+        // lidar topic name
+        if (not this->nh_.getParam(this->ns_ + "/lidar_pointcloud_topic", this->lidarTopicName_)){
+            this->lidarTopicName_ = "/cloud_registered";
+            cout << this->hint_ << ": No lidar pointcloud topic name. Use default: /cloud_registered" << endl;
+        }
+        else{
+            cout << this->hint_ << ": Lidar pointcloud topic: " << this->lidarTopicName_ << endl;
+        }
+
         if (this->localizationMode_ == 0){
             // odom topic name
             if (not this->nh_.getParam(this->ns_ + "/pose_topic", this->poseTopicName_)){
@@ -250,6 +259,24 @@ namespace onboardDetector{
         else{
             cout << this->hint_ << ": DBSCAN epsilon is set to: " << this->dbEpsilon_ << endl;
         }  
+
+        // lidar dbscan min points
+        if (not this->nh_.getParam(this->ns_ + "/lidarDBMinPoints", this->lidarDBMinPoints_)){
+            this->lidarDBMinPoints_ = 10;
+            cout << this->hint_ << ": No lidar DBSCAN minimum point in each cluster parameter. Use default: 10." << endl;
+        }
+        else{
+            cout << this->hint_ << ": Lidar DBSCAN Minimum point in each cluster is set to: " << this->lidarDBMinPoints_ << endl;
+        }
+
+        // lidar dbscan search range
+        if (not this->nh_.getParam(this->ns_ + "/lidarDBEpsilon", this->lidarDBEpsilon_)){
+            this->lidarDBEpsilon_ = 0.5;
+            cout << this->hint_ << ": No lidar DBSCAN epsilon parameter. Use default: 0.5." << endl;
+        }
+        else{
+            cout << this->hint_ << ": Lidar DBSCAN epsilon is set to: " << this->lidarDBEpsilon_ << endl;
+        }
 
         // IOU threshold
         if (not this->nh_.getParam(this->ns_ + "/filtering_BBox_IOU_threshold", this->boxIOUThresh_)){
@@ -569,6 +596,9 @@ namespace onboardDetector{
         // color image subscriber
         this->colorImgSub_ = this->nh_.subscribe(this->colorImgTopicName_, 10, &dynamicDetector::colorImgCB, this);
 
+        // lidar point cloud subscriber
+        this->lidarCloudSub_ = this->nh_.subscribe(this->lidarTopicName_, 10, &dynamicDetector::lidarCloudCB, this);
+
         // yolo detection results subscriber
         this->yoloDetectionSub_ = this->nh_.subscribe("yolo_detector/detected_bounding_boxes", 10, &dynamicDetector::yoloDetectionCB, this);
 
@@ -705,6 +735,29 @@ namespace onboardDetector{
         depthNormalized.convertTo(depthNormalized, CV_8UC1);
         cv::applyColorMap(depthNormalized, depthNormalized, cv::COLORMAP_BONE);
         this->detectedAlignedDepthImg_ = depthNormalized;
+    }
+
+    void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloud_msg){
+        ROS_INFO("Received PointCloud2 message.");
+
+        try {
+            pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+
+            pcl::fromROSMsg(*cloud_msg, *temp_cloud);
+
+            this->lidarCloud_ = temp_cloud;
+
+            // ROS_INFO("Converted PointCloud2 to pcl::PointCloud<pcl::PointXYZ> with %zu points.", lidarCloud_->points.size());
+        }
+        catch (const pcl::PCLException& e) {
+            ROS_ERROR("PCL Exception during conversion: %s", e.what());
+        }
+        catch (const std::exception& e) {
+            ROS_ERROR("Standard Exception during conversion: %s", e.what());
+        }
+        catch (...) {
+            ROS_ERROR("Unknown error during point cloud conversion.");
+        }
     }
 
     void dynamicDetector::yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections){
@@ -943,6 +996,7 @@ namespace onboardDetector{
         this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
         this->publishHistoryTraj();
         this->publishVelVis();
+        this->publishLidarClusters();
     }
 
     void dynamicDetector::uvDetect(){
@@ -1009,7 +1063,7 @@ namespace onboardDetector{
         if(not this->lidarCloud_ == NULL){
             this->lidarDetector_->getPointcloud(this->lidarCloud_);
             this->lidarDetector_->lidarDBSCAN();
-            this->lidarDetector_->getClusters(this->lidarClusters_);
+            this->lidarClusters_ = this->lidarDetector_->getClusters();
         }
     }
 

@@ -3,6 +3,7 @@ localization_mode: 0 # 0: pose (default) 1: odom
 depth_image_topic: /camera/depth/image_raw
 aligned_depth_image_topic: /camera/depth/image_raw
 color_image_topic: /camera/color/image_raw
+lidar_pointcloud_topic: /cloud_registered
 pose_topic: /CERLAB/quadcopter/pose
 odom_topic: /CERLAB/quadcopter/odom
 
@@ -48,6 +49,10 @@ voxel_occupied_thresh: 5 # min num of points for a voxel to be occupied in voxel
 ground_height: 0.1 # height of ground to remove ground points
 dbscan_min_points_cluster: 20 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
 dbscan_search_range_epsilon: 0.1 # searching range radius
+
+# lidar dbscan
+lidarDBMinPoints: 20
+lidarDBEpsilon: 0.5
 
 # bounding box filtering
 filtering_BBox_IOU_threshold: 0.05

@@ -20,7 +20,7 @@ namespace onboardDetector{
     {
         int cluster_id;               
         Eigen::Vector4f centroid;      
-        pcl::PointCloud<pcl::PointXYZ>::Ptr points; // pointcloud of the cluster      
+        pcl::PointCloud<pcl::PointXYZ>::Ptr points; // pointcloud
 
         // Geometry information
         Eigen::Vector3f dimensions;    // bbox size
@@ -32,7 +32,6 @@ namespace onboardDetector{
             centroid(Eigen::Vector4f::Zero()),
             points(new pcl::PointCloud<pcl::PointXYZ>()) {}
     };
-
     class lidarDetector{
     private:
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_; //current pointcloud
@@ -46,7 +45,7 @@ namespace onboardDetector{
         void setParams(double eps, int minPts);
         void getPointcloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
         void lidarDBSCAN();
-        const std::vector<Cluster>& getClusters(std::vector<Cluster>& clusters) const {clusters = this->clusters_; return clusters_;}
+        std::vector<onboardDetector::Cluster>& getClusters(){return clusters_;}
     };
 }
 

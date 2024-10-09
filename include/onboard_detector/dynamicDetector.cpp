@@ -542,7 +542,7 @@ namespace onboardDetector{
         this->velVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/velocity_visualizaton", 10);
 
         // lidar cluster pub 
-        this->lidarClusterPub_ = this->nh_.advertise<visualization_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
+        this->lidarClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -1003,7 +1003,7 @@ namespace onboardDetector{
     void dynamicDetector::lidarDetect(){
         if(this->lidarDetector_ == NULL){
             this->lidarDetector_.reset(new lidarDetector());
-            this->lidarDetector_->setParams(this->eps_, this->minPts_);
+            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_);
         }
 
         if(not this->lidarCloud_ == NULL){
@@ -2277,14 +2277,19 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::publishLidarClusters(){
-        visualization_msgs::pcl::PointCloud2 lidarClustersMsg;
+        sensor_msgs::PointCloud2 lidarClustersMsg;
         if(this->lidarClusters_.empty()){
             ROS_WARN("No lidar clusters to publish");
             return;
         }
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
         for (size_t i=0; i<this->lidarClusters_.size(); ++i){
-            pcl::PointCloud<pcl::PointXYZ> cluster = this->lidarClusters_[i];
+            onboardDetector::Cluster & cluster = this->lidarClusters_[i];
+            if(!cluster.points){
+                ROS_WARN("Cluster %d has no points", cluster.cluster_id);
+                continue;
+            }
+
             std_msgs::ColorRGBA color;
             srand(cluster.cluster_id);
             color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
@@ -2292,11 +2297,12 @@ namespace onboardDetector{
             color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
             color.a = 1.0;
 
-            for (size_t j=0; j<cluster.size(); ++j){
+            for (size_t j=0; j<cluster.points->size(); ++j){
                 pcl::PointXYZRGB point;
-                point.x = cluster[j].x;
-                point.y = cluster[j].y;
-                point.z = cluster[j].z;
+                const pcl::PointXYZ & pt = cluster.points->at(j);
+                point.x = pt.x;
+                point.y = pt.y;
+                point.z = pt.z;
                 point.r = color.r * 255;
                 point.g = color.g * 255;
                 point.b = color.b * 255;
@@ -2305,6 +2311,7 @@ namespace onboardDetector{
         }
         pcl::toROSMsg(*colored_cloud, lidarClustersMsg);
         lidarClustersMsg.header.frame_id = "map";
+        lidarClustersMsg.header.stamp = ros::Time::now();
         this->lidarClustersPub_.publish(lidarClustersMsg);
     }
 

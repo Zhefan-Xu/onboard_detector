@@ -23,12 +23,12 @@ namespace onboardDetector{
     void lidarDetector::lidarDBSCAN(){
         if(!cloud_ || cloud_->empty()){
             ROS_WARN("Empty pointcloud");
-            return false;
+            return;
         }
 
-        std::vector<DBSCAN::Point> points;
+        std::vector<Point> points;
         for(size_t i=0; i<cloud_->size(); ++i){
-            DBSCAN::Point p;
+            Point p;
             p.x = cloud_->points[i].x;
             p.y = cloud_->points[i].y;
             p.z = cloud_->points[i].z;
@@ -39,7 +39,7 @@ namespace onboardDetector{
         DBSCAN dbscan(minPts_, eps_, points);
         dbscan.run();
 
-        const std::vector<DBSCAN::Point>& clusterResult = dbscan.m_points;
+        const std::vector<Point>& clusterResult = dbscan.m_points;
         this->clusters_.clear();
         for(size_t i=0; i<clusterResult.size(); ++i){
             if(clusterResult[i].clusterID != NOISE){
@@ -50,7 +50,7 @@ namespace onboardDetector{
             }
         }
 
-        for(const auto& cluster : this->clusters_){
+        for(auto& cluster : this->clusters_){
             Eigen::Vector4f centroid;
             pcl::compute3DCentroid(*cluster.points, centroid);
             cluster.centroid = centroid;
@@ -59,11 +59,6 @@ namespace onboardDetector{
             cluster.dimensions = Eigen::Vector3f(maxPt.x - minPt.x, maxPt.y - minPt.y, maxPt.z - minPt.z); 
         }
 
-        ROS::INFO("DBSCAN clustering finished. %d clusters found.", this->clusters_.size());
-        return true;
-    }
-
-    void lidarDetector::getClusters(std::vector<Cluster>& clusters){
-        clusters = this->clusters_;
+        ROS_INFO("DBSCAN clustering finished. %d clusters found.", this->clusters_.size());
     }
 }

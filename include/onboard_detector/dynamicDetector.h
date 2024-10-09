@@ -102,6 +102,8 @@ namespace onboardDetector{
         double groundHeight_;
         int dbMinPointsCluster_;
         double dbEpsilon_;
+        int lidarDBMinPoints_;
+        double lidarDBEpsilon_;
         double boxIOUThresh_;
         double yoloOverwriteDistance_; // distance that yolo can overwrite the detection results
         int histSize_;

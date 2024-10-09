@@ -13,14 +13,14 @@
 #include <pcl/common/common.h>
 #include <pcl/common/centroid.h>
 #include <pcl/common/transforms.h>
-#include <pcl/filters/voxel_grid.h>
+#include <pcl_conversions/pcl_conversions.h>
 #include <Eigen/Eigen>
 namespace onboardDetector{
     struct Cluster
     {
         int cluster_id;               
         Eigen::Vector4f centroid;      
-        PointCloudT::Ptr points;       
+        pcl::PointCloud<pcl::PointXYZ>::Ptr points; // pointcloud of the cluster      
 
         // Geometry information
         Eigen::Vector3f dimensions;    // bbox size
@@ -46,7 +46,7 @@ namespace onboardDetector{
         void setParams(double eps, int minPts);
         void getPointcloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
         void lidarDBSCAN();
-        const std::vector<Cluster>& getClusters();
+        const std::vector<Cluster>& getClusters(std::vector<Cluster>& clusters) const {clusters = this->clusters_; return clusters_;}
     };
 }
 

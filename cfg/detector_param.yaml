@@ -2,7 +2,7 @@ localization_mode: 0 # 0: pose (default) 1: odom
 
 depth_image_topic: /camera/depth/image_raw
 color_image_topic: /camera/color/image_raw
-lidar_pointcloud_topic: /cloud_registered
+lidar_pointcloud_topic: /cloud_registered_body
 pose_topic: /CERLAB/quadcopter/pose
 odom_topic: /CERLAB/quadcopter/odom
 
@@ -32,6 +32,11 @@ body_to_camera_color: [0.0,  0.0,  1.0,  0.09,
                 -1.0,  0.0,  0.0,  0.0 ,   
                  0.0, -1.0,  0.0,  0.095,
                  0.0,  0.0,  0.0,  1.0]
+body_to_lidar:  [1.0,  0.0,  0.0,  0.0,
+                 0.0,  1.0,  0.0,  0.0 ,   
+                 0.0,  0.0,  1.0,  0.15,
+                 0.0,  0.0,  0.0,  1.0]
+
 
 
 
@@ -51,7 +56,7 @@ dbscan_search_range_epsilon: 0.1 # searching range radius
 
 # lidar dbscan
 lidar_DBSCAN_min_points: 20
-lidar_DBSCAN_epsilon: 0.5
+lidar_DBSCAN_epsilon: 0.2
 
 # bounding box filtering
 filtering_BBox_IOU_threshold: 0.05

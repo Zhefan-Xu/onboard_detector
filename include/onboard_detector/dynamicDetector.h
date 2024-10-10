@@ -20,6 +20,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/voxel_grid.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
@@ -90,6 +91,7 @@ namespace onboardDetector{
         // CAMERA ALIGNED DEPTH TO COLOR
         double fxC_, fyC_, cxC_, cyC_;
         Eigen::Matrix4d body2CamColor_;
+        Eigen::Matrix4d body2Lidar_;
 
 
         // DETECTOR PARAMETETER
@@ -141,6 +143,9 @@ namespace onboardDetector{
         Eigen::Matrix3d orientation_; // depth camera orientation
         Eigen::Vector3d positionColor_; // color camera position
         Eigen::Matrix3d orientationColor_; // color camera orientation
+        Eigen::Vector3d positionLidar_; // color camera position
+        Eigen::Matrix3d orientationLidar_; // color camera orientation
+        bool hasSensorPose_;
         Eigen::Vector3d localSensorRange_ {5.0, 5.0, 5.0};
 
         //LIDAR DATA
@@ -196,7 +201,7 @@ namespace onboardDetector{
 
         // callback
         void depthPoseCB(const sensor_msgs::ImageConstPtr& img, const geometry_msgs::PoseStampedConstPtr& pose);
-        void lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+        void lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg);
         void depthOdomCB(const sensor_msgs::ImageConstPtr& img, const nav_msgs::OdometryConstPtr& odom);
         void alignedDepthCB(const sensor_msgs::ImageConstPtr& img);
         void yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections);
@@ -276,6 +281,8 @@ namespace onboardDetector{
         void indexToPos(const Eigen::Vector3i& idx, Eigen::Vector3d& pos, double res);
         void getCameraPose(const geometry_msgs::PoseStampedConstPtr& pose, Eigen::Matrix4d& camPoseMatrix, Eigen::Matrix4d& camPoseColorMatrix);
         void getCameraPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& camPoseMatrix, Eigen::Matrix4d& camPoseColorMatrix);
+        void getLidarPose(const geometry_msgs::PoseStampedConstPtr& pose, Eigen::Matrix4d& lidarPoseMatrix);
+        void getLidarPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& lidarPoseMatrix);
         onboardDetector::Point eigenToDBPoint(const Eigen::Vector3d& p);
         Eigen::Vector3d dbPointToEigen(const onboardDetector::Point& pDB);
         void eigenToDBPointVec(const std::vector<Eigen::Vector3d>& points, std::vector<onboardDetector::Point>& pointsDB, int size);
@@ -356,6 +363,38 @@ namespace onboardDetector{
 
         camPoseMatrix = map2body * this->body2Cam_;
         camPoseColorMatrix = map2body * this->body2CamColor_;
+    }
+
+    inline void dynamicDetector::getLidarPose(const geometry_msgs::PoseStampedConstPtr& pose, Eigen::Matrix4d& lidarPoseMatrix){
+        Eigen::Quaterniond quat;
+        quat = Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x, pose->pose.orientation.y, pose->pose.orientation.z);
+        Eigen::Matrix3d rot = quat.toRotationMatrix();
+
+        // convert body pose to camera pose
+        Eigen::Matrix4d map2body; map2body.setZero();
+        map2body.block<3, 3>(0, 0) = rot;
+        map2body(0, 3) = pose->pose.position.x; 
+        map2body(1, 3) = pose->pose.position.y;
+        map2body(2, 3) = pose->pose.position.z;
+        map2body(3, 3) = 1.0;
+
+        lidarPoseMatrix = map2body * this->body2Lidar_;
+    }
+
+    inline void dynamicDetector::getLidarPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& lidarPoseMatrix){
+        Eigen::Quaterniond quat;
+        quat = Eigen::Quaterniond(odom->pose.pose.orientation.w, odom->pose.pose.orientation.x, odom->pose.pose.orientation.y, odom->pose.pose.orientation.z);
+        Eigen::Matrix3d rot = quat.toRotationMatrix();
+
+        // convert body pose to camera pose
+        Eigen::Matrix4d map2body; map2body.setZero();
+        map2body.block<3, 3>(0, 0) = rot;
+        map2body(0, 3) = odom->pose.pose.position.x; 
+        map2body(1, 3) = odom->pose.pose.position.y;
+        map2body(2, 3) = odom->pose.pose.position.z;
+        map2body(3, 3) = 1.0;
+
+        lidarPoseMatrix = map2body * this->body2Lidar_;
     }
     
     inline onboardDetector::Point dynamicDetector::eigenToDBPoint(const Eigen::Vector3d& p){

@@ -207,6 +207,20 @@ namespace onboardDetector{
             }
         }
 
+
+        // transform matrix: body to lidar
+        std::vector<double> body2LidarVec (16);
+        if (not this->nh_.getParam(this->ns_ + "/body_to_lidar", body2LidarVec)){
+            ROS_ERROR("[dynamicDetector]: Please check body to lidar matrix!");
+        }
+        else{
+            for (int i=0; i<4; ++i){
+                for (int j=0; j<4; ++j){
+                    this->body2Lidar_(i, j) = body2LidarVec[i * 4 + j];
+                }
+            }
+        }
+
         // Raycast max length
         if (not this->nh_.getParam(this->ns_ + "/raycast_max_length", this->raycastMaxLength_)){
             this->raycastMaxLength_ = 5.0;
@@ -263,7 +277,7 @@ namespace onboardDetector{
 
         // lidar dbscan search range
         if (not this->nh_.getParam(this->ns_ + "/lidar_DBSCAN_epsilon", this->lidarDBEpsilon_)){
-            this->lidarDBEpsilon_ = 0.5; // TODO: maybe lower this
+            this->lidarDBEpsilon_ = 0.2;
             cout << this->hint_ << ": No lidar DBSCAN epsilon parameter. Use default: 0.5." << endl;
         }
         else{
@@ -675,8 +689,9 @@ namespace onboardDetector{
         imgPtr->image.copyTo(this->depthImage_);
 
         // store current position and orientation (camera)
-        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix;
+        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix, lidarPoseMatrix;
         this->getCameraPose(pose, camPoseMatrix, camPoseColorMatrix);
+        this->getLidarPose(pose, lidarPoseMatrix);
 
         this->position_(0) = camPoseMatrix(0, 3);
         this->position_(1) = camPoseMatrix(1, 3);
@@ -687,6 +702,12 @@ namespace onboardDetector{
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
         this->positionColor_(2) = camPoseColorMatrix(2, 3);
         this->orientationColor_ = camPoseColorMatrix.block<3, 3>(0, 0);
+
+        this->positionLidar_(0) = lidarPoseMatrix(0, 3);
+        this->positionLidar_(1) = lidarPoseMatrix(1, 3);
+        this->positionLidar_(2) = lidarPoseMatrix(2, 3);
+        this->orientationLidar_ = lidarPoseMatrix.block<3, 3>(0, 0);
+        this->hasSensorPose_ = true;
     }
 
     void dynamicDetector::depthOdomCB(const sensor_msgs::ImageConstPtr& img, const nav_msgs::OdometryConstPtr& odom){
@@ -698,8 +719,9 @@ namespace onboardDetector{
         imgPtr->image.copyTo(this->depthImage_);
 
         // store current position and orientation (camera)
-        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix;
+        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix, lidarPoseMatrix;
         this->getCameraPose(odom, camPoseMatrix, camPoseColorMatrix);
+        this->getLidarPose(odom, lidarPoseMatrix);
 
         this->position_(0) = camPoseMatrix(0, 3);
         this->position_(1) = camPoseMatrix(1, 3);
@@ -710,6 +732,12 @@ namespace onboardDetector{
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
         this->positionColor_(2) = camPoseColorMatrix(2, 3);
         this->orientationColor_ = camPoseColorMatrix.block<3, 3>(0, 0);
+
+        this->positionLidar_(0) = lidarPoseMatrix(0, 3);
+        this->positionLidar_(1) = lidarPoseMatrix(1, 3);
+        this->positionLidar_(2) = lidarPoseMatrix(2, 3);
+        this->orientationLidar_ = lidarPoseMatrix.block<3, 3>(0, 0);
+        this->hasSensorPose_ = true;
     }
 
     void dynamicDetector::alignedDepthCB(const sensor_msgs::ImageConstPtr& img){
@@ -729,11 +757,40 @@ namespace onboardDetector{
         this->detectedAlignedDepthImg_ = depthNormalized;
     }
 
-    void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloud_msg){
+    void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg){
         try {
-            pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-            pcl::fromROSMsg(*cloud_msg, *temp_cloud);
-            this->lidarCloud_ = temp_cloud;
+            if (this->hasSensorPose_){
+                // local cloud
+                pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud (new pcl::PointCloud<pcl::PointXYZ>());
+                pcl::fromROSMsg(*cloudMsg, *tempCloud);
+
+                // filter and downsample pointcloud
+                pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud(new pcl::PointCloud<pcl::PointXYZ>());
+                // Create the VoxelGrid filter object
+                pcl::VoxelGrid<pcl::PointXYZ> sor;
+                sor.setInputCloud(tempCloud);
+
+                // Set the leaf size (adjust to control the downsampling)
+                sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
+
+                // Apply the downsampling filter
+                sor.filter(*downsampledCloud);
+
+                // transform
+                Eigen::Affine3d transform = Eigen::Affine3d::Identity();
+                transform.linear() = this->orientationLidar_;
+                transform.translation() = this->positionLidar_;
+
+                // map cloud
+                // Create an empty point cloud to store the transformed data
+                pcl::PointCloud<pcl::PointXYZ>::Ptr transformedCloud (new pcl::PointCloud<pcl::PointXYZ>());
+
+                // Apply the transformation
+                pcl::transformPointCloud(*downsampledCloud, *transformedCloud, transform);
+
+                this->lidarCloud_ = transformedCloud;
+                cout << "size of cloud: " << transformedCloud->size() << endl;
+            }
         }
         catch (const pcl::PCLException& e) {
             ROS_ERROR("PCL Exception during conversion: %s", e.what());

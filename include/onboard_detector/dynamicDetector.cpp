@@ -46,14 +46,6 @@ namespace onboardDetector{
             cout << this->hint_ << ": Depth topic: " << this->depthTopicName_ << endl;
         }
 
-        // aligned depth topic name
-        if (not this->nh_.getParam(this->ns_ + "/aligned_depth_image_topic", this->alignedDepthTopicName_)){
-            this->alignedDepthTopicName_ = "/camera/aligned_depth_to_color/image_raw";
-            cout << this->hint_ << ": No aligned depth image topic name. Use default: /camera/aligned_depth_to_color/image_raw" << endl;
-        }
-        else{
-            cout << this->hint_ << ": Aligned depth topic: " << this->alignedDepthTopicName_ << endl;
-        }
 
         // color topic name
         if (not this->nh_.getParam(this->ns_ + "/color_image_topic", this->colorImgTopicName_)){
@@ -261,7 +253,7 @@ namespace onboardDetector{
         }  
 
         // lidar dbscan min points
-        if (not this->nh_.getParam(this->ns_ + "/lidarDBMinPoints", this->lidarDBMinPoints_)){
+        if (not this->nh_.getParam(this->ns_ + "/lidar_DBSCAN_min_points", this->lidarDBMinPoints_)){
             this->lidarDBMinPoints_ = 10;
             cout << this->hint_ << ": No lidar DBSCAN minimum point in each cluster parameter. Use default: 10." << endl;
         }
@@ -270,8 +262,8 @@ namespace onboardDetector{
         }
 
         // lidar dbscan search range
-        if (not this->nh_.getParam(this->ns_ + "/lidarDBEpsilon", this->lidarDBEpsilon_)){
-            this->lidarDBEpsilon_ = 0.5;
+        if (not this->nh_.getParam(this->ns_ + "/lidar_DBSCAN_epsilon", this->lidarDBEpsilon_)){
+            this->lidarDBEpsilon_ = 0.5; // TODO: maybe lower this
             cout << this->hint_ << ": No lidar DBSCAN epsilon parameter. Use default: 0.5." << endl;
         }
         else{
@@ -590,9 +582,6 @@ namespace onboardDetector{
             exit(0);
         }
 
-        // aligned depth subscriber
-        this->alignedDepthSub_ = this->nh_.subscribe(this->alignedDepthTopicName_, 10, &dynamicDetector::alignedDepthCB, this);
-
         // color image subscriber
         this->colorImgSub_ = this->nh_.subscribe(this->colorImgTopicName_, 10, &dynamicDetector::colorImgCB, this);
 
@@ -738,16 +727,10 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloud_msg){
-        ROS_INFO("Received PointCloud2 message.");
-
         try {
             pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-
             pcl::fromROSMsg(*cloud_msg, *temp_cloud);
-
             this->lidarCloud_ = temp_cloud;
-
-            // ROS_INFO("Converted PointCloud2 to pcl::PointCloud<pcl::PointXYZ> with %zu points.", lidarCloud_->points.size());
         }
         catch (const pcl::PCLException& e) {
             ROS_ERROR("PCL Exception during conversion: %s", e.what());

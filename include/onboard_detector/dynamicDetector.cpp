@@ -776,6 +776,13 @@ namespace onboardDetector{
                 // Apply the downsampling filter
                 sor.filter(*downsampledCloud);
 
+                // If the downsampled cloud has more than 1000 points, further increase the leaf size
+                while (downsampledCloud->size() > 2000) {
+                    double leafSize = sor.getLeafSize().x() * 1.1f; // Increase the leaf size to reduce point count
+                    sor.setLeafSize(leafSize, leafSize, leafSize);
+                    sor.filter(*downsampledCloud);
+                }
+
                 // transform
                 Eigen::Affine3d transform = Eigen::Affine3d::Identity();
                 transform.linear() = this->orientationLidar_;

@@ -46,14 +46,6 @@ namespace onboardDetector{
             cout << this->hint_ << ": Depth topic: " << this->depthTopicName_ << endl;
         }
 
-        // aligned depth topic name
-        if (not this->nh_.getParam(this->ns_ + "/aligned_depth_image_topic", this->alignedDepthTopicName_)){
-            this->alignedDepthTopicName_ = "/camera/aligned_depth_to_color/image_raw";
-            cout << this->hint_ << ": No aligned depth image topic name. Use default: /camera/aligned_depth_to_color/image_raw" << endl;
-        }
-        else{
-            cout << this->hint_ << ": Aligned depth topic: " << this->alignedDepthTopicName_ << endl;
-        }
 
         // color topic name
         if (not this->nh_.getParam(this->ns_ + "/color_image_topic", this->colorImgTopicName_)){
@@ -62,6 +54,15 @@ namespace onboardDetector{
         }
         else{
             cout << this->hint_ << ": Color image topic: " << this->colorImgTopicName_ << endl;
+        }
+
+        // lidar topic name
+        if (not this->nh_.getParam(this->ns_ + "/lidar_pointcloud_topic", this->lidarTopicName_)){
+            this->lidarTopicName_ = "/cloud_registered";
+            cout << this->hint_ << ": No lidar pointcloud topic name. Use default: /cloud_registered" << endl;
+        }
+        else{
+            cout << this->hint_ << ": Lidar pointcloud topic: " << this->lidarTopicName_ << endl;
         }
 
         if (this->localizationMode_ == 0){
@@ -206,6 +207,20 @@ namespace onboardDetector{
             }
         }
 
+
+        // transform matrix: body to lidar
+        std::vector<double> body2LidarVec (16);
+        if (not this->nh_.getParam(this->ns_ + "/body_to_lidar", body2LidarVec)){
+            ROS_ERROR("[dynamicDetector]: Please check body to lidar matrix!");
+        }
+        else{
+            for (int i=0; i<4; ++i){
+                for (int j=0; j<4; ++j){
+                    this->body2Lidar_(i, j) = body2LidarVec[i * 4 + j];
+                }
+            }
+        }
+
         // Raycast max length
         if (not this->nh_.getParam(this->ns_ + "/raycast_max_length", this->raycastMaxLength_)){
             this->raycastMaxLength_ = 5.0;
@@ -250,6 +265,24 @@ namespace onboardDetector{
         else{
             cout << this->hint_ << ": DBSCAN epsilon is set to: " << this->dbEpsilon_ << endl;
         }  
+
+        // lidar dbscan min points
+        if (not this->nh_.getParam(this->ns_ + "/lidar_DBSCAN_min_points", this->lidarDBMinPoints_)){
+            this->lidarDBMinPoints_ = 10;
+            cout << this->hint_ << ": No lidar DBSCAN minimum point in each cluster parameter. Use default: 10." << endl;
+        }
+        else{
+            cout << this->hint_ << ": Lidar DBSCAN Minimum point in each cluster is set to: " << this->lidarDBMinPoints_ << endl;
+        }
+
+        // lidar dbscan search range
+        if (not this->nh_.getParam(this->ns_ + "/lidar_DBSCAN_epsilon", this->lidarDBEpsilon_)){
+            this->lidarDBEpsilon_ = 0.2;
+            cout << this->hint_ << ": No lidar DBSCAN epsilon parameter. Use default: 0.5." << endl;
+        }
+        else{
+            cout << this->hint_ << ": Lidar DBSCAN epsilon is set to: " << this->lidarDBEpsilon_ << endl;
+        }
 
         // IOU threshold
         if (not this->nh_.getParam(this->ns_ + "/filtering_BBox_IOU_threshold", this->boxIOUThresh_)){
@@ -540,6 +573,12 @@ namespace onboardDetector{
 
         // velocity visualization pub
         this->velVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/velocity_visualizaton", 10);
+
+        // lidar cluster pub 
+        this->lidarClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
+
+        // lidar bbox pub
+        this->lidarBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/lidar_bboxes", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -560,11 +599,11 @@ namespace onboardDetector{
             exit(0);
         }
 
-        // aligned depth subscriber
-        this->alignedDepthSub_ = this->nh_.subscribe(this->alignedDepthTopicName_, 10, &dynamicDetector::alignedDepthCB, this);
-
         // color image subscriber
         this->colorImgSub_ = this->nh_.subscribe(this->colorImgTopicName_, 10, &dynamicDetector::colorImgCB, this);
+
+        // lidar point cloud subscriber
+        this->lidarCloudSub_ = this->nh_.subscribe(this->lidarTopicName_, 10, &dynamicDetector::lidarCloudCB, this);
 
         // yolo detection results subscriber
         this->yoloDetectionSub_ = this->nh_.subscribe("yolo_detector/detected_bounding_boxes", 10, &dynamicDetector::yoloDetectionCB, this);
@@ -650,8 +689,9 @@ namespace onboardDetector{
         imgPtr->image.copyTo(this->depthImage_);
 
         // store current position and orientation (camera)
-        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix;
+        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix, lidarPoseMatrix;
         this->getCameraPose(pose, camPoseMatrix, camPoseColorMatrix);
+        this->getLidarPose(pose, lidarPoseMatrix);
 
         this->position_(0) = camPoseMatrix(0, 3);
         this->position_(1) = camPoseMatrix(1, 3);
@@ -662,6 +702,12 @@ namespace onboardDetector{
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
         this->positionColor_(2) = camPoseColorMatrix(2, 3);
         this->orientationColor_ = camPoseColorMatrix.block<3, 3>(0, 0);
+
+        this->positionLidar_(0) = lidarPoseMatrix(0, 3);
+        this->positionLidar_(1) = lidarPoseMatrix(1, 3);
+        this->positionLidar_(2) = lidarPoseMatrix(2, 3);
+        this->orientationLidar_ = lidarPoseMatrix.block<3, 3>(0, 0);
+        this->hasSensorPose_ = true;
     }
 
     void dynamicDetector::depthOdomCB(const sensor_msgs::ImageConstPtr& img, const nav_msgs::OdometryConstPtr& odom){
@@ -673,8 +719,9 @@ namespace onboardDetector{
         imgPtr->image.copyTo(this->depthImage_);
 
         // store current position and orientation (camera)
-        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix;
+        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix, lidarPoseMatrix;
         this->getCameraPose(odom, camPoseMatrix, camPoseColorMatrix);
+        this->getLidarPose(odom, lidarPoseMatrix);
 
         this->position_(0) = camPoseMatrix(0, 3);
         this->position_(1) = camPoseMatrix(1, 3);
@@ -685,6 +732,12 @@ namespace onboardDetector{
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
         this->positionColor_(2) = camPoseColorMatrix(2, 3);
         this->orientationColor_ = camPoseColorMatrix.block<3, 3>(0, 0);
+
+        this->positionLidar_(0) = lidarPoseMatrix(0, 3);
+        this->positionLidar_(1) = lidarPoseMatrix(1, 3);
+        this->positionLidar_(2) = lidarPoseMatrix(2, 3);
+        this->orientationLidar_ = lidarPoseMatrix.block<3, 3>(0, 0);
+        this->hasSensorPose_ = true;
     }
 
     void dynamicDetector::alignedDepthCB(const sensor_msgs::ImageConstPtr& img){
@@ -702,6 +755,59 @@ namespace onboardDetector{
         depthNormalized.convertTo(depthNormalized, CV_8UC1);
         cv::applyColorMap(depthNormalized, depthNormalized, cv::COLORMAP_BONE);
         this->detectedAlignedDepthImg_ = depthNormalized;
+    }
+
+    void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg){
+        try {
+            if (this->hasSensorPose_){
+                // local cloud
+                pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud (new pcl::PointCloud<pcl::PointXYZ>());
+                pcl::fromROSMsg(*cloudMsg, *tempCloud);
+
+                // filter and downsample pointcloud
+                pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud(new pcl::PointCloud<pcl::PointXYZ>());
+                // Create the VoxelGrid filter object
+                pcl::VoxelGrid<pcl::PointXYZ> sor;
+                sor.setInputCloud(tempCloud);
+
+                // Set the leaf size (adjust to control the downsampling)
+                sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
+
+                // Apply the downsampling filter
+                sor.filter(*downsampledCloud);
+
+                // If the downsampled cloud has more than 1000 points, further increase the leaf size
+                while (downsampledCloud->size() > 2000) {
+                    double leafSize = sor.getLeafSize().x() * 1.1f; // Increase the leaf size to reduce point count
+                    sor.setLeafSize(leafSize, leafSize, leafSize);
+                    sor.filter(*downsampledCloud);
+                }
+
+                // transform
+                Eigen::Affine3d transform = Eigen::Affine3d::Identity();
+                transform.linear() = this->orientationLidar_;
+                transform.translation() = this->positionLidar_;
+
+                // map cloud
+                // Create an empty point cloud to store the transformed data
+                pcl::PointCloud<pcl::PointXYZ>::Ptr transformedCloud (new pcl::PointCloud<pcl::PointXYZ>());
+
+                // Apply the transformation
+                pcl::transformPointCloud(*downsampledCloud, *transformedCloud, transform);
+
+                this->lidarCloud_ = transformedCloud;
+                cout << "size of cloud: " << transformedCloud->size() << endl;
+            }
+        }
+        catch (const pcl::PCLException& e) {
+            ROS_ERROR("PCL Exception during conversion: %s", e.what());
+        }
+        catch (const std::exception& e) {
+            ROS_ERROR("Standard Exception during conversion: %s", e.what());
+        }
+        catch (...) {
+            ROS_ERROR("Unknown error during point cloud conversion.");
+        }
     }
 
     void dynamicDetector::yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections){
@@ -726,7 +832,10 @@ namespace onboardDetector{
         // TODO: lidar detection thread
         // use class in lidarDetector to detect obstacles into bounding boxes. 
         // this function should not be long
-        
+        ros::Time start = ros::Time::now();
+        this->lidarDetect();
+        ros::Time end = ros::Time::now();
+        cout << "time: " << (end - start).toSec() << endl;
     }
 
     void dynamicDetector::trackingCB(const ros::TimerEvent&){
@@ -940,6 +1049,8 @@ namespace onboardDetector{
         this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
         this->publishHistoryTraj();
         this->publishVelVis();
+        this->publishLidarClusters();
+        this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5);
     }
 
     void dynamicDetector::uvDetect(){
@@ -995,6 +1106,20 @@ namespace onboardDetector{
             yoloBBoxesTemp.push_back(bbox3D);
         }
         this->yoloBBoxes_ = yoloBBoxesTemp;    
+    }
+
+    void dynamicDetector::lidarDetect(){
+        if (this->lidarDetector_ == NULL){
+            this->lidarDetector_.reset(new lidarDetector());
+            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_);
+        }
+
+        if (this->lidarCloud_ != NULL){
+            this->lidarDetector_->getPointcloud(this->lidarCloud_);
+            this->lidarDetector_->lidarDBSCAN();
+            this->lidarClusters_ = this->lidarDetector_->getClusters();
+            this->lidarBBoxes_ = this->lidarDetector_->getBBoxes();
+        }
     }
 
     void dynamicDetector::filterBBoxes(){
@@ -2260,6 +2385,36 @@ namespace onboardDetector{
         this->velVisPub_.publish(velVisMsg);
     }
 
+    void dynamicDetector::publishLidarClusters(){
+        sensor_msgs::PointCloud2 lidarClustersMsg;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+        for (size_t i=0; i<this->lidarClusters_.size(); ++i){
+            onboardDetector::Cluster & cluster = this->lidarClusters_[i];
+
+            std_msgs::ColorRGBA color;
+            srand(cluster.cluster_id);
+            color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.a = 1.0;
+
+            for (size_t j=0; j<cluster.points->size(); ++j){
+                pcl::PointXYZRGB point;
+                const pcl::PointXYZ & pt = cluster.points->at(j);
+                point.x = pt.x;
+                point.y = pt.y;
+                point.z = pt.z;
+                point.r = color.r * 255;
+                point.g = color.g * 255;
+                point.b = color.b * 255;
+                colored_cloud->push_back(point);
+            }
+        }
+        pcl::toROSMsg(*colored_cloud, lidarClustersMsg);
+        lidarClustersMsg.header.frame_id = "map";
+        lidarClustersMsg.header.stamp = ros::Time::now();
+        this->lidarClustersPub_.publish(lidarClustersMsg);
+    }
 
     void dynamicDetector::transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,
                                                Eigen::Vector3d& newCenter, Eigen::Vector3d& newSize){

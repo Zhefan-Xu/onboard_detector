@@ -39,14 +39,28 @@ namespace onboardDetector{
         DBSCAN dbscan(minPts_, eps_, points);
         dbscan.run();
 
-        const std::vector<Point>& clusterResult = dbscan.m_points;
+
+        // find how many clusters
+        int clusterNum = 0;
+        for (size_t i=0; i<dbscan.m_points.size(); ++i){
+            onboardDetector::Point pDB = dbscan.m_points[i];
+            if (pDB.clusterID > clusterNum){
+                clusterNum = pDB.clusterID;
+            }
+        }
+
         this->clusters_.clear();
-        for(size_t i=0; i<clusterResult.size(); ++i){
-            if(clusterResult[i].clusterID != NOISE){
-                Cluster cluster;
-                cluster.cluster_id = clusterResult[i].clusterID;
-                cluster.points->push_back(cloud_->points[i]);
-                this->clusters_.push_back(cluster);
+        this->clusters_.resize(clusterNum);
+        this->bboxes_.clear();
+        
+        for(size_t i=0; i<dbscan.m_points.size(); ++i){
+            if (dbscan.m_points[i].clusterID > 0){
+                pcl::PointXYZ point;
+                point.x = dbscan.m_points[i].x;
+                point.y = dbscan.m_points[i].y;
+                point.z = dbscan.m_points[i].z;
+                this->clusters_[dbscan.m_points[i].clusterID-1].points->push_back(point);
+                this->clusters_[dbscan.m_points[i].clusterID-1].cluster_id = dbscan.m_points[i].clusterID;
             }
         }
 
@@ -57,9 +71,23 @@ namespace onboardDetector{
             pcl::PointXYZ minPt, maxPt;
             pcl::getMinMax3D(*cluster.points, minPt, maxPt);
             cluster.dimensions = Eigen::Vector3f(maxPt.x - minPt.x, maxPt.y - minPt.y, maxPt.z - minPt.z); 
-        }
 
-        // ROS_INFO("DBSCAN clustering finished. %d clusters found.", this->clusters_.size());
+            onboardDetector::box3D bbox;
+            bbox.x = centroid(0);
+            bbox.y = centroid(1);
+            bbox.z = centroid(2);
+            bbox.x_width = maxPt.x - minPt.x;
+            bbox.y_width = maxPt.y - minPt.y;
+            bbox.z_width = maxPt.z - minPt.z;
+            this->bboxes_.push_back(bbox);
+        }
     }
     
+    std::vector<onboardDetector::Cluster>& lidarDetector::getClusters(){
+        return this->clusters_;
+    }
+
+    std::vector<onboardDetector::box3D>& lidarDetector::getBBoxes(){
+        return this->bboxes_;
+    }
 }

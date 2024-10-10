@@ -70,6 +70,7 @@ namespace onboardDetector{
         ros::Publisher historyTrajPub_;
         ros::Publisher velVisPub_;
         ros::Publisher lidarClustersPub_;
+        ros::Publisher lidarBBoxesPub_;
         ros::ServiceServer getDynamicObstacleServer_;
     
 
@@ -143,7 +144,7 @@ namespace onboardDetector{
         Eigen::Vector3d localSensorRange_ {5.0, 5.0, 5.0};
 
         //LIDAR DATA
-        pcl::PointCloud<pcl::PointXYZ>::Ptr lidarCloud_; 
+        pcl::PointCloud<pcl::PointXYZ>::Ptr lidarCloud_ = NULL; 
         std::vector<onboardDetector::Cluster> lidarClusters_;
 
         // DETECTOR DATA
@@ -163,6 +164,7 @@ namespace onboardDetector{
         std::vector<onboardDetector::box3D> trackedBBoxes_; // bboxes tracked from kalman filtering
         std::vector<onboardDetector::box3D> dynamicBBoxes_; // boxes classified as dynamic
         // std::vector<int> recentDynaFrames_; // recent number of frames being detected as dynamic for each obstacle
+        std::vector<onboardDetector::box3D> lidarBBoxes_; // bboxes detected by lidar (have static and dynamic)
 
         // TRACKING AND ASSOCIATION DATA
         bool newDetectFlag_;

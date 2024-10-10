@@ -562,6 +562,9 @@ namespace onboardDetector{
 
         // lidar cluster pub 
         this->lidarClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
+
+        // lidar bbox pub
+        this->lidarBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/lidar_bboxes", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -765,7 +768,10 @@ namespace onboardDetector{
         // TODO: lidar detection thread
         // use class in lidarDetector to detect obstacles into bounding boxes. 
         // this function should not be long
+        ros::Time start = ros::Time::now();
         this->lidarDetect();
+        ros::Time end = ros::Time::now();
+        cout << "time: " << (end - start).toSec() << endl;
     }
 
     void dynamicDetector::trackingCB(const ros::TimerEvent&){
@@ -980,6 +986,7 @@ namespace onboardDetector{
         this->publishHistoryTraj();
         this->publishVelVis();
         this->publishLidarClusters();
+        this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5);
     }
 
     void dynamicDetector::uvDetect(){
@@ -1038,15 +1045,16 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::lidarDetect(){
-        if(this->lidarDetector_ == NULL){
+        if (this->lidarDetector_ == NULL){
             this->lidarDetector_.reset(new lidarDetector());
             this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_);
         }
 
-        if(not this->lidarCloud_ == NULL){
+        if (this->lidarCloud_ != NULL){
             this->lidarDetector_->getPointcloud(this->lidarCloud_);
             this->lidarDetector_->lidarDBSCAN();
             this->lidarClusters_ = this->lidarDetector_->getClusters();
+            this->lidarBBoxes_ = this->lidarDetector_->getBBoxes();
         }
     }
 
@@ -2315,17 +2323,9 @@ namespace onboardDetector{
 
     void dynamicDetector::publishLidarClusters(){
         sensor_msgs::PointCloud2 lidarClustersMsg;
-        if(this->lidarClusters_.empty()){
-            ROS_WARN("No lidar clusters to publish");
-            return;
-        }
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
         for (size_t i=0; i<this->lidarClusters_.size(); ++i){
             onboardDetector::Cluster & cluster = this->lidarClusters_[i];
-            if(!cluster.points){
-                ROS_WARN("Cluster %d has no points", cluster.cluster_id);
-                continue;
-            }
 
             std_msgs::ColorRGBA color;
             srand(cluster.cluster_id);

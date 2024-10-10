@@ -8,6 +8,7 @@
 
 #include <ros/ros.h>
 #include <onboard_detector/dbscan.h>
+#include <onboard_detector/utils.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/common.h>
@@ -32,10 +33,12 @@ namespace onboardDetector{
             centroid(Eigen::Vector4f::Zero()),
             points(new pcl::PointCloud<pcl::PointXYZ>()) {}
     };
+
     class lidarDetector{
     private:
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_; //current pointcloud
         std::vector<onboardDetector::Cluster> clusters_; //current cluster list
+        std::vector<onboardDetector::box3D> bboxes_; // lidar bboxes
         //lidar DBSCAN parameters
         double eps_;
         int minPts_;
@@ -45,7 +48,8 @@ namespace onboardDetector{
         void setParams(double eps, int minPts);
         void getPointcloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
         void lidarDBSCAN();
-        std::vector<onboardDetector::Cluster>& getClusters(){return clusters_;}
+        std::vector<onboardDetector::Cluster>& getClusters();
+        std::vector<onboardDetector::box3D>& getBBoxes();
     };
 }
 

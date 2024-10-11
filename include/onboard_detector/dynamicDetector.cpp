@@ -579,6 +579,9 @@ namespace onboardDetector{
 
         // lidar bbox pub
         this->lidarBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/lidar_bboxes", 10);
+
+        // lidar cloud pub
+        this->lidarCloudPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_cloud", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -765,16 +768,38 @@ namespace onboardDetector{
                 pcl::fromROSMsg(*cloudMsg, *tempCloud);
 
                 // filter and downsample pointcloud
-                pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud(new pcl::PointCloud<pcl::PointXYZ>());
+                // Create a filtered cloud pointer to store intermediate results
+                pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud (new pcl::PointCloud<pcl::PointXYZ>());
+
+                // Apply a pass-through filter to limit points to the local sensor range in X, Y, and Z axes
+                pcl::PassThrough<pcl::PointXYZ> pass;
+
+                // Filter for X axis
+                pass.setInputCloud(tempCloud);
+                pass.setFilterFieldName("x");
+                pass.setFilterLimits(-this->localSensorRange_.x(), this->localSensorRange_.x());
+                pass.filter(*filteredCloud);
+
+                // Filter for Y axis
+                pass.setInputCloud(filteredCloud);
+                pass.setFilterFieldName("y");
+                pass.setFilterLimits(-this->localSensorRange_.y(), this->localSensorRange_.y());
+                pass.filter(*filteredCloud);
+
+                // Filter for Z axis
+                pass.setInputCloud(filteredCloud);
+                pass.setFilterFieldName("z");
+                pass.setFilterLimits(-this->localSensorRange_.z()/2., this->localSensorRange_.z()/2.);
+                pass.filter(*filteredCloud);
+
+                pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud = filteredCloud;
+                
                 // Create the VoxelGrid filter object
                 pcl::VoxelGrid<pcl::PointXYZ> sor;
-                sor.setInputCloud(tempCloud);
+                sor.setInputCloud(filteredCloud);
 
                 // Set the leaf size (adjust to control the downsampling)
                 sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
-
-                // Apply the downsampling filter
-                sor.filter(*downsampledCloud);
 
                 // If the downsampled cloud has more than 1000 points, further increase the leaf size
                 while (downsampledCloud->size() > 2000) {
@@ -797,6 +822,12 @@ namespace onboardDetector{
 
                 this->lidarCloud_ = transformedCloud;
                 cout << "size of cloud: " << transformedCloud->size() << endl;
+
+                // // republish the transformed and downsampled cloud
+                // sensor_msgs::PointCloud2 lidarCloudMsg;
+                // pcl::toROSMsg(*transformedCloud, lidarCloudMsg);
+                // lidarCloudMsg.header.frame_id = "map";
+                // this->lidarCloudPub_.publish(lidarCloudMsg);
             }
         }
         catch (const pcl::PCLException& e) {

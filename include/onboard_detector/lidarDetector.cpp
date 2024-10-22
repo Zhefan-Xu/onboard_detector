@@ -11,9 +11,11 @@ namespace onboardDetector{
         this->cloud_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
     }
 
-    void lidarDetector::setParams(double eps, int minPts){
+    void lidarDetector::setParams(double eps, int minPts, double groundHeight, double roofHeight){
         this->eps_ = eps;
         this->minPts_ = minPts;
+        this->groundHeight_ = groundHeight;
+        this->roofHeight_ = roofHeight;
     }
 
     void lidarDetector::getPointcloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud){
@@ -25,7 +27,7 @@ namespace onboardDetector{
             ROS_WARN("Empty pointcloud");
             return;
         }
-
+        this->preFilter();
         std::vector<Point> points;
         for(size_t i=0; i<cloud_->size(); ++i){
             Point p;
@@ -82,6 +84,18 @@ namespace onboardDetector{
             this->bboxes_.push_back(bbox);
         }
     }
+
+    void lidarDetector::preFilter() {
+        // Filter out points that are too close to the ground or too high
+        auto& points = this->cloud_->points;
+        points.erase(
+            std::remove_if(points.begin(), points.end(),
+                [this](const pcl::PointXYZ& point) {
+                    return point.z < this->groundHeight_ || point.z > this->roofHeight_;
+                }),
+            points.end());
+    }
+
     
     std::vector<onboardDetector::Cluster>& lidarDetector::getClusters(){
         return this->clusters_;

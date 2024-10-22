@@ -1,15 +1,16 @@
 localization_mode: 0 # 0: pose (default) 1: odom
 
-depth_image_topic: /camera/depth/image_raw
+depth_image_topic: /camera/depth/image_rect_raw
 color_image_topic: /camera/color/image_raw
-lidar_pointcloud_topic: /cloud_registered_body
-pose_topic: /CERLAB/quadcopter/pose
+lidar_pointcloud_topic: /livox_pcl0
+# lidar_pointcloud_topic: /cloud_registered
+# pose_topic: /CERLAB/quadcopter/pose
 odom_topic: /CERLAB/quadcopter/odom
 
 # depth_image_topic: /camera/depth/image_rect_raw
 # aligned_depth_image_topic: /camera/aligned_depth_to_color/image_raw
-# pose_topic: /mavros/local_position/pose
-# odom_topic: /vins_estimator/imu_propagate
+pose_topic: /mavros/local_position/pose
+# odom_topic: /vins_estimator/imu_propagatef
 
 # Camera Parameters
 # depth_intrinsics: [386.22674560546875, 386.22674560546875, 317.3930969238281, 239.78431701660156] # fx,  fy, cx, cy realsense
@@ -50,8 +51,9 @@ time_difference: 0.033
 voxel_occupied_thresh: 5 # min num of points for a voxel to be occupied in voxel filter
 
 # dbscan
-ground_height: 0.1 # height of ground to remove ground points
-dbscan_min_points_cluster: 20 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
+ground_height: 0.0 # height of ground to remove ground points
+roof_height: 1.8 # relative height of roof to remove roof points
+dbscan_min_points_cluster: 10 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
 dbscan_search_range_epsilon: 0.1 # searching range radius
 
 # lidar dbscan

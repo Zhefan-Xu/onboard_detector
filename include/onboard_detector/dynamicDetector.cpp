@@ -248,6 +248,15 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Ground height is set to: " << this->groundHeight_ << std::endl;
         }
 
+        // roof height
+        if (not this->nh_.getParam(this->ns_ + "/roof_height", this->roofHeight_)){
+            this->roofHeight_ = 2.0;
+            std::cout << this->hint_ << ": No roof height parameter. Use default: 2.0m." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Roof height is set to: " << this->roofHeight_ << std::endl;
+        }
+
         // minimum number of points in each cluster
         if (not this->nh_.getParam(this->ns_ + "/dbscan_min_points_cluster", this->dbMinPointsCluster_)){
             this->dbMinPointsCluster_ = 18;
@@ -802,7 +811,7 @@ namespace onboardDetector{
                 sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
 
                 // If the downsampled cloud has more than 1000 points, further increase the leaf size
-                while (downsampledCloud->size() > 2000) {
+                while (downsampledCloud->size() > 4000) {
                     double leafSize = sor.getLeafSize().x() * 1.1f; // Increase the leaf size to reduce point count
                     sor.setLeafSize(leafSize, leafSize, leafSize);
                     sor.filter(*downsampledCloud);
@@ -1142,7 +1151,7 @@ namespace onboardDetector{
     void dynamicDetector::lidarDetect(){
         if (this->lidarDetector_ == NULL){
             this->lidarDetector_.reset(new lidarDetector());
-            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_);
+            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_, this->groundHeight_, this->roofHeight_);
         }
 
         if (this->lidarCloud_ != NULL){
@@ -1549,7 +1558,28 @@ namespace onboardDetector{
                     filteredPoints.push_back(p);
                 }
             }
-        }  
+        } 
+
+        // for (int i = 0; i < this->projPointsNum_; ++i) {
+        //     Eigen::Vector3d p = points[i];
+
+        //     if (this->isInFilterRange(p) &&
+        //         p(2) >= this->groundHeight_ &&
+        //         p(2) <= this->roofHeight_ &&  // Added condition for roofHeight_
+        //         this->pointsDepth_[i] <= this->raycastMaxLength_) {
+
+        //             // Find the corresponding voxel id in the vector and check whether it is occupied
+        //             int pID = this->posToAddress(p, res);
+
+        //             // Add one point
+        //             voxelOccupancyVec[pID] += 1;
+
+        //             // Add only if threshold points are found
+        //             if (voxelOccupancyVec[pID] == this->voxelOccThresh_) {
+        //                 filteredPoints.push_back(p);
+        //         }
+        //     }
+        // }
     }
 
     void dynamicDetector::calcPcFeat(const std::vector<Eigen::Vector3d>& pcCluster, Eigen::Vector3d& pcClusterCenter, Eigen::Vector3d& pcClusterStd){

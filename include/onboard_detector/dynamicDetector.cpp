@@ -248,6 +248,15 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Ground height is set to: " << this->groundHeight_ << std::endl;
         }
 
+        // roof height
+        if (not this->nh_.getParam(this->ns_ + "/roof_height", this->roofHeight_)){
+            this->roofHeight_ = 2.0;
+            std::cout << this->hint_ << ": No roof height parameter. Use default: 2.0m." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Roof height is set to: " << this->roofHeight_ << std::endl;
+        }
+
         // minimum number of points in each cluster
         if (not this->nh_.getParam(this->ns_ + "/dbscan_min_points_cluster", this->dbMinPointsCluster_)){
             this->dbMinPointsCluster_ = 18;
@@ -777,19 +786,19 @@ namespace onboardDetector{
                 // Filter for X axis
                 pass.setInputCloud(tempCloud);
                 pass.setFilterFieldName("x");
-                pass.setFilterLimits(-this->localSensorRange_.x(), this->localSensorRange_.x());
+                pass.setFilterLimits(-this->localLidarRange_.x(), this->localLidarRange_.x());
                 pass.filter(*filteredCloud);
 
                 // Filter for Y axis
                 pass.setInputCloud(filteredCloud);
                 pass.setFilterFieldName("y");
-                pass.setFilterLimits(-this->localSensorRange_.y(), this->localSensorRange_.y());
+                pass.setFilterLimits(-this->localLidarRange_.y(), this->localLidarRange_.y());
                 pass.filter(*filteredCloud);
 
                 // Filter for Z axis
                 pass.setInputCloud(filteredCloud);
                 pass.setFilterFieldName("z");
-                pass.setFilterLimits(-this->localSensorRange_.z()/2., this->localSensorRange_.z()/2.);
+                pass.setFilterLimits(-this->localLidarRange_.z()/2., this->localLidarRange_.z()/2.);
                 pass.filter(*filteredCloud);
 
                 pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud = filteredCloud;
@@ -801,8 +810,8 @@ namespace onboardDetector{
                 // Set the leaf size (adjust to control the downsampling)
                 sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
 
-                // If the downsampled cloud has more than 1000 points, further increase the leaf size
-                while (downsampledCloud->size() > 2000) {
+                // If the downsampled cloud has more than certain points, further increase the leaf size
+                while (downsampledCloud->size() > 4000) {
                     double leafSize = sor.getLeafSize().x() * 1.1f; // Increase the leaf size to reduce point count
                     sor.setLeafSize(leafSize, leafSize, leafSize);
                     sor.filter(*downsampledCloud);
@@ -1142,7 +1151,7 @@ namespace onboardDetector{
     void dynamicDetector::lidarDetect(){
         if (this->lidarDetector_ == NULL){
             this->lidarDetector_.reset(new lidarDetector());
-            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_);
+            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_, this->groundHeight_, this->roofHeight_);
         }
 
         if (this->lidarCloud_ != NULL){
@@ -1549,7 +1558,7 @@ namespace onboardDetector{
                     filteredPoints.push_back(p);
                 }
             }
-        }  
+        } 
     }
 
     void dynamicDetector::calcPcFeat(const std::vector<Eigen::Vector3d>& pcCluster, Eigen::Vector3d& pcClusterCenter, Eigen::Vector3d& pcClusterStd){

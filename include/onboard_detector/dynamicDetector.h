@@ -106,6 +106,7 @@ namespace onboardDetector{
         std::string odomTopicName_;
         double raycastMaxLength_;
         double groundHeight_;
+        double roofHeight_;
         int dbMinPointsCluster_;
         double dbEpsilon_;
         int lidarDBMinPoints_;
@@ -149,6 +150,7 @@ namespace onboardDetector{
         Eigen::Matrix3d orientationLidar_; // color camera orientation
         bool hasSensorPose_;
         Eigen::Vector3d localSensorRange_ {5.0, 5.0, 5.0};
+        Eigen::Vector3d localLidarRange_ {10.0, 10.0, 5.0};
 
         //LIDAR DATA
         pcl::PointCloud<pcl::PointXYZ>::Ptr lidarCloud_ = NULL; 

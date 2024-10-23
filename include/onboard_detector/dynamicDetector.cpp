@@ -786,19 +786,19 @@ namespace onboardDetector{
                 // Filter for X axis
                 pass.setInputCloud(tempCloud);
                 pass.setFilterFieldName("x");
-                pass.setFilterLimits(-this->localSensorRange_.x(), this->localSensorRange_.x());
+                pass.setFilterLimits(-this->localLidarRange_.x(), this->localLidarRange_.x());
                 pass.filter(*filteredCloud);
 
                 // Filter for Y axis
                 pass.setInputCloud(filteredCloud);
                 pass.setFilterFieldName("y");
-                pass.setFilterLimits(-this->localSensorRange_.y(), this->localSensorRange_.y());
+                pass.setFilterLimits(-this->localLidarRange_.y(), this->localLidarRange_.y());
                 pass.filter(*filteredCloud);
 
                 // Filter for Z axis
                 pass.setInputCloud(filteredCloud);
                 pass.setFilterFieldName("z");
-                pass.setFilterLimits(-this->localSensorRange_.z()/2., this->localSensorRange_.z()/2.);
+                pass.setFilterLimits(-this->localLidarRange_.z()/2., this->localLidarRange_.z()/2.);
                 pass.filter(*filteredCloud);
 
                 pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud = filteredCloud;
@@ -810,7 +810,7 @@ namespace onboardDetector{
                 // Set the leaf size (adjust to control the downsampling)
                 sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
 
-                // If the downsampled cloud has more than 1000 points, further increase the leaf size
+                // If the downsampled cloud has more than certain points, further increase the leaf size
                 while (downsampledCloud->size() > 4000) {
                     double leafSize = sor.getLeafSize().x() * 1.1f; // Increase the leaf size to reduce point count
                     sor.setLeafSize(leafSize, leafSize, leafSize);
@@ -1559,27 +1559,6 @@ namespace onboardDetector{
                 }
             }
         } 
-
-        // for (int i = 0; i < this->projPointsNum_; ++i) {
-        //     Eigen::Vector3d p = points[i];
-
-        //     if (this->isInFilterRange(p) &&
-        //         p(2) >= this->groundHeight_ &&
-        //         p(2) <= this->roofHeight_ &&  // Added condition for roofHeight_
-        //         this->pointsDepth_[i] <= this->raycastMaxLength_) {
-
-        //             // Find the corresponding voxel id in the vector and check whether it is occupied
-        //             int pID = this->posToAddress(p, res);
-
-        //             // Add one point
-        //             voxelOccupancyVec[pID] += 1;
-
-        //             // Add only if threshold points are found
-        //             if (voxelOccupancyVec[pID] == this->voxelOccThresh_) {
-        //                 filteredPoints.push_back(p);
-        //         }
-        //     }
-        // }
     }
 
     void dynamicDetector::calcPcFeat(const std::vector<Eigen::Vector3d>& pcCluster, Eigen::Vector3d& pcClusterCenter, Eigen::Vector3d& pcClusterStd){

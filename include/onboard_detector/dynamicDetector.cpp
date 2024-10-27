@@ -804,10 +804,10 @@ namespace onboardDetector{
                 pass.filter(*filteredCloud);
 
                 // Filter for Z axis local
-                pass.setInputCloud(filteredCloud);
-                pass.setFilterFieldName("z");
-                pass.setFilterLimits(-this->localLidarRange_.z()/2., this->localLidarRange_.z()/2.);
-                pass.filter(*filteredCloud);
+                // pass.setInputCloud(filteredCloud);
+                // pass.setFilterFieldName("z");
+                // pass.setFilterLimits(-this->localLidarRange_.z()/2., this->localLidarRange_.z()/2.);
+                // pass.filter(*filteredCloud);
 
                 // pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud = filteredCloud;
 

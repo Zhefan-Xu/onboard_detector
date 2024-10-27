@@ -27,7 +27,7 @@ namespace onboardDetector{
             ROS_WARN("Empty pointcloud");
             return;
         }
-        this->preFilter();
+        // this->preFilter();
         std::vector<Point> points;
         for(size_t i=0; i<cloud_->size(); ++i){
             Point p;

@@ -293,6 +293,14 @@ namespace onboardDetector{
             cout << this->hint_ << ": Lidar DBSCAN epsilon is set to: " << this->lidarDBEpsilon_ << endl;
         }
 
+        if(not this->nh_.getParam(this->ns_ + "/downsample_threshold", this->downSampleThresh_)){
+            this->downSampleThresh_ = 4000;
+            cout << this->hint_ << ": No downsample threshold parameter found. Use default: 4000." << endl;
+        }
+        else{
+            cout << this->hint_ << ": The downsample threshold is set to: " << this->downSampleThresh_ << endl;
+        }
+
         // IOU threshold
         if (not this->nh_.getParam(this->ns_ + "/filtering_BBox_IOU_threshold", this->boxIOUThresh_)){
             this->boxIOUThresh_ = 0.5;
@@ -795,27 +803,13 @@ namespace onboardDetector{
                 pass.setFilterLimits(-this->localLidarRange_.y(), this->localLidarRange_.y());
                 pass.filter(*filteredCloud);
 
-                // Filter for Z axis
+                // Filter for Z axis local
                 pass.setInputCloud(filteredCloud);
                 pass.setFilterFieldName("z");
                 pass.setFilterLimits(-this->localLidarRange_.z()/2., this->localLidarRange_.z()/2.);
                 pass.filter(*filteredCloud);
 
-                pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud = filteredCloud;
-                
-                // Create the VoxelGrid filter object
-                pcl::VoxelGrid<pcl::PointXYZ> sor;
-                sor.setInputCloud(filteredCloud);
-
-                // Set the leaf size (adjust to control the downsampling)
-                sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
-
-                // If the downsampled cloud has more than certain points, further increase the leaf size
-                while (downsampledCloud->size() > 4000) {
-                    double leafSize = sor.getLeafSize().x() * 1.1f; // Increase the leaf size to reduce point count
-                    sor.setLeafSize(leafSize, leafSize, leafSize);
-                    sor.filter(*downsampledCloud);
-                }
+                // pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud = filteredCloud;
 
                 // transform
                 Eigen::Affine3d transform = Eigen::Affine3d::Identity();
@@ -827,10 +821,36 @@ namespace onboardDetector{
                 pcl::PointCloud<pcl::PointXYZ>::Ptr transformedCloud (new pcl::PointCloud<pcl::PointXYZ>());
 
                 // Apply the transformation
-                pcl::transformPointCloud(*downsampledCloud, *transformedCloud, transform);
+                pcl::transformPointCloud(*filteredCloud, *transformedCloud, transform);
 
-                this->lidarCloud_ = transformedCloud;
-                cout << "size of cloud: " << transformedCloud->size() << endl;
+                // filter roof and ground 
+                pcl::PointCloud<pcl::PointXYZ>::Ptr groundRoofFilterCloud (new pcl::PointCloud<pcl::PointXYZ>());
+                pass.setInputCloud(transformedCloud);
+                pass.setFilterFieldName("z");
+                pass.setFilterLimits(this->groundHeight_, this->roofHeight_);
+                pass.filter(*groundRoofFilterCloud);
+
+                pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud = groundRoofFilterCloud;
+                // Create the VoxelGrid filter object
+                pcl::VoxelGrid<pcl::PointXYZ> sor;
+                // sor.setInputCloud(filteredCloud);
+                sor.setInputCloud(groundRoofFilterCloud);
+
+                // Set the leaf size (adjust to control the downsampling)
+                sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
+
+                // If the downsampled cloud has more than certain points, further increase the leaf size
+                while (downsampledCloud->size() > this->downSampleThresh_) {
+                    double leafSize = sor.getLeafSize().x() * 1.1f; // Increase the leaf size to reduce point count
+                    sor.setLeafSize(leafSize, leafSize, leafSize);
+                    sor.filter(*downsampledCloud);
+                }
+
+                // this->lidarCloud_ = transformedCloud;
+                // cout << "size of cloud: " << transformedCloud->size() << endl;
+                this->lidarCloud_ = downsampledCloud;
+                cout << "size of cloud: " << downsampledCloud->size() << endl;
+
 
                 // // republish the transformed and downsampled cloud
                 // sensor_msgs::PointCloud2 lidarCloudMsg;

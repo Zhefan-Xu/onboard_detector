@@ -50,7 +50,6 @@ namespace onboardDetector{
         lidarDetector();
         void setParams(double eps, int minPts, double groundHeight, double roofHeight);
         void getPointcloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud);
-        void preFilter();
         void lidarDBSCAN();
         std::vector<onboardDetector::Cluster>& getClusters();
         std::vector<onboardDetector::box3D>& getBBoxes();

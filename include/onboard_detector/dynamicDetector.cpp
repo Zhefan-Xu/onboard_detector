@@ -882,13 +882,12 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::lidarDetectionCB(const ros::TimerEvent&){
-        // TODO: lidar detection thread
         // use class in lidarDetector to detect obstacles into bounding boxes. 
         // this function should not be long
-        ros::Time start = ros::Time::now();
+        // ros::Time start = ros::Time::now();
         this->lidarDetect();
-        ros::Time end = ros::Time::now();
-        cout << "time: " << (end - start).toSec() << endl;
+        // ros::Time end = ros::Time::now();
+        // cout << "time: " << (end - start).toSec() << endl;
     }
 
     void dynamicDetector::trackingCB(const ros::TimerEvent&){

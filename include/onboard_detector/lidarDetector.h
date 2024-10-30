@@ -42,7 +42,6 @@ namespace onboardDetector{
         //lidar DBSCAN parameters
         double eps_;
         int minPts_;
-
         double groundHeight_;
         double roofHeight_;
         

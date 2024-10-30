@@ -803,13 +803,6 @@ namespace onboardDetector{
                 pass.setFilterLimits(-this->localLidarRange_.y(), this->localLidarRange_.y());
                 pass.filter(*filteredCloud);
 
-                // Filter for Z axis local
-                // pass.setInputCloud(filteredCloud);
-                // pass.setFilterFieldName("z");
-                // pass.setFilterLimits(-this->localLidarRange_.z()/2., this->localLidarRange_.z()/2.);
-                // pass.filter(*filteredCloud);
-
-                // pcl::PointCloud<pcl::PointXYZ>::Ptr downsampledCloud = filteredCloud;
 
                 // transform
                 Eigen::Affine3d transform = Eigen::Affine3d::Identity();
@@ -840,7 +833,7 @@ namespace onboardDetector{
                 sor.setLeafSize(0.1f, 0.1f, 0.1f); // Try different values based on your point cloud density
 
                 // If the downsampled cloud has more than certain points, further increase the leaf size
-                while (downsampledCloud->size() > this->downSampleThresh_) {
+                while (int(downsampledCloud->size()) > this->downSampleThresh_) {
                     double leafSize = sor.getLeafSize().x() * 1.1f; // Increase the leaf size to reduce point count
                     sor.setLeafSize(leafSize, leafSize, leafSize);
                     sor.filter(*downsampledCloud);

@@ -107,6 +107,7 @@ namespace onboardDetector{
         double raycastMaxLength_;
         double groundHeight_;
         double roofHeight_;
+        int downSampleThresh_;
         int dbMinPointsCluster_;
         double dbEpsilon_;
         int lidarDBMinPoints_;

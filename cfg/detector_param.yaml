@@ -1,15 +1,15 @@
 localization_mode: 0 # 0: pose (default) 1: odom
 
-depth_image_topic: /camera/depth/image_raw
+# depth_image_topic: /camera/depth/image_raw
 color_image_topic: /camera/color/image_raw
 lidar_pointcloud_topic: /livox_pcl0
 # lidar_pointcloud_topic: /cloud_registered
-pose_topic: /CERLAB/quadcopter/pose
+# pose_topic: /CERLAB/quadcopter/pose
 odom_topic: /CERLAB/quadcopter/odom
 
-# depth_image_topic: /camera/depth/image_rect_raw
+depth_image_topic: /camera/depth/image_rect_raw
 # aligned_depth_image_topic: /camera/aligned_depth_to_color/image_raw
-# pose_topic: /mavros/local_position/pose
+pose_topic: /mavros/local_position/pose
 # odom_topic: /vins_estimator/imu_propagate
 
 # Camera Parameters

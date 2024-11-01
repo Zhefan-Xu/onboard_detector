@@ -1322,6 +1322,32 @@ namespace onboardDetector{
             }
         }
 
+        // lidar bbox filter
+        for (size_t i = 0; i < this->lidarBBoxes_.size(); ++i) {
+            onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
+
+            filteredBBoxesTemp.push_back(lidarBBox);
+
+            // get corresponding point cloud cluster
+            onboardDetector::Cluster cluster = this->lidarClusters_[i];
+
+            std::vector<Eigen::Vector3d> pcCluster;
+            for (const auto& point : cluster.points->points) {
+                pcCluster.emplace_back(point.x, point.y, point.z);
+            }
+
+            // extract the cluster center
+            Eigen::Vector3d clusterCenter(cluster.centroid[0], cluster.centroid[1], cluster.centroid[2]);
+
+            // compute std
+            Eigen::Vector3d clusterStd = cluster.eigen_values.cwiseSqrt().cast<double>();
+
+            // Append to the filtered vectors
+            filteredPcClustersTemp.push_back(pcCluster);
+            filteredPcClusterCentersTemp.push_back(clusterCenter);
+            filteredPcClusterStdsTemp.push_back(clusterStd);
+        }
+
         // for (int i=0; i<int(filteredBBoxesTemp.size()); ++i){
         //     cout << "filterd box i: " << i << " x y z d: " << filteredBBoxesTemp[i].x << " " << filteredBBoxesTemp[i].y 
         //     << " " <<filteredBBoxesTemp[i].z << " " << filteredBBoxesTemp[i].is_human << endl;

@@ -542,6 +542,22 @@ namespace onboardDetector{
             }
             
         }
+
+        // target object size threshold
+        if(not this->nh_.getParam(this->ns_ + "/target_object_size_threshold", this->targetObjectSizeThresh_)){
+            this->targetObjectSizeThresh_ = {2.0, 2.0, 2.0};
+            std::cout << this->hint_ << ": No target object size threshold parameter found. Use default: [2.0, 2.0, 2.0]." << endl;
+        }
+        else{
+            std::cout << "The target object size threshold is set to: [";
+            for (size_t i = 0; i < targetObjectSizeThresh_.size(); ++i) {
+                std::cout << targetObjectSizeThresh_[i];
+                if (i != targetObjectSizeThresh_.size() - 1) {
+                    std::cout << ", ";
+                }
+            }
+            std::cout << "]." << std::endl;
+        }
     }
 
     void dynamicDetector::registerPub(){
@@ -998,11 +1014,11 @@ namespace onboardDetector{
             int numSkip = 0;
             for (size_t j=0 ; j<currPc.size() ; ++j){
                 // don't perform classification for points unseen in previous frame
-                if (!this->isInFov(this->positionHist_[curFrameGap], this->orientationHist_[curFrameGap], currPc[j])){
-                    ++numSkip;
-                    --numPoints;
-                    continue;
-                }
+                // if (!this->isInFov(this->positionHist_[curFrameGap], this->orientationHist_[curFrameGap], currPc[j])){
+                //     ++numSkip;
+                //     --numPoints;
+                //     continue;
+                // }
 
                 double minDist = 2;
                 Eigen::Vector3d nearestVect;
@@ -1326,6 +1342,10 @@ namespace onboardDetector{
         for (size_t i = 0; i < this->lidarBBoxes_.size(); ++i) {
             onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
 
+            if(lidarBBox.x_width > this->targetObjectSizeThresh_[0] || lidarBBox.y_width > this->targetObjectSizeThresh_[1] || lidarBBox.z_width > this->targetObjectSizeThresh_[2]){
+                continue;
+            }
+            
             filteredBBoxesTemp.push_back(lidarBBox);
 
             // get corresponding point cloud cluster

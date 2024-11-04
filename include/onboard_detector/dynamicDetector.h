@@ -139,6 +139,7 @@ namespace onboardDetector{
         int kfAvgFrames_;
         bool constrainSize_;
         std::vector<Eigen::Vector3d> targetObjectSize_; 
+        std::vector<double> targetObjectSizeThresh_;
 
         // SENSOR DATA
         cv::Mat depthImage_;

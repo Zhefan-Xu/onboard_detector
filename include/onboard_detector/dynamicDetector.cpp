@@ -1117,8 +1117,8 @@ namespace onboardDetector{
         this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
         this->publishHistoryTraj();
         this->publishVelVis();
-        this->publishLidarClusters();
-        this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5);
+        this->publishLidarClusters(); // colored clusters
+        this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5); // raw lidar cluster bounding boxes
     }
 
     void dynamicDetector::uvDetect(){

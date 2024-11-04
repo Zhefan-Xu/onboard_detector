@@ -221,19 +221,19 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /onboard_detector/tracked_bboxes
       Name: MarkerArray
       Namespaces:
-        box3D: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /onboard_detector/dynamic_bboxes
       Name: MarkerArray
       Namespaces:
-        {}
+        box3D: true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -280,9 +280,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6347967982292175
+      Pitch: 0.7847966551780701
       Target Frame: <Fixed Frame>
-      Yaw: 4.780417442321777
+      Yaw: 3.09039568901062
     Saved: ~
 Window Geometry:
   Displays:

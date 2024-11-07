@@ -136,6 +136,7 @@ add_library(${PROJECT_NAME}
    include/${PROJECT_NAME}/kalmanFilter.cpp
    include/${PROJECT_NAME}/fakeDetector.cpp
    include/${PROJECT_NAME}/lidarDetector.cpp
+  include/${PROJECT_NAME}/Hungarian.cpp
 )
 
 ## Add cmake target dependencies of the library

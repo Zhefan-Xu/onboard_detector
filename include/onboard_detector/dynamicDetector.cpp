@@ -858,7 +858,8 @@ namespace onboardDetector{
                 // this->lidarCloud_ = transformedCloud;
                 // cout << "size of cloud: " << transformedCloud->size() << endl;
                 this->lidarCloud_ = downsampledCloud;
-                cout << "size of cloud: " << downsampledCloud->size() << endl;
+                // cout << "size of cloud: " << downsampledCloud->size() << endl;
+                ROS_WARN("Size of downsampled cloud: %ld", downsampledCloud->size());
 
 
                 // // republish the transformed and downsampled cloud
@@ -1115,6 +1116,8 @@ namespace onboardDetector{
         this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
         this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
         this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
+        // this->publish3dBoxWithID(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
+
         this->publishHistoryTraj();
         this->publishVelVis();
         this->publishLidarClusters(); // colored clusters
@@ -1856,6 +1859,7 @@ namespace onboardDetector{
 
         // calculate association: find best match
         this->findBestMatch(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch);  
+        // this->findBestMatchOptimized(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch);
         if (this->boxHist_.size()){
             this->getBoxOutofRange(boxOOR, bestMatch);
             int numOORBox = 0;
@@ -1866,6 +1870,7 @@ namespace onboardDetector{
             }
             if (numOORBox){
                 this->findBestMatchEstimate(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch, boxOOR);
+                // this->findBestMatchPostProcess(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch, boxOOR);
             }
         }
     
@@ -1935,6 +1940,7 @@ namespace onboardDetector{
                 bestMatch[i] = bestMatchInd;
             }
         }
+        ROS_INFO("BestMatch: Input filteredBBox size: %d, propedBoxes size: %d, bestMatch size: %d", int(this->filteredBBoxes_.size()), int(propedBoxes.size()), int(bestMatch.size()));
     }
 
     void dynamicDetector::findBestMatchEstimate(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch, std::vector<int>& boxOOR){
@@ -1969,8 +1975,114 @@ namespace onboardDetector{
             }
         }
     }    
+
+    void dynamicDetector::findBestMatchOptimized(
+        const std::vector<Eigen::VectorXd>& propedBoxesFeat,
+        const std::vector<Eigen::VectorXd>& currBoxesFeat,
+        const std::vector<onboardDetector::box3D>& propedBoxes,
+        std::vector<int>& bestMatch) {
+        
+        int numObjs = this->filteredBBoxes_.size();
+        int numProposals = propedBoxes.size();
+        
+        // cost matrix
+        std::vector<std::vector<double>> costMatrix(numObjs, std::vector<double>(numProposals, 1.0));
+        
+        for(int i = 0; i < numObjs; ++i){
+            for(int j = 0; j < numProposals; ++j){
+                double sim = propedBoxesFeat[j].dot(currBoxesFeat[i]) / 
+                            (propedBoxesFeat[j].norm() * currBoxesFeat[i].norm());
+                double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[j]);
+                // double combinedScore = sim * this->simWeight_ + iou * this->iouWeight_;
+                double combinedScore = sim * 0.5 + iou * 0.5;
+                costMatrix[i][j] = 1.0 - combinedScore;
+            }
+        }
+        
+        // match
+        HungarianAlgorithm HungAlgo;
+        std::vector<int> assignment;
+        HungAlgo.Solve(costMatrix, assignment);
+        
+        // calculate best match
+        bestMatch.resize(numObjs, -1);
+        for(int i = 0; i < numObjs; ++i){
+            if(assignment[i] >= 0 && 
+            (1.0 - costMatrix[i][assignment[i]]) > 0.3){
+                bestMatch[i] = assignment[i];
+            }
+        }
+    }
     
+    // post process for boxOOR
+    void dynamicDetector::findBestMatchPostProcess(
+        const std::vector<Eigen::VectorXd>& propedBoxesFeat,
+        const std::vector<Eigen::VectorXd>& currBoxesFeat,
+        const std::vector<onboardDetector::box3D>& propedBoxes,
+        std::vector<int>& bestMatch,
+        std::vector<int>& boxOOR) {
+        
+        // get index of unmatched current boxes
+        std::vector<int> unmatchedCurrBoxes;
+        for(int i = 0; i < bestMatch.size(); ++i){
+            if(bestMatch[i] == -1){
+                unmatchedCurrBoxes.push_back(i);
+            }
+        }
+        
+        // get OOR index
+        std::vector<int> oorProposals;
+        for(int j = 0; j < boxOOR.size(); ++j){
+            if(boxOOR[j]){
+                oorProposals.push_back(j);
+            }
+        }
+        
+        // if no match, return
+        if(unmatchedCurrBoxes.empty() || oorProposals.empty()){
+            return;
+        }
+        
+        // calculate cost matrix for unmatched current boxes and OOR proposals
+        int numUnmatched = unmatchedCurrBoxes.size();
+        int numOOR = oorProposals.size();
+        std::vector<std::vector<double>> costMatrix(numUnmatched, std::vector<double>(numOOR, 1.0));
+        
+        for(int i = 0; i < numUnmatched; ++i){
+            int currIdx = unmatchedCurrBoxes[i];
+            for(int j = 0; j < numOOR; ++j){
+                int propIdx = oorProposals[j];
+                double sim = propedBoxesFeat[propIdx].dot(currBoxesFeat[currIdx]) / 
+                            (propedBoxesFeat[propIdx].norm() * currBoxesFeat[currIdx].norm());
+                double iou = this->calBoxIOU(this->filteredBBoxes_[currIdx], propedBoxes[propIdx]);
+                // double combinedScore = sim * this->simWeight_ + iou * this->iouWeight_;
+                double combinedScore = sim * 0.5 + iou * 0.5;
+                costMatrix[i][j] = 1.0 - combinedScore;
+            }
+        }
+        
+        // rematch
+        HungarianAlgorithm HungAlgo;
+        std::vector<int> assignment;
+        HungAlgo.Solve(costMatrix, assignment);
+        
+        // update match result
+        for(int i = 0; i < numUnmatched; ++i){
+            int assignedOOR = assignment[i];
+            if(assignedOOR >= 0){
+                double combinedScore = 1.0 - costMatrix[i][assignedOOR];
+                if(combinedScore > 0.3){
+                    int currIdx = unmatchedCurrBoxes[i];
+                    int propIdx = oorProposals[assignedOOR];
+                    bestMatch[currIdx] = propIdx;
+                    boxOOR[propIdx] = 0; // 标记该 OOR 框已被重新匹配
+                }
+            }
+        }
+    }
+
     void dynamicDetector::getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch){
+        TODO: debug logic
         if (int(this->boxHist_.size())>0){
             boxOOR.resize(this->boxHist_.size(), 1);
             for (int i=0; i<int(bestMatch.size()); i++){
@@ -1978,6 +2090,7 @@ namespace onboardDetector{
                     boxOOR[bestMatch[i]] = 0;
                 }
             }
+
             for (int i=0; i<int(boxOOR.size()); i++){
                 if (boxOOR[i] and this->boxHist_[i][0].is_dynamic){
                     // cout<<"dynamic obstacle out of range"<<endl;
@@ -1986,8 +2099,7 @@ namespace onboardDetector{
                     boxOOR[i] = 0;
                 }
             }
-        }     
-
+        }
     }
 
     int dynamicDetector::getEstimateFrameNum(const std::deque<onboardDetector::box3D> &boxHist){
@@ -2023,6 +2135,8 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch, const std::vector<int> &boxOOR){
+        ROS_INFO("Kalman: Filteredbox size: %ld, BestMatch size: %ld, boxOOR size: %ld", this->filteredBBoxes_.size(), bestMatch.size(), boxOOR.size());
+
         std::vector<std::deque<onboardDetector::box3D>> boxHistTemp; 
         std::vector<std::deque<std::vector<Eigen::Vector3d>>> pcHistTemp;
         std::vector<onboardDetector::kalman_filter> filtersTemp;
@@ -2128,6 +2242,7 @@ namespace onboardDetector{
                     newEstimatedBBox.is_dynamic = true;
                     newEstimatedBBox.is_human = currDetectedBBox.is_human;
                     newEstimatedBBox.is_estimated = true;
+                    // newEstimatedBBox.is_estimated = false; // for debug
                     newEstimatedBBox.is_dynamic_candidate = true;
 
                     // pop old data if len of hist > size limit
@@ -2341,6 +2456,112 @@ namespace onboardDetector{
                  line.color.b = 0.0;
                  line.color.a = 1.0;
             }
+
+            // visualization msgs
+            line.text = " Vx " + std::to_string(boxes[i].Vx) + " Vy " + std::to_string(boxes[i].Vy);
+            double x = boxes[i].x; 
+            double y = boxes[i].y; 
+            double z = (boxes[i].z+boxes[i].z_width/2)/2; 
+
+            // double x_width = std::max(boxes[i].x_width,boxes[i].y_width);
+            // double y_width = std::max(boxes[i].x_width,boxes[i].y_width);
+            double x_width = boxes[i].x_width;
+            double y_width = boxes[i].y_width;
+            double z_width = 2*z;
+
+            // double z = 
+            
+            vector<geometry_msgs::Point> verts;
+            geometry_msgs::Point p;
+            // vertice 0
+            p.x = x-x_width / 2.; p.y = y-y_width / 2.; p.z = z-z_width / 2.;
+            verts.push_back(p);
+
+            // vertice 1
+            p.x = x-x_width / 2.; p.y = y+y_width / 2.; p.z = z-z_width / 2.;
+            verts.push_back(p);
+
+            // vertice 2
+            p.x = x+x_width / 2.; p.y = y+y_width / 2.; p.z = z-z_width / 2.;
+            verts.push_back(p);
+
+            // vertice 3
+            p.x = x+x_width / 2.; p.y = y-y_width / 2.; p.z = z-z_width / 2.;
+            verts.push_back(p);
+
+            // vertice 4
+            p.x = x-x_width / 2.; p.y = y-y_width / 2.; p.z = z+z_width / 2.;
+            verts.push_back(p);
+
+            // vertice 5
+            p.x = x-x_width / 2.; p.y = y+y_width / 2.; p.z = z+z_width / 2.;
+            verts.push_back(p);
+
+            // vertice 6
+            p.x = x+x_width / 2.; p.y = y+y_width / 2.; p.z = z+z_width / 2.;
+            verts.push_back(p);
+
+            // vertice 7
+            p.x = x+x_width / 2.; p.y = y-y_width / 2.; p.z = z+z_width / 2.;
+            verts.push_back(p);
+            
+            int vert_idx[12][2] = {
+                {0,1},
+                {1,2},
+                {2,3},
+                {0,3},
+                {0,4},
+                {1,5},
+                {3,7},
+                {2,6},
+                {4,5},
+                {5,6},
+                {4,7},
+                {6,7}
+            };
+            
+            for (size_t i=0;i<12;i++){
+                line.points.push_back(verts[vert_idx[i][0]]);
+                line.points.push_back(verts[vert_idx[i][1]]);
+            }
+            
+            lines.markers.push_back(line);
+            
+            line.id++;
+        }
+        // publish
+        publisher.publish(lines);
+    }
+
+    void dynamicDetector::publish3dBoxWithID(const std::vector<box3D>& boxes, const ros::Publisher& publisher, double r, double g, double b) {
+        // visualization using bounding boxes 
+        visualization_msgs::Marker line;
+        visualization_msgs::MarkerArray lines;
+        line.header.frame_id = "map";
+        line.type = visualization_msgs::Marker::LINE_LIST;
+        line.action = visualization_msgs::Marker::ADD;
+        line.ns = "box3D";  
+        line.scale.x = 0.06;
+        line.color.r = r;
+        line.color.g = g;
+        line.color.b = b;
+        line.color.a = 1.0;
+        line.lifetime = ros::Duration(0.1);
+        
+        for(size_t i = 0; i < boxes.size(); i++){
+            // for estimated bbox, using a different color
+            if (boxes[i].is_estimated){
+                 line.color.r = 0.8;
+                 line.color.g = 0.2;
+                 line.color.b = 0.0;
+                 line.color.a = 1.0;
+            }
+
+            ROS_INFO("Box %zu: is_dynamic=%s, is_estimated=%s, x=%.2f, y=%.2f, z=%.2f", 
+            i, 
+            boxes[i].is_dynamic ? "true" : "false", 
+            boxes[i].is_estimated ? "true" : "false",
+            boxes[i].x, boxes[i].y, boxes[i].z);
 
             // visualization msgs
             line.text = " Vx " + std::to_string(boxes[i].Vx) + " Vy " + std::to_string(boxes[i].Vy);

@@ -31,6 +31,7 @@
 #include <onboard_detector/kalmanFilter.h>
 #include <onboard_detector/utils.h>
 #include <onboard_detector/GetDynamicObstacles.h>
+#include <onboard_detector/Hungarian.h>
 
 namespace onboardDetector{
     class dynamicDetector{
@@ -141,6 +142,7 @@ namespace onboardDetector{
         std::vector<Eigen::Vector3d> targetObjectSize_; 
         std::vector<double> targetObjectSizeThresh_;
 
+
         // SENSOR DATA
         cv::Mat depthImage_;
         cv::Mat alignedDepthImage_;
@@ -249,6 +251,17 @@ namespace onboardDetector{
         void genFeatHelper(std::vector<Eigen::VectorXd>& feature, const std::vector<onboardDetector::box3D>& boxes);
         void linearProp(std::vector<onboardDetector::box3D>& propedBoxes);
         void findBestMatch(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch);
+        void findBestMatchOptimized(
+        const std::vector<Eigen::VectorXd>& propedBoxesFeat,
+        const std::vector<Eigen::VectorXd>& currBoxesFeat,
+        const std::vector<onboardDetector::box3D>& propedBoxes,
+        std::vector<int>& bestMatch); // new optimized version
+        void findBestMatchPostProcess(
+        const std::vector<Eigen::VectorXd>& propedBoxesFeat,
+        const std::vector<Eigen::VectorXd>& currBoxesFeat,
+        const std::vector<onboardDetector::box3D>& propedBoxes,
+        std::vector<int>& bestMatch,
+        std::vector<int>& boxOOR); // new post process version
         void findBestMatchEstimate(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch, std::vector<int>& boxOOR);
         void getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch); 
         int getEstimateFrameNum(const std::deque<onboardDetector::box3D> &boxHist);
@@ -267,6 +280,7 @@ namespace onboardDetector{
         void publishColorImages();
         void publishPoints(const std::vector<Eigen::Vector3d>& points, const ros::Publisher& publisher);
         void publish3dBox(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
+        void publish3dBoxWithID(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
         void publishHistoryTraj();
         void publishVelVis();
         void publishLidarClusters();

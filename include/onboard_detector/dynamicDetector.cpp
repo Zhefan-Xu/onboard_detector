@@ -1118,8 +1118,8 @@ namespace onboardDetector{
         // this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
         this->publish3dBoxWithID(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
         this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
-        this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
-        // this->publish3dBoxWithID(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
+        // this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
+        this->publish3dBoxWithID(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
 
         this->publishHistoryTraj();
         this->publishVelVis();
@@ -2736,23 +2736,26 @@ namespace onboardDetector{
                 line.color.r = 0.0;
                 line.color.g = 0.0;
                 line.color.b = 0.0;
+                line.color.a = 1.0;
             } else if (box.is_estimated){
                 // If the box is estimated, set line color to red
                 line.color.r = 1.0;
                 line.color.g = 0.0;
                 line.color.b = 0.0;
+                line.color.a = 0.0;
             } else if (box.is_dynamic) {
                 // If the box is dynamic, set line color to blue
                 line.color.r = 0.0;
                 line.color.g = 0.0;
                 line.color.b = 1.0;
+                line.color.a = 1.0;
             } else {
                 // Default color
                 line.color.r = r;
                 line.color.g = g;
                 line.color.b = b;
+                line.color.a = 1.0;
             }
-            line.color.a = 1.0;
             line.lifetime = ros::Duration(0.1);
 
             // Log box information

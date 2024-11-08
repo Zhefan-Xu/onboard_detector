@@ -646,12 +646,12 @@ namespace onboardDetector{
         // yolo detection results subscriber
         this->yoloDetectionSub_ = this->nh_.subscribe("yolo_detector/detected_bounding_boxes", 10, &dynamicDetector::yoloDetectionCB, this);
 
+        // lidar detection timer
+        this->lidarDetectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::lidarDetectionCB, this);
+
         // detection timer
         this->detectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::detectionCB, this);
 
-        // detection timer
-        this->lidarDetectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::lidarDetectionCB, this);
-        
         // tracking timer
         this->trackingTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::trackingCB, this);
 
@@ -1450,6 +1450,7 @@ namespace onboardDetector{
         //     filteredPcClusterStdsTemp = filteredPcClusterStdsTempCopy;
         // }
 
+        std::cout << "FilteredBBoxes:" << filteredBBoxesTemp.size() << std::endl;
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
         this->filteredPcClusterCenters_ = filteredPcClusterCentersTemp;
@@ -1654,40 +1655,81 @@ namespace onboardDetector{
     }
 
 
-    double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2){
+    // double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2){
+    //     double box1Volume = box1.x_width * box1.y_width * box1.z_width;
+    //     double box2Volume = box2.x_width * box2.y_width * box2.z_width;
+
+    //     double l1Y = box1.y+box1.y_width/2-(box2.y-box2.y_width/2);
+    //     double l2Y = box2.y+box2.y_width/2-(box1.y-box1.y_width/2);
+    //     double l1X = box1.x+box1.x_width/2-(box2.x-box2.x_width/2);
+    //     double l2X = box2.x+box2.x_width/2-(box1.x-box1.x_width/2);
+    //     double l1Z = box1.z+box1.z_width/2-(box2.z-box2.z_width/2);
+    //     double l2Z = box2.z+box2.z_width/2-(box1.z-box1.z_width/2);
+    //     double overlapX = std::min( l1X , l2X );
+    //     double overlapY = std::min( l1Y , l2Y );
+    //     double overlapZ = std::min( l1Z , l2Z );
+       
+    //     if (std::max(l1X, l2X)<=std::max(box1.x_width,box2.x_width)){ 
+    //         overlapX = std::min(box1.x_width, box2.x_width);
+    //     }
+    //     if (std::max(l1Y, l2Y)<=std::max(box1.y_width,box2.y_width)){ 
+    //         overlapY = std::min(box1.y_width, box2.y_width);
+    //     }
+    //     if (std::max(l1Z, l2Z)<=std::max(box1.z_width,box2.z_width)){ 
+    //         overlapZ = std::min(box1.z_width, box2.z_width);
+    //     }
+
+
+    //     double overlapVolume = overlapX * overlapY *  overlapZ;
+    //     double IOU = overlapVolume / (box1Volume+box2Volume-overlapVolume);
+        
+    //     // D-IOU
+    //     if (overlapX<=0 || overlapY<=0 || overlapZ<=0){
+    //         IOU = 0;
+    //     }
+    //     return IOU;
+    // }
+
+    double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2) {
+        // Volumes
         double box1Volume = box1.x_width * box1.y_width * box1.z_width;
         double box2Volume = box2.x_width * box2.y_width * box2.z_width;
 
-        double l1Y = box1.y+box1.y_width/2-(box2.y-box2.y_width/2);
-        double l2Y = box2.y+box2.y_width/2-(box1.y-box1.y_width/2);
-        double l1X = box1.x+box1.x_width/2-(box2.x-box2.x_width/2);
-        double l2X = box2.x+box2.x_width/2-(box1.x-box1.x_width/2);
-        double l1Z = box1.z+box1.z_width/2-(box2.z-box2.z_width/2);
-        double l2Z = box2.z+box2.z_width/2-(box1.z-box1.z_width/2);
-        double overlapX = std::min( l1X , l2X );
-        double overlapY = std::min( l1Y , l2Y );
-        double overlapZ = std::min( l1Z , l2Z );
-       
-        if (std::max(l1X, l2X)<=std::max(box1.x_width,box2.x_width)){ 
-            overlapX = std::min(box1.x_width, box2.x_width);
-        }
-        if (std::max(l1Y, l2Y)<=std::max(box1.y_width,box2.y_width)){ 
-            overlapY = std::min(box1.y_width, box2.y_width);
-        }
-        if (std::max(l1Z, l2Z)<=std::max(box1.z_width,box2.z_width)){ 
-            overlapZ = std::min(box1.z_width, box2.z_width);
-        }
+        // Box 1 min and max coordinates
+        double minX1 = box1.x - box1.x_width / 2.0;
+        double maxX1 = box1.x + box1.x_width / 2.0;
+        double minY1 = box1.y - box1.y_width / 2.0;
+        double maxY1 = box1.y + box1.y_width / 2.0;
+        double minZ1 = box1.z - box1.z_width / 2.0;
+        double maxZ1 = box1.z + box1.z_width / 2.0;
 
+        // Box 2 min and max coordinates
+        double minX2 = box2.x - box2.x_width / 2.0;
+        double maxX2 = box2.x + box2.x_width / 2.0;
+        double minY2 = box2.y - box2.y_width / 2.0;
+        double maxY2 = box2.y + box2.y_width / 2.0;
+        double minZ2 = box2.z - box2.z_width / 2.0;
+        double maxZ2 = box2.z + box2.z_width / 2.0;
 
-        double overlapVolume = overlapX * overlapY *  overlapZ;
-        double IOU = overlapVolume / (box1Volume+box2Volume-overlapVolume);
-        
-        // D-IOU
-        if (overlapX<=0 || overlapY<=0 ||overlapZ<=0){
+        // Overlaps
+        double overlapX = std::min(maxX1, maxX2) - std::max(minX1, minX2);
+        double overlapY = std::min(maxY1, maxY2) - std::max(minY1, minY2);
+        double overlapZ = std::min(maxZ1, maxZ2) - std::max(minZ1, minZ2);
+        double Xratio = overlapX / std::max(box1.x_width, box2.x_width);
+        double Yratio = overlapY / std::max(box1.y_width, box2.y_width);
+        double Zratio = overlapZ / std::max(box1.z_width, box2.z_width);
+
+        double IOU = Xratio + Yratio + Zratio;
+        std::cout << "Raw IOU:" << IOU << std::endl;
+        if(IOU > 0){
+            IOU = 1;
+        }
+        else {
             IOU = 0;
         }
         return IOU;
     }
+
 
     void dynamicDetector::getYolo3DBBox(const vision_msgs::Detection2D& detection, onboardDetector::box3D& bbox3D, cv::Rect& bboxVis){
         if (this->alignedDepthImage_.empty()){
@@ -1889,13 +1931,13 @@ namespace onboardDetector{
         this->genFeatHelper(propedBoxesFeat, propedBoxes);
         this->genFeatHelper(currBoxesFeat, this->filteredBBoxes_);
 
-        // for(size_t i=0; i<propedBoxesFeat.size(); ++i){
-        //     std::cout << "Proped Box " << i << ": " << propedBoxesFeat[i].transpose() << std::endl;
-        // }
+        for(size_t i=0; i<propedBoxesFeat.size(); ++i){
+            std::cout << "Proped Box " << i << ": " << propedBoxesFeat[i].transpose() << std::endl;
+        }
 
-        // for(size_t i=0; i<currBoxesFeat.size(); ++i){
-        //     std::cout << "Curr Box " << i << ": " << currBoxesFeat[i].transpose() << std::endl;
-        // }
+        for(size_t i=0; i<currBoxesFeat.size(); ++i){
+            std::cout << "Curr Box " << i << ": " << currBoxesFeat[i].transpose() << std::endl;
+        }
     }
 
     // void dynamicDetector::genFeatHelper(std::vector<Eigen::VectorXd>& features, const std::vector<onboardDetector::box3D>& boxes){ 
@@ -1984,7 +2026,7 @@ namespace onboardDetector{
             }
 
             double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
-            // std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
+            std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
             if(!(bestSims[i]>this->simThresh_ && iou)){
                 bestSims[i] = 0;
                 bestMatch[i] = -1;
@@ -2250,25 +2292,25 @@ namespace onboardDetector{
     void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch, const std::vector<int>& boxOOR) {
         ROS_INFO("Kalman: Filteredbox size: %ld, BestMatch size: %ld, boxOOR size: %ld", this->filteredBBoxes_.size(), bestMatch.size(), boxOOR.size());
 
-        // std::cout << "BestMatch Data: ";
-        // for(size_t i=0; i<bestMatch.size(); i++){
-        //     if(i != bestMatch.size() - 1){
-        //         std::cout << bestMatch[i] << " ";
-        //     }
-        //     else{
-        //         std::cout << bestMatch[i] << std::endl;
-        //     }
-        // }
+        std::cout << "BestMatch Data: ";
+        for(size_t i=0; i<bestMatch.size(); i++){
+            if(i != bestMatch.size() - 1){
+                std::cout << bestMatch[i] << " ";
+            }
+            else{
+                std::cout << bestMatch[i] << std::endl;
+            }
+        }
 
-        // std::cout << "BoxOOR Data: ";
-        // for(size_t i=0; i<boxOOR.size(); i++){
-        //     if(i != boxOOR.size() - 1){
-        //         std::cout << boxOOR[i] << " ";
-        //     }
-        //     else{
-        //         std::cout << boxOOR[i] << std::endl;
-        //     }
-        // }
+        std::cout << "BoxOOR Data: ";
+        for(size_t i=0; i<boxOOR.size(); i++){
+            if(i != boxOOR.size() - 1){
+                std::cout << boxOOR[i] << " ";
+            }
+            else{
+                std::cout << boxOOR[i] << std::endl;
+            }
+        }
 
         // Temporary variables to store updated history and filters
         std::vector<std::deque<onboardDetector::box3D>> boxHistTemp;
@@ -2742,7 +2784,7 @@ namespace onboardDetector{
                 line.color.r = 1.0;
                 line.color.g = 0.0;
                 line.color.b = 0.0;
-                line.color.a = 0.0;
+                line.color.a = 1.0;
             } else if (box.is_dynamic) {
                 // If the box is dynamic, set line color to blue
                 line.color.r = 0.0;
@@ -2759,11 +2801,11 @@ namespace onboardDetector{
             line.lifetime = ros::Duration(0.1);
 
             // Log box information
-            ROS_INFO("Box %zu: is_dynamic=%s, is_estimated=%s, x=%.2f, y=%.2f, z=%.2f", 
-                i, 
-                box.is_dynamic ? "true" : "false", 
-                box.is_estimated ? "true" : "false",
-                box.x, box.y, box.z);
+            // ROS_INFO("Box %zu: is_dynamic=%s, is_estimated=%s, x=%.2f, y=%.2f, z=%.2f", 
+            //     i, 
+            //     box.is_dynamic ? "true" : "false", 
+            //     box.is_estimated ? "true" : "false",
+            //     box.x, box.y, box.z);
 
             // Prepare vertices for the bounding box
             double x = box.x; 
@@ -2853,23 +2895,26 @@ namespace onboardDetector{
                 text_marker.color.r = 0.0;
                 text_marker.color.g = 0.0;
                 text_marker.color.b = 0.0;
+                text_marker.color.a = 1.0;
             } else if (box.is_estimated) {
                 // If the box is estimated, set text color to red
                 text_marker.color.r = 1.0;
                 text_marker.color.g = 0.0;
                 text_marker.color.b = 0.0;
+                text_marker.color.a = 0.0;
             } else if (box.is_dynamic) {
                 // If the box is dynamic, set text color to blue
                 text_marker.color.r = 0.0;
                 text_marker.color.g = 0.0;
                 text_marker.color.b = 1.0;
+                text_marker.color.a = 0.0;
             } else {
                 // Default text color (white)
                 text_marker.color.r = 1.0;
                 text_marker.color.g = 1.0;
                 text_marker.color.b = 1.0;
+                text_marker.color.a = 0.0;
             }
-            text_marker.color.a = 1.0;
 
             text_marker.lifetime = ros::Duration(0.1); // Same lifetime as lines
 

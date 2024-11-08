@@ -75,6 +75,7 @@ namespace onboardDetector{
         ros::Publisher lidarClustersPub_;
         ros::Publisher lidarBBoxesPub_;
         ros::Publisher lidarCloudPub_;
+        ros::Publisher propedBoxesPub_;
         ros::ServiceServer getDynamicObstacleServer_;
     
 
@@ -141,6 +142,7 @@ namespace onboardDetector{
         bool constrainSize_;
         std::vector<Eigen::Vector3d> targetObjectSize_; 
         std::vector<double> targetObjectSizeThresh_;
+        std::vector<int> bestMatchHist_;
 
 
         // SENSOR DATA
@@ -178,6 +180,7 @@ namespace onboardDetector{
         std::vector<onboardDetector::box3D> dynamicBBoxes_; // boxes classified as dynamic
         // std::vector<int> recentDynaFrames_; // recent number of frames being detected as dynamic for each obstacle
         std::vector<onboardDetector::box3D> lidarBBoxes_; // bboxes detected by lidar (have static and dynamic)
+        std::vector<onboardDetector::box3D> propedBoxes_; // linear propagated bboxes
 
         // TRACKING AND ASSOCIATION DATA
         bool newDetectFlag_;
@@ -251,17 +254,6 @@ namespace onboardDetector{
         void genFeatHelper(std::vector<Eigen::VectorXd>& feature, const std::vector<onboardDetector::box3D>& boxes);
         void linearProp(std::vector<onboardDetector::box3D>& propedBoxes);
         void findBestMatch(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch);
-        void findBestMatchOptimized(
-        const std::vector<Eigen::VectorXd>& propedBoxesFeat,
-        const std::vector<Eigen::VectorXd>& currBoxesFeat,
-        const std::vector<onboardDetector::box3D>& propedBoxes,
-        std::vector<int>& bestMatch); // new optimized version
-        void findBestMatchPostProcess(
-        const std::vector<Eigen::VectorXd>& propedBoxesFeat,
-        const std::vector<Eigen::VectorXd>& currBoxesFeat,
-        const std::vector<onboardDetector::box3D>& propedBoxes,
-        std::vector<int>& bestMatch,
-        std::vector<int>& boxOOR); // new post process version
         void findBestMatchEstimate(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch, std::vector<int>& boxOOR);
         void getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch); 
         int getEstimateFrameNum(const std::deque<onboardDetector::box3D> &boxHist);

@@ -57,7 +57,7 @@ dbscan_min_points_cluster: 10 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
 dbscan_search_range_epsilon: 0.1 # searching range radius
 
 # lidar dbscan
-lidar_DBSCAN_min_points: 10
+lidar_DBSCAN_min_points: 15
 lidar_DBSCAN_epsilon: 0.1
 downsample_threshold: 3000 # threshold for downsampling
 
@@ -69,8 +69,8 @@ yolo_overwrite_distance: 10
 # tracking and data association
 history_size: 100 # size of tracking history. history[0] is current detection
 prediction_size: 20 # size of prediction
-similarity_threshold: 0.02 # similiary threshold for data association matching comparison
-retrack_similarity_threshold: 0.015  # similiary threshold for retracking
+similarity_threshold: 0.9 # similiary threshold for data association matching comparison
+retrack_similarity_threshold: 0.5 # similiary threshold for retracking
 fix_size_history_threshold: 10 # History threshold (num of frames) to fix box size
 fix_size_dimension_threshold: 0.4 # dimension threshold (size of proportional) to fix box size
 
@@ -96,4 +96,4 @@ dynamic_consistency_threshold: 5 # obstacles being voted as dynamic for continuo
 # constrain size
 constrain_size: false
 target_object_size: [0.5, 0.5, 1.5]
-target_object_size_threshold: [2.5, 2.5, 2.5] # filter out objects that are too large
+target_object_size_threshold: [2.0, 2.0, 2.0] # filter out objects that are too large

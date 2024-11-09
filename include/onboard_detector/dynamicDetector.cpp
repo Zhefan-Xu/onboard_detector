@@ -1655,80 +1655,80 @@ namespace onboardDetector{
     }
 
 
-    // double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2){
-    //     double box1Volume = box1.x_width * box1.y_width * box1.z_width;
-    //     double box2Volume = box2.x_width * box2.y_width * box2.z_width;
-
-    //     double l1Y = box1.y+box1.y_width/2-(box2.y-box2.y_width/2);
-    //     double l2Y = box2.y+box2.y_width/2-(box1.y-box1.y_width/2);
-    //     double l1X = box1.x+box1.x_width/2-(box2.x-box2.x_width/2);
-    //     double l2X = box2.x+box2.x_width/2-(box1.x-box1.x_width/2);
-    //     double l1Z = box1.z+box1.z_width/2-(box2.z-box2.z_width/2);
-    //     double l2Z = box2.z+box2.z_width/2-(box1.z-box1.z_width/2);
-    //     double overlapX = std::min( l1X , l2X );
-    //     double overlapY = std::min( l1Y , l2Y );
-    //     double overlapZ = std::min( l1Z , l2Z );
-       
-    //     if (std::max(l1X, l2X)<=std::max(box1.x_width,box2.x_width)){ 
-    //         overlapX = std::min(box1.x_width, box2.x_width);
-    //     }
-    //     if (std::max(l1Y, l2Y)<=std::max(box1.y_width,box2.y_width)){ 
-    //         overlapY = std::min(box1.y_width, box2.y_width);
-    //     }
-    //     if (std::max(l1Z, l2Z)<=std::max(box1.z_width,box2.z_width)){ 
-    //         overlapZ = std::min(box1.z_width, box2.z_width);
-    //     }
-
-
-    //     double overlapVolume = overlapX * overlapY *  overlapZ;
-    //     double IOU = overlapVolume / (box1Volume+box2Volume-overlapVolume);
-        
-    //     // D-IOU
-    //     if (overlapX<=0 || overlapY<=0 || overlapZ<=0){
-    //         IOU = 0;
-    //     }
-    //     return IOU;
-    // }
-
-    double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2) {
-        // Volumes
+    double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2){
         double box1Volume = box1.x_width * box1.y_width * box1.z_width;
         double box2Volume = box2.x_width * box2.y_width * box2.z_width;
 
-        // Box 1 min and max coordinates
-        double minX1 = box1.x - box1.x_width / 2.0;
-        double maxX1 = box1.x + box1.x_width / 2.0;
-        double minY1 = box1.y - box1.y_width / 2.0;
-        double maxY1 = box1.y + box1.y_width / 2.0;
-        double minZ1 = box1.z - box1.z_width / 2.0;
-        double maxZ1 = box1.z + box1.z_width / 2.0;
-
-        // Box 2 min and max coordinates
-        double minX2 = box2.x - box2.x_width / 2.0;
-        double maxX2 = box2.x + box2.x_width / 2.0;
-        double minY2 = box2.y - box2.y_width / 2.0;
-        double maxY2 = box2.y + box2.y_width / 2.0;
-        double minZ2 = box2.z - box2.z_width / 2.0;
-        double maxZ2 = box2.z + box2.z_width / 2.0;
-
-        // Overlaps
-        double overlapX = std::min(maxX1, maxX2) - std::max(minX1, minX2);
-        double overlapY = std::min(maxY1, maxY2) - std::max(minY1, minY2);
-        double overlapZ = std::min(maxZ1, maxZ2) - std::max(minZ1, minZ2);
-        double Xratio = overlapX / std::max(box1.x_width, box2.x_width);
-        double Yratio = overlapY / std::max(box1.y_width, box2.y_width);
-        double Zratio = overlapZ / std::max(box1.z_width, box2.z_width);
-
-        double IOU = Xratio + Yratio + Zratio;
-        std::cout << "Raw IOU:" << IOU << std::endl;
-        if(IOU > 0){
-            IOU = 1;
+        double l1Y = box1.y+box1.y_width/2-(box2.y-box2.y_width/2);
+        double l2Y = box2.y+box2.y_width/2-(box1.y-box1.y_width/2);
+        double l1X = box1.x+box1.x_width/2-(box2.x-box2.x_width/2);
+        double l2X = box2.x+box2.x_width/2-(box1.x-box1.x_width/2);
+        double l1Z = box1.z+box1.z_width/2-(box2.z-box2.z_width/2);
+        double l2Z = box2.z+box2.z_width/2-(box1.z-box1.z_width/2);
+        double overlapX = std::min( l1X , l2X );
+        double overlapY = std::min( l1Y , l2Y );
+        double overlapZ = std::min( l1Z , l2Z );
+       
+        if (std::max(l1X, l2X)<=std::max(box1.x_width,box2.x_width)){ 
+            overlapX = std::min(box1.x_width, box2.x_width);
         }
-        else {
+        if (std::max(l1Y, l2Y)<=std::max(box1.y_width,box2.y_width)){ 
+            overlapY = std::min(box1.y_width, box2.y_width);
+        }
+        if (std::max(l1Z, l2Z)<=std::max(box1.z_width,box2.z_width)){ 
+            overlapZ = std::min(box1.z_width, box2.z_width);
+        }
+
+
+        double overlapVolume = overlapX * overlapY *  overlapZ;
+        double IOU = overlapVolume / (box1Volume+box2Volume-overlapVolume);
+        
+        // D-IOU
+        if (overlapX<=0 || overlapY<=0 ||overlapZ<=0){
             IOU = 0;
         }
         return IOU;
     }
+
+    // double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2) {
+    //     // Volumes
+    //     double box1Volume = box1.x_width * box1.y_width * box1.z_width;
+    //     double box2Volume = box2.x_width * box2.y_width * box2.z_width;
+
+    //     // Box 1 min and max coordinates
+    //     double minX1 = box1.x - box1.x_width / 2.0;
+    //     double maxX1 = box1.x + box1.x_width / 2.0;
+    //     double minY1 = box1.y - box1.y_width / 2.0;
+    //     double maxY1 = box1.y + box1.y_width / 2.0;
+    //     double minZ1 = box1.z - box1.z_width / 2.0;
+    //     double maxZ1 = box1.z + box1.z_width / 2.0;
+
+    //     // Box 2 min and max coordinates
+    //     double minX2 = box2.x - box2.x_width / 2.0;
+    //     double maxX2 = box2.x + box2.x_width / 2.0;
+    //     double minY2 = box2.y - box2.y_width / 2.0;
+    //     double maxY2 = box2.y + box2.y_width / 2.0;
+    //     double minZ2 = box2.z - box2.z_width / 2.0;
+    //     double maxZ2 = box2.z + box2.z_width / 2.0;
+
+    //     // Overlaps
+    //     double overlapX = std::min(maxX1, maxX2) - std::max(minX1, minX2);
+    //     double overlapY = std::min(maxY1, maxY2) - std::max(minY1, minY2);
+    //     double overlapZ = std::min(maxZ1, maxZ2) - std::max(minZ1, minZ2);
+    //     double Xratio = overlapX / std::max(box1.x_width, box2.x_width);
+    //     double Yratio = overlapY / std::max(box1.y_width, box2.y_width);
+    //     double Zratio = overlapZ / std::max(box1.z_width, box2.z_width);
+
+    //     double IOU = Xratio + Yratio + Zratio;
+    //     std::cout << "Raw IOU:" << IOU << std::endl;
+    //     if(IOU > 0){
+    //         IOU = 1;
+    //     }
+    //     else {
+    //         IOU = 0;
+    //     }
+    //     return IOU;
+    // }
 
 
     void dynamicDetector::getYolo3DBBox(const vision_msgs::Detection2D& detection, onboardDetector::box3D& bbox3D, cv::Rect& bboxVis){
@@ -2074,10 +2074,8 @@ namespace onboardDetector{
                     bestMatch[i] = -1;
                 }
             }
-        }
-
-        
-    }    
+        }  
+    }  
 
     void dynamicDetector::getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch){
         //TODO: debug logic
@@ -2132,164 +2130,7 @@ namespace onboardDetector{
         estimatedBBox.is_estimated = true;
     }
 
-    // void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch, const std::vector<int> &boxOOR){
-    //     ROS_INFO("Kalman: Filteredbox size: %ld, BestMatch size: %ld, boxOOR size: %ld", this->filteredBBoxes_.size(), bestMatch.size(), boxOOR.size());
-
-    //     std::vector<std::deque<onboardDetector::box3D>> boxHistTemp; 
-    //     std::vector<std::deque<std::vector<Eigen::Vector3d>>> pcHistTemp;
-    //     std::vector<onboardDetector::kalman_filter> filtersTemp;
-    //     std::deque<onboardDetector::box3D> newSingleBoxHist;
-    //     std::deque<std::vector<Eigen::Vector3d>> newSinglePcHist; 
-    //     onboardDetector::kalman_filter newFilter;
-    //     std::vector<onboardDetector::box3D> trackedBBoxesTemp;
-
-    //     newSingleBoxHist.resize(0);
-    //     newSinglePcHist.resize(0);
-    //     int numObjs = this->filteredBBoxes_.size();
-
-    //     for (int i=0 ; i<numObjs ; i++){
-    //         onboardDetector::box3D newEstimatedBBox; // from kalman filter
-
-    //         // inheret history. push history one by one
-    //         if (bestMatch[i]>=0){
-    //             boxHistTemp.push_back(this->boxHist_[bestMatch[i]]);
-    //             pcHistTemp.push_back(this->pcHist_[bestMatch[i]]);
-    //             filtersTemp.push_back(this->filters_[bestMatch[i]]);
-
-    //             // kalman filter to get new state estimation
-    //             onboardDetector::box3D currDetectedBBox = this->filteredBBoxes_[i];
-
-    //             Eigen::MatrixXd Z;
-    //             this->getKalmanObservationAcc(currDetectedBBox, bestMatch[i], Z);
-    //             filtersTemp.back().estimate(Z, MatrixXd::Zero(6,1));
-                
-                
-    //             newEstimatedBBox.x = filtersTemp.back().output(0);
-    //             newEstimatedBBox.y = filtersTemp.back().output(1);
-    //             newEstimatedBBox.z = currDetectedBBox.z;
-    //             newEstimatedBBox.Vx = filtersTemp.back().output(2);
-    //             newEstimatedBBox.Vy = filtersTemp.back().output(3);
-    //             newEstimatedBBox.Ax = filtersTemp.back().output(4);
-    //             newEstimatedBBox.Ay = filtersTemp.back().output(5);   
-                          
-
-    //             newEstimatedBBox.x_width = currDetectedBBox.x_width;
-    //             newEstimatedBBox.y_width = currDetectedBBox.y_width;
-    //             newEstimatedBBox.z_width = currDetectedBBox.z_width;
-    //             newEstimatedBBox.is_dynamic = currDetectedBBox.is_dynamic;
-    //             newEstimatedBBox.is_human = currDetectedBBox.is_human;
-    //             newEstimatedBBox.is_estimated = false;
-    //         }
-    //         else{
-    //             boxHistTemp.push_back(newSingleBoxHist);
-    //             pcHistTemp.push_back(newSinglePcHist);
-
-    //             // create new kalman filter for this object
-    //             onboardDetector::box3D currDetectedBBox = this->filteredBBoxes_[i];
-    //             MatrixXd states, A, B, H, P, Q, R;    
-    //             this->kalmanFilterMatrixAcc(currDetectedBBox, states, A, B, H, P, Q, R);
-                
-    //             newFilter.setup(states, A, B, H, P, Q, R);
-    //             filtersTemp.push_back(newFilter);
-    //             newEstimatedBBox = currDetectedBBox;
-    //             newEstimatedBBox.is_estimated = false;
-                
-    //         }
-
-    //         // pop old data if len of hist > size limit
-    //         if (int(boxHistTemp[i].size()) == this->histSize_){
-    //             boxHistTemp[i].pop_back();
-    //             pcHistTemp[i].pop_back();
-    //         }
-
-    //         // push new data into history
-    //         boxHistTemp[i].push_front(newEstimatedBBox); 
-    //         pcHistTemp[i].push_front(this->filteredPcClusters_[i]);
-
-    //         // update new tracked bounding boxes
-    //         trackedBBoxesTemp.push_back(newEstimatedBBox);
-    //     }
-    //     if (boxOOR.size()){
-    //         for (int i=0; i<int(boxOOR.size()); i++){
-    //             onboardDetector::box3D newEstimatedBBox; // from kalman filter 
-    //             if (boxOOR[i] and this->getEstimateFrameNum(this->boxHist_[i]) < min(this->predSize_,this->histSize_-1)){
-    //                 // TODO: debug false is_estimated
-    //                 onboardDetector::box3D currDetectedBBox;
-    //                 currDetectedBBox = this->boxHist_[i][0];
-    //                 currDetectedBBox.x += this->dt_* currDetectedBBox.Vx;
-    //                 currDetectedBBox.y += this->dt_* currDetectedBBox.Vy;
-
-    //                 boxHistTemp.push_back(this->boxHist_[i]);
-    //                 pcHistTemp.push_back(this->pcHist_[i]);
-    //                 filtersTemp.push_back(this->filters_[i]);
-
-    //                 Eigen::MatrixXd Z;
-    //                 this->getKalmanObservationAcc(currDetectedBBox, i, Z);
-    //                 filtersTemp.back().estimate(Z, MatrixXd::Zero(6,1));
-                    
-    //                 newEstimatedBBox.x = filtersTemp.back().output(0);
-    //                 newEstimatedBBox.y = filtersTemp.back().output(1);
-    //                 newEstimatedBBox.z = currDetectedBBox.z;
-    //                 newEstimatedBBox.Vx = filtersTemp.back().output(2);
-    //                 newEstimatedBBox.Vy = filtersTemp.back().output(3);
-    //                 newEstimatedBBox.Ax = filtersTemp.back().output(4);
-    //                 newEstimatedBBox.Ay = filtersTemp.back().output(5);   
-                            
-                    
-    //                 newEstimatedBBox.x_width = currDetectedBBox.x_width;
-    //                 newEstimatedBBox.y_width = currDetectedBBox.y_width;
-    //                 newEstimatedBBox.z_width = currDetectedBBox.z_width;
-    //                 newEstimatedBBox.is_dynamic = true;
-    //                 newEstimatedBBox.is_human = currDetectedBBox.is_human;
-    //                 newEstimatedBBox.is_estimated = true;
-    //                 // newEstimatedBBox.is_estimated = false; // for debug
-    //                 newEstimatedBBox.is_dynamic_candidate = true;
-
-    //                 // pop old data if len of hist > size limit
-    //                 if (int(boxHistTemp.back().size()) == this->histSize_){
-    //                     boxHistTemp.back().pop_back();
-    //                     pcHistTemp.back().pop_back();
-    //                 }
-
-    //                 // push new data into history
-    //                 boxHistTemp.back().push_front(newEstimatedBBox);
-    //                 pcHistTemp.back().push_front(this->pcHist_[i][0]);
-    //                 trackedBBoxesTemp.push_back(newEstimatedBBox);
-    //             }
-    //         }
-    //     }
-
-    //     if (boxHistTemp.size()){
-    //         for (size_t i=0; i<trackedBBoxesTemp.size(); ++i){ 
-    //             if (not boxHistTemp[i][0].is_estimated){
-    //                 if (int(boxHistTemp[i].size()) >= this->fixSizeHistThresh_){
-    //                     if ((abs(trackedBBoxesTemp[i].x_width-boxHistTemp[i][1].x_width)/boxHistTemp[i][1].x_width) <= this->fixSizeDimThresh_ &&
-    //                         (abs(trackedBBoxesTemp[i].y_width-boxHistTemp[i][1].y_width)/boxHistTemp[i][1].y_width) <= this->fixSizeDimThresh_&&
-    //                         (abs(trackedBBoxesTemp[i].z_width-boxHistTemp[i][1].z_width)/boxHistTemp[i][1].z_width) <= this->fixSizeDimThresh_){
-    //                         trackedBBoxesTemp[i].x_width = boxHistTemp[i][1].x_width;
-    //                         trackedBBoxesTemp[i].y_width = boxHistTemp[i][1].y_width;
-    //                         trackedBBoxesTemp[i].z_width = boxHistTemp[i][1].z_width;
-    //                         boxHistTemp[i][0].x_width = trackedBBoxesTemp[i].x_width;
-    //                         boxHistTemp[i][0].y_width = trackedBBoxesTemp[i].y_width;
-    //                         boxHistTemp[i][0].z_width = trackedBBoxesTemp[i].z_width;
-    //                     }
-
-    //                 }
-    //             }
-    //         }
-    //     }
-        
-    //     // update history member variable
-    //     this->boxHist_ = boxHistTemp;
-    //     this->pcHist_ = pcHistTemp;
-    //     this->filters_ = filtersTemp;
-
-    //     // update tracked bounding boxes
-    //     this->trackedBBoxes_=  trackedBBoxesTemp;
-
-    // }
-
-    void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch, const std::vector<int>& boxOOR) {
+    void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch, const std::vector<int> &boxOOR){
         ROS_INFO("Kalman: Filteredbox size: %ld, BestMatch size: %ld, boxOOR size: %ld", this->filteredBBoxes_.size(), bestMatch.size(), boxOOR.size());
 
         std::cout << "BestMatch Data: ";
@@ -2312,168 +2153,134 @@ namespace onboardDetector{
             }
         }
 
-        // Temporary variables to store updated history and filters
-        std::vector<std::deque<onboardDetector::box3D>> boxHistTemp;
+        std::vector<std::deque<onboardDetector::box3D>> boxHistTemp; 
         std::vector<std::deque<std::vector<Eigen::Vector3d>>> pcHistTemp;
         std::vector<onboardDetector::kalman_filter> filtersTemp;
         std::deque<onboardDetector::box3D> newSingleBoxHist;
-        std::deque<std::vector<Eigen::Vector3d>> newSinglePcHist;
+        std::deque<std::vector<Eigen::Vector3d>> newSinglePcHist; 
         onboardDetector::kalman_filter newFilter;
         std::vector<onboardDetector::box3D> trackedBBoxesTemp;
 
-        // Mapping from proped box index to history index
-        std::unordered_map<int, int> propedIndexToHistIndex;
-
+        newSingleBoxHist.resize(0);
+        newSinglePcHist.resize(0);
         int numObjs = this->filteredBBoxes_.size();
 
-        // First loop: Process current detected boxes
-        for (int i = 0; i < numObjs; i++) {
-            onboardDetector::box3D newEstimatedBBox; // New estimated box from Kalman filter
+        for (int i=0 ; i<numObjs ; i++){
+            onboardDetector::box3D newEstimatedBBox; // from kalman filter
 
-            if (bestMatch[i] >= 0) {
-                // Matched case: current detected box matches a proped box
-                int propedIndex = bestMatch[i]; // Index of the matched proped box
+            // inheret history. push history one by one
+            if (bestMatch[i]>=0){
+                boxHistTemp.push_back(this->boxHist_[bestMatch[i]]);
+                pcHistTemp.push_back(this->pcHist_[bestMatch[i]]);
+                filtersTemp.push_back(this->filters_[bestMatch[i]]);
 
-                // Map proped box index to history index
-                int histIndex = boxHistTemp.size(); // Current index in history vectors
-                propedIndexToHistIndex[propedIndex] = histIndex;
-
-                // Inherit history from matched proped box
-                boxHistTemp.push_back(this->boxHist_[propedIndex]);
-                pcHistTemp.push_back(this->pcHist_[propedIndex]);
-                filtersTemp.push_back(this->filters_[propedIndex]);
-
-                // Kalman filter update
+                // kalman filter to get new state estimation
                 onboardDetector::box3D currDetectedBBox = this->filteredBBoxes_[i];
 
                 Eigen::MatrixXd Z;
-                this->getKalmanObservationAcc(currDetectedBBox, propedIndex, Z);
-                filtersTemp.back().estimate(Z, Eigen::MatrixXd::Zero(6,1));
-
-                // Update estimated box state
+                this->getKalmanObservationAcc(currDetectedBBox, bestMatch[i], Z);
+                filtersTemp.back().estimate(Z, MatrixXd::Zero(6,1));
+                
+                
                 newEstimatedBBox.x = filtersTemp.back().output(0);
                 newEstimatedBBox.y = filtersTemp.back().output(1);
                 newEstimatedBBox.z = currDetectedBBox.z;
                 newEstimatedBBox.Vx = filtersTemp.back().output(2);
                 newEstimatedBBox.Vy = filtersTemp.back().output(3);
                 newEstimatedBBox.Ax = filtersTemp.back().output(4);
-                newEstimatedBBox.Ay = filtersTemp.back().output(5);
+                newEstimatedBBox.Ay = filtersTemp.back().output(5);   
+                          
 
-                // Inherit dimensions and flags
                 newEstimatedBBox.x_width = currDetectedBBox.x_width;
                 newEstimatedBBox.y_width = currDetectedBBox.y_width;
                 newEstimatedBBox.z_width = currDetectedBBox.z_width;
                 newEstimatedBBox.is_dynamic = currDetectedBBox.is_dynamic;
                 newEstimatedBBox.is_human = currDetectedBBox.is_human;
-                newEstimatedBBox.is_estimated = false; // Explicitly set
-
-            } else {
-                // Unmatched case: current detected box does not match any proped box
+                newEstimatedBBox.is_estimated = false;
+            }
+            else{
                 boxHistTemp.push_back(newSingleBoxHist);
                 pcHistTemp.push_back(newSinglePcHist);
 
-                // Create a new Kalman filter for this object
+                // create new kalman filter for this object
                 onboardDetector::box3D currDetectedBBox = this->filteredBBoxes_[i];
-                Eigen::MatrixXd states, A, B, H, P, Q, R;
+                MatrixXd states, A, B, H, P, Q, R;    
                 this->kalmanFilterMatrixAcc(currDetectedBBox, states, A, B, H, P, Q, R);
-
+                
                 newFilter.setup(states, A, B, H, P, Q, R);
                 filtersTemp.push_back(newFilter);
-
-                // Set estimated box state
                 newEstimatedBBox = currDetectedBBox;
-                newEstimatedBBox.is_estimated = false; // Explicitly set
+                
             }
 
-            // Ensure history size does not exceed limit
-            if (int(boxHistTemp.back().size()) == this->histSize_) {
-                boxHistTemp.back().pop_back();
-                pcHistTemp.back().pop_back();
+            // pop old data if len of hist > size limit
+            if (int(boxHistTemp[i].size()) == this->histSize_){
+                boxHistTemp[i].pop_back();
+                pcHistTemp[i].pop_back();
             }
 
-            // Add new data to history
-            boxHistTemp.back().push_front(newEstimatedBBox);
-            pcHistTemp.back().push_front(this->filteredPcClusters_[i]);
+            // push new data into history
+            boxHistTemp[i].push_front(newEstimatedBBox); 
+            pcHistTemp[i].push_front(this->filteredPcClusters_[i]);
 
-            // Update tracked bounding boxes
+            // update new tracked bounding boxes
             trackedBBoxesTemp.push_back(newEstimatedBBox);
         }
+        if (boxOOR.size()){
+            for (int i=0; i<int(boxOOR.size()); i++){
+                onboardDetector::box3D newEstimatedBBox; // from kalman filter 
+                if (boxOOR[i] and this->getEstimateFrameNum(this->boxHist_[i]) < min(this->predSize_,this->histSize_-1)){
+                    onboardDetector::box3D currDetectedBBox;
+                    currDetectedBBox = this->boxHist_[i][0];
+                    currDetectedBBox.x += this->dt_* currDetectedBBox.Vx;
+                    currDetectedBBox.y += this->dt_* currDetectedBBox.Vy;
 
-        // Second loop: Process proped boxes that did not match any current detected boxes
-        for (size_t i = 0; i < boxOOR.size(); i++) {
-            if (boxOOR[i]) { // If proped box did not match
-                // Check if this proped box has been processed in the first loop
-                if (propedIndexToHistIndex.find(i) != propedIndexToHistIndex.end()) {
-                    continue; // Already processed
-                }
-
-                // Check if object is dynamic and can continue estimation
-                bool isDynamic = this->boxHist_[i][0].is_dynamic;
-                int missingFrames = this->getEstimateFrameNum(this->boxHist_[i]);
-                int maxMissingFrames = std::min(this->predSize_, this->histSize_ - 1);
-
-                if (isDynamic && missingFrames < maxMissingFrames) {
-                    // Inherit history from the unmatched proped box
                     boxHistTemp.push_back(this->boxHist_[i]);
                     pcHistTemp.push_back(this->pcHist_[i]);
                     filtersTemp.push_back(this->filters_[i]);
 
-                    // Use history to predict the next state
-                    onboardDetector::box3D currDetectedBBox = this->boxHist_[i][0];
-                    currDetectedBBox.x += this->dt_ * currDetectedBBox.Vx;
-                    currDetectedBBox.y += this->dt_ * currDetectedBBox.Vy;
-
                     Eigen::MatrixXd Z;
                     this->getKalmanObservationAcc(currDetectedBBox, i, Z);
-                    filtersTemp.back().estimate(Z, Eigen::MatrixXd::Zero(6,1));
-
-                    // Set new estimated box state
-                    onboardDetector::box3D newEstimatedBBox;
+                    filtersTemp.back().estimate(Z, MatrixXd::Zero(6,1));
+                    
                     newEstimatedBBox.x = filtersTemp.back().output(0);
                     newEstimatedBBox.y = filtersTemp.back().output(1);
                     newEstimatedBBox.z = currDetectedBBox.z;
                     newEstimatedBBox.Vx = filtersTemp.back().output(2);
                     newEstimatedBBox.Vy = filtersTemp.back().output(3);
                     newEstimatedBBox.Ax = filtersTemp.back().output(4);
-                    newEstimatedBBox.Ay = filtersTemp.back().output(5);
-
-                    // Inherit dimensions and flags
+                    newEstimatedBBox.Ay = filtersTemp.back().output(5);   
+                            
+                    
                     newEstimatedBBox.x_width = currDetectedBBox.x_width;
                     newEstimatedBBox.y_width = currDetectedBBox.y_width;
                     newEstimatedBBox.z_width = currDetectedBBox.z_width;
-                    newEstimatedBBox.is_dynamic = true;   // Keep dynamic flag
+                    newEstimatedBBox.is_dynamic = true;
                     newEstimatedBBox.is_human = currDetectedBBox.is_human;
-                    newEstimatedBBox.is_estimated = true; // Explicitly set
+                    newEstimatedBBox.is_estimated = true;
                     newEstimatedBBox.is_dynamic_candidate = true;
 
-                    // Ensure history size does not exceed limit
-                    if (int(boxHistTemp.back().size()) == this->histSize_) {
+                    // pop old data if len of hist > size limit
+                    if (int(boxHistTemp.back().size()) == this->histSize_){
                         boxHistTemp.back().pop_back();
                         pcHistTemp.back().pop_back();
                     }
 
-                    // Add new estimated data to history
+                    // push new data into history
                     boxHistTemp.back().push_front(newEstimatedBBox);
                     pcHistTemp.back().push_front(this->pcHist_[i][0]);
-
-                    // Update tracked bounding boxes
                     trackedBBoxesTemp.push_back(newEstimatedBBox);
-                } else {
-                    // Non-dynamic object or exceeded missing frames, do not estimate
-                    continue;
                 }
             }
         }
 
-        // Optional: Dimension correction for non-estimated boxes
-        if (boxHistTemp.size()) {
-            for (size_t i = 0; i < trackedBBoxesTemp.size(); ++i) {
-                if (!boxHistTemp[i][0].is_estimated) {
-                    if (int(boxHistTemp[i].size()) >= this->fixSizeHistThresh_) {
-                        if ((abs(trackedBBoxesTemp[i].x_width - boxHistTemp[i][1].x_width) / boxHistTemp[i][1].x_width) <= this->fixSizeDimThresh_ &&
-                            (abs(trackedBBoxesTemp[i].y_width - boxHistTemp[i][1].y_width) / boxHistTemp[i][1].y_width) <= this->fixSizeDimThresh_ &&
-                            (abs(trackedBBoxesTemp[i].z_width - boxHistTemp[i][1].z_width) / boxHistTemp[i][1].z_width) <= this->fixSizeDimThresh_) {
-                            // Fix dimensions if they are within threshold
+        if (boxHistTemp.size()){
+            for (size_t i=0; i<trackedBBoxesTemp.size(); ++i){ 
+                if (not boxHistTemp[i][0].is_estimated){
+                    if (int(boxHistTemp[i].size()) >= this->fixSizeHistThresh_){
+                        if ((abs(trackedBBoxesTemp[i].x_width-boxHistTemp[i][1].x_width)/boxHistTemp[i][1].x_width) <= this->fixSizeDimThresh_ &&
+                            (abs(trackedBBoxesTemp[i].y_width-boxHistTemp[i][1].y_width)/boxHistTemp[i][1].y_width) <= this->fixSizeDimThresh_&&
+                            (abs(trackedBBoxesTemp[i].z_width-boxHistTemp[i][1].z_width)/boxHistTemp[i][1].z_width) <= this->fixSizeDimThresh_){
                             trackedBBoxesTemp[i].x_width = boxHistTemp[i][1].x_width;
                             trackedBBoxesTemp[i].y_width = boxHistTemp[i][1].y_width;
                             trackedBBoxesTemp[i].z_width = boxHistTemp[i][1].z_width;
@@ -2481,19 +2288,20 @@ namespace onboardDetector{
                             boxHistTemp[i][0].y_width = trackedBBoxesTemp[i].y_width;
                             boxHistTemp[i][0].z_width = trackedBBoxesTemp[i].z_width;
                         }
+
                     }
                 }
             }
         }
-
-        // Update member variables with new history and filters
+        
+        // update history member variable
         this->boxHist_ = boxHistTemp;
         this->pcHist_ = pcHistTemp;
         this->filters_ = filtersTemp;
-        this->trackedBBoxes_ = trackedBBoxesTemp;
+
+        // update tracked bounding boxes
+        this->trackedBBoxes_=  trackedBBoxesTemp;
     }
-
-
 
     void dynamicDetector::kalmanFilterMatrixVel(const onboardDetector::box3D& currDetectedBBox, MatrixXd& states, MatrixXd& A, MatrixXd& B, MatrixXd& H, MatrixXd& P, MatrixXd& Q, MatrixXd& R){
         states.resize(4,1);

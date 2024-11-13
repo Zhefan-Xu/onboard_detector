@@ -1196,8 +1196,8 @@ namespace onboardDetector{
             this->lidarDetector_->lidarDBSCAN();
             this->lidarClusters_ = this->lidarDetector_->getClusters();
             this->lidarBBoxes_ = this->lidarDetector_->getBBoxes();
-            std::cout << "Lidar box num: " << this->lidarBBoxes_.size() << std::endl;
-            std::cout << "Lidar cluster num: " << this->lidarClusters_.size() << std::endl;
+            // std::cout << "Lidar box num: " << this->lidarBBoxes_.size() << std::endl;
+            // std::cout << "Lidar cluster num: " << this->lidarClusters_.size() << std::endl;
 
         }
     }
@@ -1245,7 +1245,7 @@ namespace onboardDetector{
                 filteredPcClusterStdsTemp.push_back(matchedPcClusterStd);
             }
         }
-        
+
         // lidar bbox filter
         for (size_t i = 0; i < this->lidarBBoxes_.size(); ++i) {
             onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
@@ -1453,7 +1453,7 @@ namespace onboardDetector{
         //     filteredPcClusterStdsTemp = filteredPcClusterStdsTempCopy;
         // }
 
-        std::cout << "FilteredBBoxes:" << filteredBBoxesTemp.size() << std::endl;
+        // std::cout << "FilteredBBoxes:" << filteredBBoxesTemp.size() << std::endl;
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
         this->filteredPcClusterCenters_ = filteredPcClusterCentersTemp;
@@ -1662,10 +1662,10 @@ namespace onboardDetector{
         double box1Volume = box1.x_width * box1.y_width * box1.z_width;
         double box2Volume = box2.x_width * box2.y_width * box2.z_width;
 
-        std::cout << "box1:" << box1.x << " "<< box1.y << " "<< box1.z << std::endl;
-        std::cout << "box2:" << box2.x << " "<< box2.y << " "<< box2.z << std::endl;
-        std::cout << "box1:" << box1.x_width/2 << " "<< box1.y_width/2 << " "<< box1.z_width/2 << std::endl;
-        std::cout << "box2:" << box2.x_width/2 << " "<<box2.y_width/2 << " "<< box2.z_width/2 << std::endl;
+        // std::cout << "box1:" << box1.x << " "<< box1.y << " "<< box1.z << std::endl;
+        // std::cout << "box2:" << box2.x << " "<< box2.y << " "<< box2.z << std::endl;
+        // std::cout << "box1:" << box1.x_width/2 << " "<< box1.y_width/2 << " "<< box1.z_width/2 << std::endl;
+        // std::cout << "box2:" << box2.x_width/2 << " "<<box2.y_width/2 << " "<< box2.z_width/2 << std::endl;
 
 
         double l1Y = box1.y+box1.y_width/2-(box2.y-box2.y_width/2);
@@ -1944,17 +1944,17 @@ namespace onboardDetector{
         this->genFeatHelper(propedBoxesFeat, propedBoxes);
         this->genFeatHelper(currBoxesFeat, this->filteredBBoxes_);
 
-        std::cout << "PosZ:" << this->position_(2) << std::endl;
+        // std::cout << "PosZ:" << this->position_(2) << std::endl;
 
-        for(size_t i=0; i<propedBoxesFeat.size(); ++i){
-            std::cout << "Proped Box " << i << ": " << propedBoxesFeat[i].transpose() << std::endl;
-            std::cout << "Prop Z:" << propedBoxes[i].z << std::endl;
-        }
+        // for(size_t i=0; i<propedBoxesFeat.size(); ++i){
+        //     std::cout << "Proped Box " << i << ": " << propedBoxesFeat[i].transpose() << std::endl;
+        //     std::cout << "Prop Z:" << propedBoxes[i].z << std::endl;
+        // }
 
-        for(size_t i=0; i<currBoxesFeat.size(); ++i){
-            std::cout << "Curr Box " << i << ": " << currBoxesFeat[i].transpose() << std::endl;
-            std::cout << "Curr Z:" << this->filteredBBoxes_[i].z << std::endl;
-        }
+        // for(size_t i=0; i<currBoxesFeat.size(); ++i){
+        //     std::cout << "Curr Box " << i << ": " << currBoxesFeat[i].transpose() << std::endl;
+        //     std::cout << "Curr Z:" << this->filteredBBoxes_[i].z << std::endl;
+        // }
     }
 
     // void dynamicDetector::genFeatHelper(std::vector<Eigen::VectorXd>& features, const std::vector<onboardDetector::box3D>& boxes){ 
@@ -2025,7 +2025,7 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::findBestMatch(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch){
-        ROS_INFO("FindBestMatch");
+        // ROS_INFO("FindBestMatch");
         int numObjs = this->filteredBBoxes_.size();
         std::vector<double> bestSims; // best similarity
         bestSims.resize(numObjs);
@@ -2043,7 +2043,7 @@ namespace onboardDetector{
             }
 
             double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
-            std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
+            // std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
             if(!(bestSims[i]>this->simThresh_ && iou)){
                 bestSims[i] = 0;
                 bestMatch[i] = -1;
@@ -2055,7 +2055,7 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::findBestMatchEstimate(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch, std::vector<int>& boxOOR){
-        ROS_INFO("Match Estimate");
+        // ROS_INFO("Match Estimate");
         int numObjs = int(this->filteredBBoxes_.size());
         std::vector<double> bestSims; // best similarity
         bestSims.resize(numObjs);
@@ -2095,7 +2095,6 @@ namespace onboardDetector{
     }  
 
     void dynamicDetector::getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch){
-        //TODO: debug logic
         if (int(this->boxHist_.size())>0){
             boxOOR.resize(this->boxHist_.size(), 1);
             for (int i=0; i<int(bestMatch.size()); i++){
@@ -2148,27 +2147,27 @@ namespace onboardDetector{
     }
 
     void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch, const std::vector<int> &boxOOR){
-        ROS_INFO("Kalman: Filteredbox size: %ld, BestMatch size: %ld, boxOOR size: %ld", this->filteredBBoxes_.size(), bestMatch.size(), boxOOR.size());
+        // ROS_INFO("Kalman: Filteredbox size: %ld, BestMatch size: %ld, boxOOR size: %ld", this->filteredBBoxes_.size(), bestMatch.size(), boxOOR.size());
 
-        std::cout << "BestMatch Data: ";
-        for(size_t i=0; i<bestMatch.size(); i++){
-            if(i != bestMatch.size() - 1){
-                std::cout << bestMatch[i] << " ";
-            }
-            else{
-                std::cout << bestMatch[i] << std::endl;
-            }
-        }
+        // std::cout << "BestMatch Data: ";
+        // for(size_t i=0; i<bestMatch.size(); i++){
+        //     if(i != bestMatch.size() - 1){
+        //         std::cout << bestMatch[i] << " ";
+        //     }
+        //     else{
+        //         std::cout << bestMatch[i] << std::endl;
+        //     }
+        // }
 
-        std::cout << "BoxOOR Data: ";
-        for(size_t i=0; i<boxOOR.size(); i++){
-            if(i != boxOOR.size() - 1){
-                std::cout << boxOOR[i] << " ";
-            }
-            else{
-                std::cout << boxOOR[i] << std::endl;
-            }
-        }
+        // std::cout << "BoxOOR Data: ";
+        // for(size_t i=0; i<boxOOR.size(); i++){
+        //     if(i != boxOOR.size() - 1){
+        //         std::cout << boxOOR[i] << " ";
+        //     }
+        //     else{
+        //         std::cout << boxOOR[i] << std::endl;
+        //     }
+        // }
 
         std::vector<std::deque<onboardDetector::box3D>> boxHistTemp; 
         std::vector<std::deque<std::vector<Eigen::Vector3d>>> pcHistTemp;

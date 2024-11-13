@@ -13,12 +13,12 @@ pose_topic: /mavros/local_position/pose
 # odom_topic: /vins_estimator/imu_propagate
 
 # Camera Parameters
-# depth_intrinsics: [385.3096008300781, 385.3096008300781, 324.7971496582031, 237.722900390625] # fx,  fy, cx, cy realsense
-depth_intrinsics: [554.254691191187, 554.254691191187, 320.5, 240.5] # fx,  fy, cx, cy simulation
-color_intrinsics: [554.254691191187, 554.254691191187, 320.5, 240.5] # fx,  fy, cx, cy simulation
-# color_intrinsics: [606.3120727539062, 605.92626953125, 314.6913146972656, 252.1909942626953] # intel realsense
-# depth_scale_factor: 1000 # 1000 for Intel Realsense Camera
-depth_scale_factor: 10 # simulation
+depth_intrinsics: [385.3096008300781, 385.3096008300781, 324.7971496582031, 237.722900390625] # fx,  fy, cx, cy realsense
+# depth_intrinsics: [554.254691191187, 554.254691191187, 320.5, 240.5] # fx,  fy, cx, cy simulation
+# color_intrinsics: [554.254691191187, 554.254691191187, 320.5, 240.5] # fx,  fy, cx, cy simulation
+color_intrinsics: [606.3120727539062, 605.92626953125, 314.6913146972656, 252.1909942626953] # intel realsense
+depth_scale_factor: 1000 # 1000 for Intel Realsense Camera
+# depth_scale_factor: 10 # simulation
 depth_min_value: 0.5
 depth_max_value: 5.0
 depth_filter_margin: 10 # filter

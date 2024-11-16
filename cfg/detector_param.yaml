@@ -50,13 +50,13 @@ time_difference: 0.033
 voxel_occupied_thresh: 5 # min num of points for a voxel to be occupied in voxel filter
 
 # dbscan
-ground_height: 0.1 # height of ground to remove ground points
+ground_height: 0.2 # height of ground to remove ground points
 roof_height: 2.0 # relative height of roof to remove roof points
-dbscan_min_points_cluster: 10 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
-dbscan_search_range_epsilon: 0.1 # searching range radius
+dbscan_min_points_cluster: 50 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
+dbscan_search_range_epsilon: 0.2 # searching range radius
 
 # lidar dbscan
-lidar_DBSCAN_min_points: 10
+lidar_DBSCAN_min_points: 8
 lidar_DBSCAN_epsilon: 0.1
 downsample_threshold: 3000 # threshold for downsampling
 

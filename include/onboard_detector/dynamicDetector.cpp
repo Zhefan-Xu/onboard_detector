@@ -1533,7 +1533,13 @@ namespace onboardDetector{
         // currently there is only one filtered (might include more in the future)
         std::vector<Eigen::Vector3d> voxelFilteredPoints;
         this->voxelFilter(points, voxelFilteredPoints);
-        filteredPoints = voxelFilteredPoints;
+
+        filteredPoints.clear();
+        for (const auto& point : voxelFilteredPoints){
+            if (point.z() <= this->roofHeight_ && point.z() >= this->groundHeight_){
+                filteredPoints.push_back(point);
+            }
+        }
     }
 
 
@@ -1545,7 +1551,6 @@ namespace onboardDetector{
 
         // DBSCAN clustering
         this->dbCluster_->run();
-
         // get the cluster data with bounding boxes
         // iterate through all the clustered points and find number of clusters
         int clusterNum = 0;

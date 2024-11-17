@@ -558,6 +558,19 @@ namespace onboardDetector{
             }
             std::cout << "]." << std::endl;
         }
+
+        //feature weight
+        std::vector<double> tempWeights;
+        if (not nh_.getParam(ns_ + "/feature_weight", tempWeights)) {
+            this->featureWeights_ = Eigen::VectorXd(10);
+            this->featureWeights_ << 10, 10, 10, 1, 1, 1, 5, 0.5, 0.5, 0.5;
+            std::cout << this->hint_ << ": No 'feature_weight' parameter found. Using default feature weights: " 
+                      << this->featureWeights_.transpose() << std::endl;
+        }
+        else {
+            this->featureWeights_ = Eigen::Map<Eigen::VectorXd>(tempWeights.data(), tempWeights.size());
+            std::cout << this->hint_ << ": Feature weights are set to: " << this->featureWeights_.transpose() << std::endl;
+        } 
     }
 
     void dynamicDetector::registerPub(){
@@ -1986,7 +1999,8 @@ namespace onboardDetector{
         const std::vector<onboardDetector::box3D>& boxes
         ) { 
         Eigen::VectorXd featureWeights = Eigen::VectorXd::Zero(10); // 3pos + 3size + 1 pc length + 3 pc std
-        featureWeights << 1000, 1000, 1000, 0, 0, 0, 0, 0.5, 0.5, 0.5;
+        // featureWeights << 10, 10, 10, 1, 1, 1, 5, 0.5, 0.5, 0.5;
+        featureWeights = this->featureWeights_;
 
         features.resize(boxes.size());
 

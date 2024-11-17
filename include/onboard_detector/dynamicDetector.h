@@ -143,6 +143,7 @@ namespace onboardDetector{
         std::vector<Eigen::Vector3d> targetObjectSize_; 
         std::vector<double> targetObjectSizeThresh_;
         std::vector<int> bestMatchHist_;
+        Eigen::VectorXd featureWeights_;
 
 
         // SENSOR DATA

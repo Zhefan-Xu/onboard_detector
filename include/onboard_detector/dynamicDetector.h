@@ -230,6 +230,7 @@ namespace onboardDetector{
         void lidarDetect();
         void yoloDetectionTo3D();
         void filterBBoxes();
+        void filterLVBBoxes(); // filter lidar and vision bounding boxes
 
         // uv Detector Functions
         void transformUVBBoxes(std::vector<onboardDetector::box3D>& bboxes);

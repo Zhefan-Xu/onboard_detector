@@ -1523,11 +1523,6 @@ namespace onboardDetector{
                 bbox.Vx = 0;
                 bbox.Vy = 0;
 
-                // filteredBBoxesTemp.push_back(bbox);
-                // filteredPcClustersTemp.push_back(matchedPcCluster);      
-                // filteredPcClusterCentersTemp.push_back(matchedPcClusterCenter);
-                // filteredPcClusterStdsTemp.push_back(matchedPcClusterStd);
-
                 visualBBoxesTemp.push_back(bbox);
                 visualPcClustersTemp.push_back(matchedPcCluster);
                 visualPcClusterCentersTemp.push_back(matchedPcClusterCenter);
@@ -1545,7 +1540,6 @@ namespace onboardDetector{
                 continue;
             }
             
-            // filteredBBoxesTemp.push_back(lidarBBox);
             lidarBBoxesTemp.push_back(lidarBBox);
 
             // get corresponding point cloud cluster
@@ -1562,10 +1556,6 @@ namespace onboardDetector{
             // compute std
             Eigen::Vector3d clusterStd = cluster.eigen_values.cwiseSqrt().cast<double>();
 
-            // Append to the filtered vectors
-            // filteredPcClustersTemp.push_back(pcCluster);
-            // filteredPcClusterCentersTemp.push_back(clusterCenter);
-            // filteredPcClusterStdsTemp.push_back(clusterStd);
 
             lidarPcClustersTemp.push_back(pcCluster);
             lidarPcClusterCentersTemp.push_back(clusterCenter);

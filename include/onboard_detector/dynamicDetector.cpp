@@ -1564,120 +1564,121 @@ namespace onboardDetector{
 
 
         // TODO: fuse visual and lidar bounding boxes
-        // Create a flag list to indicate whether a LiDAR bounding box has been matched
-        std::vector<bool> lidarBBoxMatched(lidarBBoxesTemp.size(), false);
+        // Initialize a vector to keep track of processed LiDAR bounding boxes
+        std::vector<bool> processedLidarBoxes(lidarBBoxesTemp.size(), false);
 
         // Set the IOU threshold
         double boxIOUThresh = this->boxIOUThresh_; // Adjust this threshold as needed
 
-        // Loop through visual bounding boxes to find the best matching LiDAR bounding boxes
+        // Loop through visual bounding boxes
         for (size_t i = 0; i < visualBBoxesTemp.size(); ++i) {
             onboardDetector::box3D visualBBox = visualBBoxesTemp[i];
-            double bestIOUForVisualBBox = 0.0;
-            int bestMatchForVisualBBox = -1;
+            double visualVolume = visualBBox.x_width * visualBBox.y_width * visualBBox.z_width;
+            std::vector<int> overlappingLidarBoxes;
 
-            // Find the best matching LiDAR bounding box for the current visual bounding box
+            // Find LiDAR boxes overlapping with this visual box
             for (size_t j = 0; j < lidarBBoxesTemp.size(); ++j) {
-                if (lidarBBoxMatched[j]) continue; // Skip already matched LiDAR bounding boxes
-
+                if (processedLidarBoxes[j]) continue; // Skip processed LiDAR boxes
                 onboardDetector::box3D lidarBBox = lidarBBoxesTemp[j];
 
-                // Calculate IOU using your calBoxIOU function
+                // Calculate IOU between visual and LiDAR box
                 double iou = this->calBoxIOU(visualBBox, lidarBBox);
 
-                if (iou > bestIOUForVisualBBox) {
-                    bestIOUForVisualBBox = iou;
-                    bestMatchForVisualBBox = j;
+                if (iou > boxIOUThresh) {
+                    overlappingLidarBoxes.push_back(j);
                 }
             }
 
-            // Check if IOU exceeds the threshold
-            if (bestMatchForVisualBBox != -1 && bestIOUForVisualBBox > boxIOUThresh) {
-                // Get the best matching LiDAR bounding box
-                onboardDetector::box3D matchedLidarBBox = lidarBBoxesTemp[bestMatchForVisualBBox];
+            if (overlappingLidarBoxes.empty()) {
+                // No overlapping LiDAR boxes; keep the visual box
+                filteredBBoxesTemp.push_back(visualBBox);
+                filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
+                filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
+                filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
+            } else if (overlappingLidarBoxes.size() == 1) {
+                int lidarIdx = overlappingLidarBoxes[0];
+                onboardDetector::box3D lidarBBox = lidarBBoxesTemp[lidarIdx];
+                double lidarVolume = lidarBBox.x_width * lidarBBox.y_width * lidarBBox.z_width;
 
-                // Find the best matching visual bounding box for the matched LiDAR bounding box
-                double bestIOUForLidarBBox = 0.0;
-                int bestMatchForLidarBBox = -1;
-
-                for (size_t k = 0; k < visualBBoxesTemp.size(); ++k) {
-                    onboardDetector::box3D otherVisualBBox = visualBBoxesTemp[k];
-                    double iou = this->calBoxIOU(matchedLidarBBox, otherVisualBBox);
-
-                    if (iou > bestIOUForLidarBBox) {
-                        bestIOUForLidarBBox = iou;
-                        bestMatchForLidarBBox = k;
-                    }
-                }
-
-                // Check if they are mutual best matches and IOU exceeds the threshold
-                if (bestMatchForLidarBBox == int(i) && bestIOUForLidarBBox > boxIOUThresh) {
-                    // They are mutual best matches; proceed to fuse the bounding boxes
-                    onboardDetector::box3D fusedBBox;
-                    
-                    // Use a conservative strategy to fuse bounding boxes (take the union)
-                    double xmax = std::max(visualBBox.x + visualBBox.x_width / 2, matchedLidarBBox.x + matchedLidarBBox.x_width / 2);
-                    double xmin = std::min(visualBBox.x - visualBBox.x_width / 2, matchedLidarBBox.x - matchedLidarBBox.x_width / 2);
-                    double ymax = std::max(visualBBox.y + visualBBox.y_width / 2, matchedLidarBBox.y + matchedLidarBBox.y_width / 2);
-                    double ymin = std::min(visualBBox.y - visualBBox.y_width / 2, matchedLidarBBox.y - matchedLidarBBox.y_width / 2);
-                    double zmax = std::max(visualBBox.z + visualBBox.z_width / 2, matchedLidarBBox.z + matchedLidarBBox.z_width / 2);
-                    double zmin = std::min(visualBBox.z - visualBBox.z_width / 2, matchedLidarBBox.z - matchedLidarBBox.z_width / 2);
-                    
-                    fusedBBox.x = (xmin + xmax) / 2;
-                    fusedBBox.y = (ymin + ymax) / 2;
-                    fusedBBox.z = (zmin + zmax) / 2;
-                    fusedBBox.x_width = xmax - xmin;
-                    fusedBBox.y_width = ymax - ymin;
-                    fusedBBox.z_width = zmax - zmin;
-                    fusedBBox.Vx = 0;
-                    fusedBBox.Vy = 0;
-
-                    // Fuse point cloud clusters
-                    std::vector<Eigen::Vector3d> fusedPcCluster = visualPcClustersTemp[i];
-                    fusedPcCluster.insert(fusedPcCluster.end(),
-                                        lidarPcClustersTemp[bestMatchForVisualBBox].begin(),
-                                        lidarPcClustersTemp[bestMatchForVisualBBox].end());
-
-                    // Calculate fused cluster center (average of centers)
-                    Eigen::Vector3d fusedClusterCenter = (visualPcClusterCentersTemp[i] + lidarPcClusterCentersTemp[bestMatchForVisualBBox]) / 2.0;
-
-                    // Calculate fused cluster standard deviation (average of stds)
-                    Eigen::Vector3d fusedClusterStd = (visualPcClusterStdsTemp[i] + lidarPcClusterStdsTemp[bestMatchForVisualBBox]) / 2.0;
-
-                    // Add the fused bounding box and point cloud cluster to the result lists
-                    filteredBBoxesTemp.push_back(fusedBBox);
-                    filteredPcClustersTemp.push_back(fusedPcCluster);
-                    filteredPcClusterCentersTemp.push_back(fusedClusterCenter);
-                    filteredPcClusterStdsTemp.push_back(fusedClusterStd);
-
-                    // Mark the LiDAR bounding box as matched
-                    lidarBBoxMatched[bestMatchForVisualBBox] = true;
-
+                if (lidarVolume < visualVolume) {
+                    // Keep the smaller LiDAR box
+                    filteredBBoxesTemp.push_back(lidarBBox);
+                    filteredPcClustersTemp.push_back(lidarPcClustersTemp[lidarIdx]);
+                    filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[lidarIdx]);
+                    filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[lidarIdx]);
                 } else {
-                    // Not mutual best matches or IOU below threshold; keep the visual bounding box
+                    // Keep the visual box
                     filteredBBoxesTemp.push_back(visualBBox);
                     filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
                     filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
                     filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
                 }
-            } else {
-                // No matching LiDAR bounding box found; keep the visual bounding box
-                filteredBBoxesTemp.push_back(visualBBox);
-                filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
-                filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
-                filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
+
+                // Mark the LiDAR box as processed
+                processedLidarBoxes[lidarIdx] = true;
+            } else { // overlappingLidarBoxes.size() > 1
+                // Check mutual overlaps among LiDAR boxes
+                bool allMutuallyOverlap = true;
+                for (size_t m = 0; m < overlappingLidarBoxes.size(); ++m) {
+                    for (size_t n = m + 1; n < overlappingLidarBoxes.size(); ++n) {
+                        int idx1 = overlappingLidarBoxes[m];
+                        int idx2 = overlappingLidarBoxes[n];
+                        double iouLidar = this->calBoxIOU(lidarBBoxesTemp[idx1], lidarBBoxesTemp[idx2]);
+                        if (iouLidar <= boxIOUThresh) {
+                            allMutuallyOverlap = false;
+                            break;
+                        }
+                    }
+                    if (!allMutuallyOverlap) break;
+                }
+
+                // Calculate total volume of LiDAR boxes
+                double totalLidarVolume = 0.0;
+                for (int idx : overlappingLidarBoxes) {
+                    onboardDetector::box3D lidarBBox = lidarBBoxesTemp[idx];
+                    totalLidarVolume += lidarBBox.x_width * lidarBBox.y_width * lidarBBox.z_width;
+                }
+
+                if (allMutuallyOverlap) {
+                    if (totalLidarVolume < visualVolume) {
+                        // Keep the smaller LiDAR boxes
+                        for (int idx : overlappingLidarBoxes) {
+                            onboardDetector::box3D lidarBBox = lidarBBoxesTemp[idx];
+                            filteredBBoxesTemp.push_back(lidarBBox);
+                            filteredPcClustersTemp.push_back(lidarPcClustersTemp[idx]);
+                            filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[idx]);
+                            filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[idx]);
+                            // Mark the LiDAR box as processed
+                            processedLidarBoxes[idx] = true;
+                        }
+                    } else {
+                        // Keep the visual box
+                        filteredBBoxesTemp.push_back(visualBBox);
+                        filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
+                        filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
+                        filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
+                    }
+                } else {
+                    // LiDAR boxes do not mutually overlap over the threshold; keep the visual box
+                    filteredBBoxesTemp.push_back(visualBBox);
+                    filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
+                    filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
+                    filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
+                }
             }
         }
 
-        // Add remaining unmatched LiDAR bounding boxes to the result lists
+        // Process any remaining unprocessed LiDAR boxes
         for (size_t j = 0; j < lidarBBoxesTemp.size(); ++j) {
-            if (!lidarBBoxMatched[j]) {
+            if (!processedLidarBoxes[j]) {
+                // LiDAR box not processed; keep it
                 filteredBBoxesTemp.push_back(lidarBBoxesTemp[j]);
                 filteredPcClustersTemp.push_back(lidarPcClustersTemp[j]);
                 filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[j]);
                 filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[j]);
             }
         }
+
 
         // Instead of using YOLO for ensembling, only use YOLO for dynamic object identification
         // For each 2D YOLO detected bounding box, find the best match projected 2D bounding boxes

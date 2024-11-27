@@ -31,7 +31,6 @@
 #include <onboard_detector/kalmanFilter.h>
 #include <onboard_detector/utils.h>
 #include <onboard_detector/GetDynamicObstacles.h>
-#include <onboard_detector/Hungarian.h>
 
 namespace onboardDetector{
     class dynamicDetector{

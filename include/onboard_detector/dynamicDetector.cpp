@@ -2042,7 +2042,7 @@ namespace onboardDetector{
             std::vector<std::vector<Eigen::Vector3d>> newFilteredPcClusters;
             std::vector<Eigen::Vector3d> newFilteredPcClusterCenters;
             std::vector<Eigen::Vector3d> newFilteredPcClusterStds;
-
+            // *Case 1: No corresponding yolo box
             for (int idx3D = 0; idx3D < int(filteredBBoxesTemp.size()); ++idx3D) {
                 auto it = box3DToYolo.find(idx3D);
                 if (it == box3DToYolo.end()) {
@@ -2054,7 +2054,7 @@ namespace onboardDetector{
                 }
 
                 std::vector<int> yoloIndices = it->second;
-                // one yolo box corresponds to one 3D box
+                // *Case 2: one yolo box corresponds to one 3D box
                 if (yoloIndices.size() == 1) {
                     filteredBBoxesTemp[idx3D].is_dynamic = true;
                     filteredBBoxesTemp[idx3D].is_human = true;
@@ -2063,9 +2063,9 @@ namespace onboardDetector{
                     newFilteredPcClusterCenters.push_back(filteredPcClusterCentersTemp[idx3D]);
                     newFilteredPcClusterStds.push_back(filteredPcClusterStdsTemp[idx3D]);
                 } else {
+                    // *Case 3: multiple yolo boxes correspond to one 3D box
                     if(filteredPcClustersTemp[idx3D].size() == 0){
                         continue;
-                        ROS_WARN("No points in cluster");
                     }
                     auto &cloudCluster = filteredPcClustersTemp[idx3D];
 
@@ -2086,6 +2086,7 @@ namespace onboardDetector{
                         std::vector<Eigen::Vector3d> subCloud;
 
                         for (size_t i = 0; i < cloudCluster.size(); ++i) {
+                            // Skip if the point has been assigned to a subcloud
                             if (flag[i]) {
                                 continue; 
                             }
@@ -2098,12 +2099,11 @@ namespace onboardDetector{
                             int v = int((ptCam(1) * this->fyC_ / ptCam(2)) + this->cyC_);
                             if (u >= xMin && u <= xMax && v >= yMin && v <= yMax) {
                                 subCloud.push_back(pt);
-                                flag[i] = true; // Mark the point as assigned
+                                flag[i] = true;
                             }
                         }
 
                         if (!subCloud.empty()) {
-                            // ROS_INFO("Creating new box");
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
                             center = computeCenter(subCloud);
@@ -2123,7 +2123,7 @@ namespace onboardDetector{
                                 zMin = std::min(zMin, pt.z());
                                 zMax = std::max(zMax, pt.z());
                             }
-
+                            // create a new bounding box
                             newBox.x_width = xMax - xMin;
                             newBox.y_width = yMax - yMin;
                             newBox.z_width = zMax - zMin;
@@ -2147,12 +2147,12 @@ namespace onboardDetector{
             filteredPcClustersTemp.clear();
             filteredPcClusterCentersTemp.clear();
             filteredPcClusterStdsTemp.clear();
-            // ROS_INFO("Cleared vectors");
 
             filteredBBoxesTemp = newFilteredBBoxes;
             filteredPcClustersTemp = newFilteredPcClusters;
             filteredPcClusterCentersTemp = newFilteredPcClusterCenters;
             filteredPcClusterStdsTemp = newFilteredPcClusterStds;
+
             newFilteredBBoxes.clear();
             newFilteredPcClusters.clear();
             newFilteredPcClusterCenters.clear();

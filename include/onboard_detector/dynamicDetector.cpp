@@ -2028,6 +2028,7 @@ namespace onboardDetector{
                     best3DBBoxForYOLO[i] = bestIdx;
                 }
             }
+
             
             std::map<int, std::vector<int>> box3DToYolo;
             for (int i = 0; i < int(best3DBBoxForYOLO.size()); ++i) {
@@ -2046,6 +2047,9 @@ namespace onboardDetector{
                 auto it = box3DToYolo.find(idx3D);
                 if (it == box3DToYolo.end()) {
                     newFilteredBBoxes.push_back(filteredBBoxesTemp[idx3D]);
+                    newFilteredPcClusters.push_back(filteredPcClustersTemp[idx3D]);
+                    newFilteredPcClusterCenters.push_back(filteredPcClusterCentersTemp[idx3D]);
+                    newFilteredPcClusterStds.push_back(filteredPcClusterStdsTemp[idx3D]);
                     continue;
                 }
 
@@ -2055,12 +2059,19 @@ namespace onboardDetector{
                     filteredBBoxesTemp[idx3D].is_dynamic = true;
                     filteredBBoxesTemp[idx3D].is_human = true;
                     newFilteredBBoxes.push_back(filteredBBoxesTemp[idx3D]);
+                    newFilteredPcClusters.push_back(filteredPcClustersTemp[idx3D]);
+                    newFilteredPcClusterCenters.push_back(filteredPcClusterCentersTemp[idx3D]);
+                    newFilteredPcClusterStds.push_back(filteredPcClusterStdsTemp[idx3D]);
                 } else {
+                    if(filteredPcClustersTemp[idx3D].size() == 0){
+                        continue;
+                        ROS_WARN("No points in cluster");
+                    }
                     auto &cloudCluster = filteredPcClustersTemp[idx3D];
 
                     // Initialize flag array for cloudCluster
                     std::vector<bool> flag(cloudCluster.size(), false);
-
+                    // ROS_INFO("Looping through yolo indices");
                     for (int yidx : yoloIndices) {
                         int XTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.x);
                         int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
@@ -2092,7 +2103,7 @@ namespace onboardDetector{
                         }
 
                         if (!subCloud.empty()) {
-                            ROS_INFO("Creating new box");
+                            // ROS_INFO("Creating new box");
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
                             center = computeCenter(subCloud);
@@ -2128,28 +2139,30 @@ namespace onboardDetector{
                             newFilteredPcClusters.push_back(subCloud);
                             newFilteredPcClusterCenters.push_back(center);
                             newFilteredPcClusterStds.push_back(stddev);
-                            ROS_INFO("New box created");
                         }
                     }
                 }
             }
-            
+            filteredBBoxesTemp.clear();
+            filteredPcClustersTemp.clear();
+            filteredPcClusterCentersTemp.clear();
+            filteredPcClusterStdsTemp.clear();
+            // ROS_INFO("Cleared vectors");
+
             filteredBBoxesTemp = newFilteredBBoxes;
             filteredPcClustersTemp = newFilteredPcClusters;
             filteredPcClusterCentersTemp = newFilteredPcClusterCenters;
             filteredPcClusterStdsTemp = newFilteredPcClusterStds;
+            newFilteredBBoxes.clear();
+            newFilteredPcClusters.clear();
+            newFilteredPcClusterCenters.clear();
+            newFilteredPcClusterStds.clear();
         }
         }
-
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
         this->filteredPcClusterCenters_ = filteredPcClusterCentersTemp;
         this->filteredPcClusterStds_ = filteredPcClusterStdsTemp;
-
-        filteredBBoxesTemp.clear();
-        filteredPcClustersTemp.clear();
-        filteredPcClusterCentersTemp.clear();
-        filteredPcClusterStdsTemp.clear();
     }
 
     void dynamicDetector::transformUVBBoxes(std::vector<onboardDetector::box3D>& bboxes){

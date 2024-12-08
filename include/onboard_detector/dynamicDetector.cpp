@@ -1914,6 +1914,8 @@ namespace onboardDetector{
             }
         }
 
+        std::vector<int> best3DBBoxForYOLO(this->yoloDetectionResults_.detections.size(), -1);
+
         if (this->yoloDetectionResults_.detections.size() != 0){
             // Project 2D bbox in color image plane from 3D
             vision_msgs::Detection2DArray filteredDetectionResults;
@@ -1980,14 +1982,25 @@ namespace onboardDetector{
                 // Add the text to the image
                 cv::putText(this->detectedColorImage_, text, textOrg, fontFace, fontScale, cv::Scalar(255, 0, 0), thickness, 8);
 
+                double yoloBoxArea = double((brXTarget - tlXTarget) * (brYTarget - tlYTarget));
+
                 double bestIOU = 0.0;
                 int bestIdx = -1;
-                for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
+                double bestCoverageRatio = 0.0; // the ratio of the area of the yolo bbox that is covered by the 3D bbox
+
+                // Calculate the center of the YOLO 2D box
+                double yoloCenterX = (tlXTarget + brXTarget) / 2.0;
+                double yoloCenterY = (tlYTarget + brYTarget) / 2.0;
+
+                for (int j = 0; j < int(filteredBBoxesTemp.size()); ++j) {
                     int tlX = int(filteredDetectionResults.detections[j].bbox.center.x);
                     int tlY = int(filteredDetectionResults.detections[j].bbox.center.y);
                     int brX = tlX + int(filteredDetectionResults.detections[j].bbox.size_x);
                     int brY = tlY + int(filteredDetectionResults.detections[j].bbox.size_y);
-                    
+
+                    // Check if the YOLO center is inside the 3D bounding box
+                    bool isCenterInside = (yoloCenterX >= tlX && yoloCenterX <= brX &&
+                                        yoloCenterY >= tlY && yoloCenterY <= brY);
 
                     // check the IOU between yolo and projected bbox
                     double xOverlap = double(std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget)));
@@ -1998,64 +2011,145 @@ namespace onboardDetector{
                     double areaBox = double((brX - tlX) * (brY - tlY));
                     double areaBoxTarget = double((brXTarget - tlXTarget) * (brYTarget - tlYTarget));
                     double unionArea = areaBox + areaBoxTarget - intersection;
-                    // cout << "box " << j << " unionarea: " << unionArea << " intersection: " << intersection << endl;
-                    double IOU = (unionArea == 0) ? 0 : intersection / unionArea;
 
-                    if (IOU > bestIOU){
+                    double IOU = (unionArea == 0) ? 0 : intersection / unionArea;
+                    double coverageRatio = (yoloBoxArea > 0) ? (intersection / yoloBoxArea) : 0.0;
+
+                    // Update best match only if center is inside and criteria are met
+                    if (isCenterInside &&
+                        (IOU > bestIOU || (fabs(IOU - bestIOU) < 1e-6 && coverageRatio > bestCoverageRatio))) {
                         bestIOU = IOU;
+                        bestCoverageRatio = coverageRatio;
                         bestIdx = j;
                     }
                 }
 
-                if (bestIOU > 0.4) {
-                    // Extract the corresponding 3D bbox and associated cluster points
-                    // Extract the corresponding 3D bbox and associated cluster points
-                    // onboardDetector::box3D matchedBox = filteredBBoxesTemp[bestIdx];
-                    // std::vector<Eigen::Vector3d> clusterPoints;
-                    // for (const auto &point : filteredPcClustersTemp[bestIdx]) {
-                    //     Eigen::Vector3d transformedPoint = this->orientationLidar_ * point + this->positionLidar_;
-                    //     if (transformedPoint(0) >= (matchedBox.x - matchedBox.x_width / 2) &&
-                    //         transformedPoint(0) <= (matchedBox.x + matchedBox.x_width / 2) &&
-                    //         transformedPoint(1) >= (matchedBox.y - matchedBox.y_width / 2) &&
-                    //         transformedPoint(1) <= (matchedBox.y + matchedBox.y_width / 2) &&
-                    //         transformedPoint(2) >= (matchedBox.z - matchedBox.z_width / 2) &&
-                    //         transformedPoint(2) <= (matchedBox.z + matchedBox.z_width / 2)) {
-                    //         clusterPoints.push_back(transformedPoint);
-                    //     }
-                    // }
-
-                    // // Compute the new center and standard deviation
-                    // Eigen::Vector3d newCenter = Eigen::Vector3d::Zero();
-                    // for (const auto &point : clusterPoints) {
-                    //     newCenter += point;
-                    // }
-                    // newCenter /= clusterPoints.size();
-
-                    // Eigen::Vector3d variance = Eigen::Vector3d::Zero();
-                    // for (const auto &point : clusterPoints) {
-                    //     variance += (point - newCenter).cwiseAbs2();
-                    // }
-                    // Eigen::Vector3d newStd = (variance / clusterPoints.size()).cwiseSqrt();
-
-                    // // Push the updated information into the respective vectors
-                    // matchedBox.is_dynamic = true;
-                    // matchedBox.is_human = true;
-                    // filteredBBoxesTemp.push_back(matchedBox);
-                    // filteredPcClustersTemp.push_back(clusterPoints);
-                    // filteredPcClusterCentersTemp.push_back(newCenter);
-                    // filteredPcClusterStdsTemp.push_back(newStd);
-
-                    filteredBBoxesTemp[bestIdx].is_dynamic = true;
-                    filteredBBoxesTemp[bestIdx].is_human = true;
+                if (bestIOU > 0.4 || bestCoverageRatio > 0.5) {
+                    best3DBBoxForYOLO[i] = bestIdx;
                 }
             }
+            
+            std::map<int, std::vector<int>> box3DToYolo;
+            for (int i = 0; i < int(best3DBBoxForYOLO.size()); ++i) {
+                int idx3D = best3DBBoxForYOLO[i];
+                if (idx3D >= 0 && idx3D < int(filteredBBoxesTemp.size())){
+                    box3DToYolo[idx3D].push_back(i);
+                }
+            }
+
+            std::vector<onboardDetector::box3D> newFilteredBBoxes;
+            std::vector<std::vector<Eigen::Vector3d>> newFilteredPcClusters;
+            std::vector<Eigen::Vector3d> newFilteredPcClusterCenters;
+            std::vector<Eigen::Vector3d> newFilteredPcClusterStds;
+
+            for (int idx3D = 0; idx3D < int(filteredBBoxesTemp.size()); ++idx3D) {
+                auto it = box3DToYolo.find(idx3D);
+                if (it == box3DToYolo.end()) {
+                    newFilteredBBoxes.push_back(filteredBBoxesTemp[idx3D]);
+                    continue;
+                }
+
+                std::vector<int> yoloIndices = it->second;
+                // one yolo box corresponds to one 3D box
+                if (yoloIndices.size() == 1) {
+                    filteredBBoxesTemp[idx3D].is_dynamic = true;
+                    filteredBBoxesTemp[idx3D].is_human = true;
+                    newFilteredBBoxes.push_back(filteredBBoxesTemp[idx3D]);
+                } else {
+                    auto &cloudCluster = filteredPcClustersTemp[idx3D];
+
+                    // Initialize flag array for cloudCluster
+                    std::vector<bool> flag(cloudCluster.size(), false);
+
+                    for (int yidx : yoloIndices) {
+                        int XTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.x);
+                        int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
+                        int XTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_x);
+                        int YTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_y);
+
+                        int xMin = XTarget - XTargetWid / 2;
+                        int xMax = XTarget + XTargetWid / 2;
+                        int yMin = YTarget - YTargetWid / 2;
+                        int yMax = YTarget + YTargetWid / 2;
+
+                        std::vector<Eigen::Vector3d> subCloud;
+
+                        for (size_t i = 0; i < cloudCluster.size(); ++i) {
+                            if (flag[i]) {
+                                continue; 
+                            }
+
+                            auto &pt = cloudCluster[i];
+                            Eigen::Vector3d ptWorld(pt.x(), pt.y(), pt.z());
+                            Eigen::Vector3d ptCam = this->orientationColor_.inverse() * (ptWorld - this->positionColor_);
+
+                            int u = int((ptCam(0) * this->fxC_ / ptCam(2)) + this->cxC_);
+                            int v = int((ptCam(1) * this->fyC_ / ptCam(2)) + this->cyC_);
+                            if (u >= xMin && u <= xMax && v >= yMin && v <= yMax) {
+                                subCloud.push_back(pt);
+                                flag[i] = true; // Mark the point as assigned
+                            }
+                        }
+
+                        if (!subCloud.empty()) {
+                            ROS_INFO("Creating new box");
+                            onboardDetector::box3D newBox;
+                            Eigen::Vector3d center, stddev;
+                            center = computeCenter(subCloud);
+                            newBox.x = center(0);
+                            newBox.y = center(1);
+                            newBox.z = center(2);
+
+                            double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
+                            double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
+                            double zMin = std::numeric_limits<double>::max(), zMax = std::numeric_limits<double>::lowest();
+
+                            for (const auto &pt : subCloud) {
+                                xMin = std::min(xMin, pt.x());
+                                xMax = std::max(xMax, pt.x());
+                                yMin = std::min(yMin, pt.y());
+                                yMax = std::max(yMax, pt.y());
+                                zMin = std::min(zMin, pt.z());
+                                zMax = std::max(zMax, pt.z());
+                            }
+
+                            newBox.x_width = xMax - xMin;
+                            newBox.y_width = yMax - yMin;
+                            newBox.z_width = zMax - zMin;
+                            newBox.x = (xMin + xMax) / 2;
+                            newBox.y = (yMin + yMax) / 2;
+                            newBox.z = (zMin + zMax) / 2;
+                            newBox.is_dynamic = true;
+                            newBox.is_human = true;
+
+                            stddev = computeStd(subCloud, center);
+
+                            newFilteredBBoxes.push_back(newBox);
+                            newFilteredPcClusters.push_back(subCloud);
+                            newFilteredPcClusterCenters.push_back(center);
+                            newFilteredPcClusterStds.push_back(stddev);
+                            ROS_INFO("New box created");
+                        }
+                    }
+                }
+            }
+            
+            filteredBBoxesTemp = newFilteredBBoxes;
+            filteredPcClustersTemp = newFilteredPcClusters;
+            filteredPcClusterCentersTemp = newFilteredPcClusterCenters;
+            filteredPcClusterStdsTemp = newFilteredPcClusterStds;
         }
-    }
+        }
 
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
         this->filteredPcClusterCenters_ = filteredPcClusterCentersTemp;
         this->filteredPcClusterStds_ = filteredPcClusterStdsTemp;
+
+        filteredBBoxesTemp.clear();
+        filteredPcClustersTemp.clear();
+        filteredPcClusterCentersTemp.clear();
+        filteredPcClusterStdsTemp.clear();
     }
 
     void dynamicDetector::transformUVBBoxes(std::vector<onboardDetector::box3D>& bboxes){

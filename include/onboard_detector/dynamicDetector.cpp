@@ -1604,7 +1604,8 @@ namespace onboardDetector{
             }
             // **Case 1: no overlapping LiDAR boxes
             if (overlappingLidarBoxes.empty()) {
-                // no overlapping LiDAR boxes, keep the visu
+                // no overlapping LiDAR boxes, keep the visual box
+                filteredBBoxesTemp.push_back(visualBBox);
                 filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
                 filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
                 filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
@@ -1888,31 +1889,31 @@ namespace onboardDetector{
             }
         }
 
-        // process any remaining visual boxes
-        for (size_t i = 0; i < visualBBoxesTemp.size(); ++i) {
-            if (!processedVisualBoxes[i]) {
-                // keep the visual box
-                filteredBBoxesTemp.push_back(visualBBoxesTemp[i]);
-                filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
-                filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
-                filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
-                // mark the visual box as processed
-                processedVisualBoxes[i] = true;
-            }
-        }
+        // // process any remaining visual boxes
+        // for (size_t i = 0; i < visualBBoxesTemp.size(); ++i) {
+        //     if (!processedVisualBoxes[i]) {
+        //         // keep the visual box
+        //         filteredBBoxesTemp.push_back(visualBBoxesTemp[i]);
+        //         filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
+        //         filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
+        //         filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
+        //         // mark the visual box as processed
+        //         processedVisualBoxes[i] = true;
+        //     }
+        // }
 
-        // process any remaining LiDAR boxes
-        for (size_t i = 0; i < lidarBBoxesTemp.size(); ++i) {
-            if (!processedLidarBoxes[i]) {
-                // keep the LiDAR box
-                filteredBBoxesTemp.push_back(lidarBBoxesTemp[i]);
-                filteredPcClustersTemp.push_back(lidarPcClustersTemp[i]);
-                filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[i]);
-                filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
-                // mark the LiDAR box as processed
-                processedLidarBoxes[i] = true;
-            }
-        }
+        // // process any remaining LiDAR boxes
+        // for (size_t i = 0; i < lidarBBoxesTemp.size(); ++i) {
+        //     if (!processedLidarBoxes[i]) {
+        //         // keep the LiDAR box
+        //         filteredBBoxesTemp.push_back(lidarBBoxesTemp[i]);
+        //         filteredPcClustersTemp.push_back(lidarPcClustersTemp[i]);
+        //         filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[i]);
+        //         filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
+        //         // mark the LiDAR box as processed
+        //         processedLidarBoxes[i] = true;
+        //     }
+        // }
 
         std::vector<int> best3DBBoxForYOLO(this->yoloDetectionResults_.detections.size(), -1);
 

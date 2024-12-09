@@ -74,6 +74,7 @@ namespace onboardDetector{
         ros::Publisher lidarClustersPub_;
         ros::Publisher lidarBBoxesPub_;
         ros::Publisher lidarCloudPub_;
+        ros::Publisher propedBoxesPub_;
         ros::ServiceServer getDynamicObstacleServer_;
     
 
@@ -139,6 +140,10 @@ namespace onboardDetector{
         int kfAvgFrames_;
         bool constrainSize_;
         std::vector<Eigen::Vector3d> targetObjectSize_; 
+        std::vector<double> targetObjectSizeThresh_;
+        std::vector<int> bestMatchHist_;
+        Eigen::VectorXd featureWeights_;
+
 
         // SENSOR DATA
         cv::Mat depthImage_;
@@ -175,6 +180,7 @@ namespace onboardDetector{
         std::vector<onboardDetector::box3D> dynamicBBoxes_; // boxes classified as dynamic
         // std::vector<int> recentDynaFrames_; // recent number of frames being detected as dynamic for each obstacle
         std::vector<onboardDetector::box3D> lidarBBoxes_; // bboxes detected by lidar (have static and dynamic)
+        std::vector<onboardDetector::box3D> propedBoxes_; // linear propagated bboxes
 
         // TRACKING AND ASSOCIATION DATA
         bool newDetectFlag_;
@@ -223,6 +229,7 @@ namespace onboardDetector{
         void lidarDetect();
         void yoloDetectionTo3D();
         void filterBBoxes();
+        void filterLVBBoxes(); // filter lidar and vision bounding boxes
 
         // uv Detector Functions
         void transformUVBBoxes(std::vector<onboardDetector::box3D>& bboxes);
@@ -266,6 +273,7 @@ namespace onboardDetector{
         void publishColorImages();
         void publishPoints(const std::vector<Eigen::Vector3d>& points, const ros::Publisher& publisher);
         void publish3dBox(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
+        void publish3dBoxWithID(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
         void publishHistoryTraj();
         void publishVelVis();
         void publishLidarClusters();

@@ -58,6 +58,38 @@ namespace onboardDetector{
     inline double angleBetweenVectors(const Eigen::Vector3d& a, const Eigen::Vector3d& b){
         return std::atan2(a.cross(b).norm(), a.dot(b));
     }
+
+    inline Eigen::Vector3d computeCenter(const std::vector<Eigen::Vector3d> &points) {
+        Eigen::Vector3d center(0.0, 0.0, 0.0);
+        if (points.empty()) {
+            return center; 
+        }
+
+        for (const auto &p : points) {
+            center += p;
+        }
+        center /= static_cast<double>(points.size());
+
+        return center;
+    }
+
+    inline Eigen::Vector3d computeStd(const std::vector<Eigen::Vector3d> &points, const Eigen::Vector3d &center) {
+        Eigen::Vector3d stds(0.0, 0.0, 0.0);
+        if (points.empty()) {
+            return stds; 
+        }
+
+        for (const auto &p : points) {
+            Eigen::Vector3d diff = p - center;
+            stds(0) += diff(0) * diff(0);
+            stds(1) += diff(1) * diff(1);
+            stds(2) += diff(2) * diff(2);
+        }
+        stds /= static_cast<double>(points.size());
+        stds = stds.array().sqrt(); 
+
+        return stds;
+    }
 }
 
 #endif

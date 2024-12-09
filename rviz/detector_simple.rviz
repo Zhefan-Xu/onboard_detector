@@ -1,11 +1,11 @@
 Panels:
   - Class: rviz/Displays
-    Help Height: 0
+    Help Height: 138
     Name: Displays
     Property Tree Widget:
       Expanded: ~
       Splitter Ratio: 0.5
-    Tree Height: 331
+    Tree Height: 1540
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -23,7 +23,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: u-depth map
+    SyncSource: lidar clusters
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -75,7 +75,7 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /onboard_detector/detected_u_depth_map
       Max Value: 1
       Median window: 5
@@ -85,9 +85,9 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /onboard_detector/detected_depth_map
       Max Value: 1
       Median window: 5
@@ -97,9 +97,9 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /onboard_detector/bird_view
       Max Value: 1
       Median window: 5
@@ -109,7 +109,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /onboard_detector/dynamic_bboxes
@@ -147,7 +147,7 @@ Visualization Manager:
       Use rainbow: true
       Value: false
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /onboard_detector/detected_color_image
       Max Value: 1
       Median window: 5
@@ -157,7 +157,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -212,7 +212,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: false
-      Marker Topic: /onboard_detector/filtered_bboxes
+      Marker Topic: /onboard_detector/yolo_3d_bboxes
       Name: MarkerArray
       Namespaces:
         {}
@@ -220,7 +220,23 @@ Visualization Manager:
       Value: false
     - Class: rviz/MarkerArray
       Enabled: false
-      Marker Topic: /onboard_detector/tracked_bboxes
+      Marker Topic: /onboard_detector/dbscan_bboxes
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /onboard_detector/history_trajectories
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /onboard_detector/uv_bboxes
       Name: MarkerArray
       Namespaces:
         {}
@@ -237,22 +253,6 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
-    - Class: rviz/MarkerArray
-      Enabled: true
-      Marker Topic: /onboard_detector/yolo_3d_bboxes
-      Name: MarkerArray
-      Namespaces:
-        box3D: true
-      Queue Size: 100
-      Value: true
-    - Class: rviz/MarkerArray
-      Enabled: true
-      Marker Topic: /onboard_detector/dbscan_bboxes
-      Name: MarkerArray
-      Namespaces:
-        box3D: true
-      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
@@ -282,7 +282,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 14.90282154083252
+      Distance: 32.855926513671875
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -290,27 +290,27 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 3.2829110622406006
-        Y: -0.4855004549026489
-        Z: 1.1879042387008667
+        X: 10.714618682861328
+        Y: -0.6420721411705017
+        Z: 1.3195152282714844
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7697963714599609
+      Pitch: 0.6997964382171631
       Target Frame: <Fixed Frame>
-      Yaw: 3.010413885116577
+      Yaw: 3.115422248840332
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1672
+  Height: 2806
   Hide Left Dock: false
   Hide Right Dock: false
   Image:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd00000004000000000000032c0000045efc020000000cfb0000001200530065006c0065006300740069006f006e00000001e10000009b000000b000fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000b0fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000160075002d006400650070007400680020006d0061007001000001fc000000850000002600fffffffb00000012006400650070007400680020006d00610070010000028d000001080000002600fffffffb000000100044006900730070006c00610079007301000003a1000001b90000018200fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000160064006500700074006800200069006d00610067006500000004b3000000900000000000000000fb0000000a0049006d0061006700650100000566000000f40000002600ffffff000000010000010f000004c2fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003d000004c20000013200fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000ab000000182fc0100000003fb0000000a0049006d00610067006501000000000000020e000000af00fffffffb0000001a0062006900720064002d00650079006500200076006900650077010000021a000008960000010e00fffffffb0000000a00560069006500770073030000004e00000080000002e10000019700000003000009b80000003efc0100000002fb0000000800540069006d00650000000000000009b80000077d00fffffffb0000000800540069006d00650100000000000004500000000000000000000007780000045e00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000043f00000a5afc020000000efb0000001200530065006c0065006300740069006f006e00000001e10000009b000000b000fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000b0fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000160075002d006400650070007400680020006d0061007000000001c5000000990000002600fffffffb00000012006400650070007400680020006d0061007000000001c5000001670000002600fffffffb000000100044006900730070006c006100790073010000006e000006fc0000018200fffffffb0000000a0049006d0061006700650000000595000002920000002600fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000160064006500700074006800200069006d00610067006500000004b3000000900000000000000000fb0000000a0049006d0061006700650100000776000003520000002600fffffffb0000000a0049006d0061006700650100000767000003610000000000000000000000010000010f000004c2fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003d000004c20000013200fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b2000000000000000000000002000009b800000182fc0100000003fb0000000a0049006d0061006700650000000000000009b80000000000000000fb0000001a0062006900720064002d0065007900650020007600690065007700000001e7000007d10000010e00fffffffb0000000a00560069006500770073030000004e00000080000002e10000019700000003000009b80000003efc0100000002fb0000000800540069006d00650000000000000009b80000077d00fffffffb0000000800540069006d0065010000000000000450000000000000000000000fb500000a5a00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -319,9 +319,9 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 2736
-  X: 144
-  Y: 54
+  Width: 5120
+  X: 0
+  Y: 0
   bird-eye view:
     collapsed: false
   depth map:

@@ -2765,7 +2765,7 @@ namespace onboardDetector{
             double pZ = propedBoxes[bestMatchInd].z;
 
             double dist = std::sqrt(std::pow(fX - pX, 2) + std::pow(fY - pY, 2) + std::pow(fZ - pZ, 2));
-            bool distCheck = dist < 0.1;
+            bool distCheck = dist < 0.15;
 
             if(!(bestSims[i]>this->simThresh_ && iou && distCheck)){
                 bestSims[i] = 0;

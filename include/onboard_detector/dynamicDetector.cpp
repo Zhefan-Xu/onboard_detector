@@ -2756,7 +2756,18 @@ namespace onboardDetector{
 
             double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
             // std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
-            if(!(bestSims[i]>this->simThresh_ && iou)){
+            // TODO: add distance check
+            double fX = this->filteredBBoxes_[i].x;
+            double fY = this->filteredBBoxes_[i].y;
+            double fZ = this->filteredBBoxes_[i].z;
+            double pX = propedBoxes[bestMatchInd].x;
+            double pY = propedBoxes[bestMatchInd].y;
+            double pZ = propedBoxes[bestMatchInd].z;
+
+            double dist = std::sqrt(std::pow(fX - pX, 2) + std::pow(fY - pY, 2) + std::pow(fZ - pZ, 2));
+            bool distCheck = dist < 0.1;
+
+            if(!(bestSims[i]>this->simThresh_ && iou && distCheck)){
                 bestSims[i] = 0;
                 bestMatch[i] = -1;
             }

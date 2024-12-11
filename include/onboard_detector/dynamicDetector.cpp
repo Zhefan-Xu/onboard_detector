@@ -2025,7 +2025,7 @@ namespace onboardDetector{
                     }
                 }
 
-                if (bestIOU > 0.4 || bestCoverageRatio > 0.5) {
+                if (bestIOU > 0.4 || (bestIOU > 0.2 && bestCoverageRatio > 0.6)) {
                     best3DBBoxForYOLO[i] = bestIdx;
                 }
             }

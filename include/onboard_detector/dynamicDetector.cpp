@@ -814,6 +814,7 @@ namespace onboardDetector{
                 // local cloud
                 pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud (new pcl::PointCloud<pcl::PointXYZ>());
                 pcl::fromROSMsg(*cloudMsg, *tempCloud);
+                // ROS_INFO("Raw Input Pointcloud Number: %ld", tempCloud->size());
 
                 // filter and downsample pointcloud
                 // Create a filtered cloud pointer to store intermediate results
@@ -875,13 +876,6 @@ namespace onboardDetector{
                 this->lidarCloud_ = downsampledCloud;
                 // cout << "size of cloud: " << downsampledCloud->size() << endl;
                 ROS_WARN("Size of downsampled cloud: %ld", downsampledCloud->size());
-
-
-                // // republish the transformed and downsampled cloud
-                // sensor_msgs::PointCloud2 lidarCloudMsg;
-                // pcl::toROSMsg(*transformedCloud, lidarCloudMsg);
-                // lidarCloudMsg.header.frame_id = "map";
-                // this->lidarCloudPub_.publish(lidarCloudMsg);
             }
         }
         catch (const pcl::PCLException& e) {
@@ -910,7 +904,10 @@ namespace onboardDetector{
         this->uvDetect();
         this->yoloDetectionTo3D();
         // this->filterBBoxes();
+        ros::Time start = ros::Time::now();
         this->filterLVBBoxes();
+        ros::Time end = ros::Time::now();
+        ROS_INFO("filtering time: %f", (end - start).toSec());
         this->newDetectFlag_ = true; // get a new detection
     }
 

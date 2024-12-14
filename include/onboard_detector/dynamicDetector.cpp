@@ -1560,7 +1560,6 @@ namespace onboardDetector{
         }
 
 
-        // TODO: fuse visual and lidar bounding boxes
         // init processed flags
         std::vector<bool> processedLidarBoxes(lidarBBoxesTemp.size(), false);
         std::vector<bool> processedVisualBoxes(visualBBoxesTemp.size(), false);
@@ -2022,7 +2021,7 @@ namespace onboardDetector{
                         bestIdx = j;
                     }
                 }
-
+                // TODO: find a better way to determine correspondence between 3D and YOLO boxes
                 if (bestIOU > 0.4 || (bestIOU > 0.2 && bestCoverageRatio > 0.6)) {
                     best3DBBoxForYOLO[i] = bestIdx;
                 }
@@ -2098,7 +2097,7 @@ namespace onboardDetector{
                                 flag[i] = true;
                             }
                         }
-
+                        // TODO: check 3D projection logic
                         if (!subCloud.empty()) {
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
@@ -2750,7 +2749,7 @@ namespace onboardDetector{
 
             double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
             // std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
-            // TODO: add distance check
+            // TODO: add distance check and find a better way to avoid false positives
             double fX = this->filteredBBoxes_[i].x;
             double fY = this->filteredBBoxes_[i].y;
             double fZ = this->filteredBBoxes_[i].z;

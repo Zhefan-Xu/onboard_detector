@@ -71,6 +71,7 @@ namespace onboardDetector{
         ros::Publisher dynamicBBoxesPub_;
         ros::Publisher historyTrajPub_;
         ros::Publisher velVisPub_;
+        ros::Publisher visualBBoxesPub_; // Zhefan
         ros::Publisher lidarClustersPub_;
         ros::Publisher lidarBBoxesPub_;
         ros::Publisher lidarCloudPub_;
@@ -179,6 +180,7 @@ namespace onboardDetector{
         std::vector<onboardDetector::box3D> trackedBBoxes_; // bboxes tracked from kalman filtering
         std::vector<onboardDetector::box3D> dynamicBBoxes_; // boxes classified as dynamic
         // std::vector<int> recentDynaFrames_; // recent number of frames being detected as dynamic for each obstacle
+        std::vector<onboardDetector::box3D> visualBBoxes_; // visual bobxes detected by camera (Zhefan)
         std::vector<onboardDetector::box3D> lidarBBoxes_; // bboxes detected by lidar (have static and dynamic)
         std::vector<onboardDetector::box3D> propedBoxes_; // linear propagated bboxes
 

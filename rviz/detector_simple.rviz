@@ -139,7 +139,7 @@ Visualization Manager:
       Use rainbow: true
       Value: false
     - Class: rviz/Image
-      Enabled: false
+      Enabled: true
       Image Topic: /onboard_detector/detected_color_image
       Max Value: 1
       Median window: 5
@@ -149,7 +149,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: false
+      Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -235,7 +235,7 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /onboard_detector/detected_color_image
       Max Value: 1
       Median window: 5
@@ -245,7 +245,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /onboard_detector/history_trajectories
@@ -267,13 +267,13 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /onboard_detector/visual_bboxes
       Name: visual bbox
       Namespaces:
-        box3D: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: false
       Marker Topic: /onboard_detector/lidar_bboxes
@@ -291,21 +291,21 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /onboard_detector/tracked_bboxes
       Name: tracked bbox
-      Namespaces:
-        box3D: true
-      Queue Size: 100
-      Value: true
-    - Class: rviz/MarkerArray
-      Enabled: false
-      Marker Topic: /onboard_detector/dynamic_bboxes
-      Name: dynamic obstacles
       Namespaces:
         {}
       Queue Size: 100
       Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /onboard_detector/dynamic_bboxes
+      Name: dynamic obstacles
+      Namespaces:
+        box3D: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 211; 215; 207

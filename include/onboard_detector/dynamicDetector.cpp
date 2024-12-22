@@ -3188,7 +3188,7 @@ namespace onboardDetector{
         line.color.g = g;
         line.color.b = b;
         line.color.a = 1.0;
-        line.lifetime = ros::Duration(0.1);
+        line.lifetime = ros::Duration(0.05);
         
         for(size_t i = 0; i < boxes.size(); i++){
             // for estimated bbox, using a different color

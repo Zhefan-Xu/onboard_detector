@@ -605,6 +605,9 @@ namespace onboardDetector{
         // yolo bounding box pub
         this->yoloBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/yolo_3d_bboxes", 10);
 
+        // filtered bounding box before YOLO pub
+        this->filteredBBoxesBeforeYoloPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/filtered_before_yolo_bboxes", 10);
+
         // filtered bounding box pub
         this->filteredBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/filtered_bboxes", 10);
 
@@ -1131,6 +1134,7 @@ namespace onboardDetector{
         this->publishYoloImages();
         this->publishColorImages();
         this->publish3dBox(this->yoloBBoxes_, this->yoloBBoxesPub_, 1, 0, 1);
+        this->publish3dBox(this->filteredBBoxesBeforeYolo_, this->filteredBBoxesBeforeYoloPub_, 0, 1, 0.5);
         this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
         // this->publish3dBoxWithID(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
         this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
@@ -1594,32 +1598,60 @@ namespace onboardDetector{
             if (processedVisualBoxes[i]) continue; // skip processed visual boxes
             onboardDetector::box3D visualBBox = visualBBoxesTemp[i];
             std::vector<int> overlappingLidarBoxes;
+            std::vector<int> overlappingVisualBoxes;
 
-            // get the bounding box of the visual box
-            double visualXMin = visualBBox.x - visualBBox.x_width / 2.0;
-            double visualXMax = visualBBox.x + visualBBox.x_width / 2.0;
-            double visualYMin = visualBBox.y - visualBBox.y_width / 2.0;
-            double visualYMax = visualBBox.y + visualBBox.y_width / 2.0;
-            double visualZMin = visualBBox.z - visualBBox.z_width / 2.0;
-            double visualZMax = visualBBox.z + visualBBox.z_width / 2.0;
+            // get the bounding box of the visual box (commented out Zhefan)
+            // double visualXMin = visualBBox.x - visualBBox.x_width / 2.0;
+            // double visualXMax = visualBBox.x + visualBBox.x_width / 2.0;
+            // double visualYMin = visualBBox.y - visualBBox.y_width / 2.0;
+            // double visualYMax = visualBBox.y + visualBBox.y_width / 2.0;
+            // double visualZMin = visualBBox.z - visualBBox.z_width / 2.0;
+            // double visualZMax = visualBBox.z + visualBBox.z_width / 2.0;
+
+            // cout << "visual box: " <<  visualBBox.x << " " << visualBBox.y << " " << visualBBox.z <<  
+            // " size: " << visualBBox.x_width << " " << visualBBox.y_width << " " << visualBBox.z_width << endl;
 
             // loop through all LiDAR boxes
             for (size_t j = 0; j < lidarBBoxesTemp.size(); ++j) {
                 if (processedLidarBoxes[j]) continue; // skip processed LiDAR boxes
                 onboardDetector::box3D lidarBBox = lidarBBoxesTemp[j];
 
-                // get center of the LiDAR box
-                double lidarCenterX = lidarBBox.x;
-                double lidarCenterY = lidarBBox.y;
-                double lidarCenterZ = lidarBBox.z;
 
-                // check overlap 
-                if (lidarCenterX >= visualXMin && lidarCenterX <= visualXMax &&
-                    lidarCenterY >= visualYMin && lidarCenterY <= visualYMax &&
-                    lidarCenterZ >= visualZMin && lidarCenterZ <= visualZMax) {
+                // Zhefan: instead of using center, use IOU threshold
+                double lvIOU = this->calBoxIOU(visualBBox, lidarBBox, true);
+                // if (lvIOU > 0){
+                //     cout << "lidar box: " <<  lidarBBox.x << " " << lidarBBox.y << " " << lidarBBox.z <<  
+                //     " size: " << lidarBBox.x_width << " " << lidarBBox.y_width << " " << lidarBBox.z_width << endl;
+                //     cout << "box IOU: " << lvIOU << endl;
+                // }
+                if (lvIOU > boxIOUThresh){
                     overlappingLidarBoxes.push_back(j);
+                    // *key issue* Zhefan: the lidar bboxes can also match other visual bbox which should also be merged
+                    for (size_t k=0; k<visualBBoxesTemp.size(); ++k){
+                        if (processedVisualBoxes[i] or i==k) continue;
+                        onboardDetector::box3D visualBBoxPotentialMatch = visualBBoxesTemp[k];
+                        double lvIOUPotentialMatch = this->calBoxIOU(visualBBoxPotentialMatch, lidarBBox, true);
+                        if (lvIOUPotentialMatch > boxIOUThresh){
+                            overlappingVisualBoxes.push_back(k);
+                        }
+                    }
                 }
+
+                // --
+
+                // // get center of the LiDAR box
+                // double lidarCenterX = lidarBBox.x;
+                // double lidarCenterY = lidarBBox.y;
+                // double lidarCenterZ = lidarBBox.z;
+
+                // // check overlap 
+                // if (lidarCenterX >= visualXMin && lidarCenterX <= visualXMax &&
+                //     lidarCenterY >= visualYMin && lidarCenterY <= visualYMax &&
+                //     lidarCenterZ >= visualZMin && lidarCenterZ <= visualZMax) {
+                //     overlappingLidarBoxes.push_back(j);
+                // }
             }
+            // cout << "overlapping num: " << overlappingLidarBoxes.size() << endl;
             // **Case 1: no overlapping LiDAR boxes
             if (overlappingLidarBoxes.empty()) {
                 // no overlapping LiDAR boxes, keep the visual box
@@ -1641,6 +1673,19 @@ namespace onboardDetector{
                 double zmax = std::max(visualBBox.z + visualBBox.z_width / 2, lidarBBox.z + lidarBBox.z_width / 2);
                 double zmin = std::min(visualBBox.z - visualBBox.z_width / 2, lidarBBox.z - lidarBBox.z_width / 2);
 
+
+                // Zhefan: also consider the matches from LiDAR 
+                for (int visualIdx : overlappingVisualBoxes){
+                    onboardDetector::box3D visualBBoxFromLidarMatch = visualBBoxesTemp[visualIdx];
+                    xmax = std::max(xmax, visualBBoxFromLidarMatch.x + visualBBoxFromLidarMatch.x_width / 2);
+                    xmin = std::min(xmin, visualBBoxFromLidarMatch.x - visualBBoxFromLidarMatch.x_width / 2);
+                    ymax = std::max(ymax, visualBBoxFromLidarMatch.y + visualBBoxFromLidarMatch.y_width / 2);
+                    ymin = std::min(ymin, visualBBoxFromLidarMatch.y - visualBBoxFromLidarMatch.y_width / 2);
+                    zmax = std::max(zmax, visualBBoxFromLidarMatch.z + visualBBoxFromLidarMatch.z_width / 2);
+                    zmin = std::min(zmin, visualBBoxFromLidarMatch.z - visualBBoxFromLidarMatch.z_width / 2);
+                    processedVisualBoxes[visualIdx] = true;
+                }
+
                 onboardDetector::box3D fusedBBox;
                 fusedBBox.x = (xmin + xmax) / 2;
                 fusedBBox.y = (ymin + ymax) / 2;
@@ -1660,7 +1705,7 @@ namespace onboardDetector{
                 processedVisualBoxes[i] = true;
                 processedLidarBoxes[lidarIdx] = true;
             // **Case 3: multiple LiDAR boxes overlap with one visual box
-            } else { // overlappingLidarBoxes.size() > 1
+            } else { // overlappingLidarBoxes.size() > 1 // TODO: whether this is useful and how to incorporate overlappingVisualBoxes
                 // check if all LiDAR boxes are mutually overlapping
                 bool allMutuallyOverlap = true;
                 for (size_t m = 0; m < overlappingLidarBoxes.size(); ++m) {
@@ -1760,6 +1805,12 @@ namespace onboardDetector{
             filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
             processedLidarBoxes[i] = true;
         }
+
+        // Zhefan --
+        this->filteredBBoxesBeforeYolo_ = filteredBBoxesTemp;
+
+        // --
+
 
         std::vector<int> best3DBBoxForYOLO(this->yoloDetectionResults_.detections.size(), -1);
 
@@ -2211,7 +2262,7 @@ namespace onboardDetector{
     }
 
 
-    double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2){
+    double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2, bool ignoreZmin){
         double box1Volume = box1.x_width * box1.y_width * box1.z_width;
         double box2Volume = box2.x_width * box2.y_width * box2.z_width;
 
@@ -2221,12 +2272,25 @@ namespace onboardDetector{
         // std::cout << "box2:" << box2.x_width/2 << " "<<box2.y_width/2 << " "<< box2.z_width/2 << std::endl;
 
 
-        double l1Y = box1.y+box1.y_width/2-(box2.y-box2.y_width/2);
-        double l2Y = box2.y+box2.y_width/2-(box1.y-box1.y_width/2);
-        double l1X = box1.x+box1.x_width/2-(box2.x-box2.x_width/2);
-        double l2X = box2.x+box2.x_width/2-(box1.x-box1.x_width/2);
-        double l1Z = box1.z+box1.z_width/2-(box2.z-box2.z_width/2);
-        double l2Z = box2.z+box2.z_width/2-(box1.z-box1.z_width/2);
+        double l1Y = box1.y+box1.y_width/2.-(box2.y-box2.y_width/2.);
+        double l2Y = box2.y+box2.y_width/2.-(box1.y-box1.y_width/2.);
+        double l1X = box1.x+box1.x_width/2.-(box2.x-box2.x_width/2.);
+        double l2X = box2.x+box2.x_width/2.-(box1.x-box1.x_width/2.);
+        double l1Z = box1.z+box1.z_width/2.-(box2.z-box2.z_width/2.);
+        double l2Z = box2.z+box2.z_width/2.-(box1.z-box1.z_width/2.);
+        
+        if (ignoreZmin){
+            // modify box1 and box2 volumn based on the maximum lower z of two
+            double zmin = std::max(box1.z - box1.z_width/2., box2.z - box2.z_width/2.);
+            double zWidth1 = box1.z_width/2. + (box1.z - zmin);
+            double zWidth2 = box2.z_width/2. + (box2.z - zmin);
+            box1Volume = box1.x_width * box1.y_width * zWidth1;
+            box2Volume = box2.x_width * box2.y_width * zWidth2;
+
+            l1Z = box1.z+box1.z_width/2. - zmin;
+            l2Z = box2.z+box2.z_width/2. - zmin;
+        }
+        
         double overlapX = std::min( l1X , l2X );
         double overlapY = std::min( l1Y , l2Y );
         double overlapZ = std::min( l1Z , l2Z );

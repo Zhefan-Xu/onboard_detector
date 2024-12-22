@@ -66,6 +66,7 @@ namespace onboardDetector{
         ros::Publisher filteredPointsPub_;
         ros::Publisher dbBBoxesPub_;
         ros::Publisher yoloBBoxesPub_;
+        ros::Publisher filteredBBoxesBeforeYoloPub_; // Zhefan
         ros::Publisher filteredBBoxesPub_;
         ros::Publisher trackedBBoxesPub_;
         ros::Publisher dynamicBBoxesPub_;
@@ -173,6 +174,7 @@ namespace onboardDetector{
         std::vector<std::vector<Eigen::Vector3d>> pcClusters_; // pointcloud clusters
         std::vector<Eigen::Vector3d> pcClusterCenters_; // pointcloud cluster centers
         std::vector<Eigen::Vector3d> pcClusterStds_; // pointcloud cluster standard deviation in each axis
+        std::vector<onboardDetector::box3D> filteredBBoxesBeforeYolo_; // filtered bboxes before yolo
         std::vector<onboardDetector::box3D> filteredBBoxes_; // filtered bboxes
         std::vector<std::vector<Eigen::Vector3d>> filteredPcClusters_; // pointcloud clusters after filtering by UV and DBSCAN fusion
         std::vector<Eigen::Vector3d> filteredPcClusterCenters_; // filtered pointcloud cluster centers
@@ -244,7 +246,7 @@ namespace onboardDetector{
         void calcPcFeat(const std::vector<Eigen::Vector3d>& pcCluster, Eigen::Vector3d& pcClusterCenter, Eigen::Vector3d& pcClusterStd);
         
         // detection helper functions
-        double calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2);
+        double calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2, bool ignoreZmin=false);
         
         // yolo helper functions
         void getYolo3DBBox(const vision_msgs::Detection2D& detection, onboardDetector::box3D& bbox3D, cv::Rect& bboxVis); 

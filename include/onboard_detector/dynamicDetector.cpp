@@ -1624,7 +1624,7 @@ namespace onboardDetector{
                 //     " size: " << lidarBBox.x_width << " " << lidarBBox.y_width << " " << lidarBBox.z_width << endl;
                 //     cout << "box IOU: " << lvIOU << endl;
                 // }
-                if (lvIOU > boxIOUThresh){
+                if (lvIOU > boxIOUThresh){ // TODO: remove this hardcode
                     overlappingLidarBoxes.push_back(j);
                     // *key issue* Zhefan: the lidar bboxes can also match other visual bbox which should also be merged
                     for (size_t k=0; k<visualBBoxesTemp.size(); ++k){

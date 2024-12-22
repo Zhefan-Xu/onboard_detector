@@ -283,13 +283,13 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/MarkerArray
-      Enabled: false
+      Enabled: true
       Marker Topic: /onboard_detector/filtered_bboxes
       Name: filtered bbox
       Namespaces:
-        {}
+        box3D: true
       Queue Size: 100
-      Value: false
+      Value: true
     - Class: rviz/MarkerArray
       Enabled: false
       Marker Topic: /onboard_detector/tracked_bboxes
@@ -299,13 +299,13 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /onboard_detector/dynamic_bboxes
       Name: dynamic obstacles
       Namespaces:
-        box3D: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 211; 215; 207
@@ -352,7 +352,7 @@ Visualization Manager:
       Near Clip Distance: 0.009999999776482582
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
-      Yaw: 3.3104248046875
+      Yaw: 3.235424280166626
     Saved: ~
 Window Geometry:
   Displays:

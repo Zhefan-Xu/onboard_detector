@@ -283,21 +283,21 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /onboard_detector/filtered_before_yolo_bboxes
       Name: filtered box before YOLO
-      Namespaces:
-        box3D: true
-      Queue Size: 100
-      Value: true
-    - Class: rviz/MarkerArray
-      Enabled: false
-      Marker Topic: /onboard_detector/filtered_bboxes
-      Name: filtered bbox
       Namespaces:
         {}
       Queue Size: 100
       Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /onboard_detector/filtered_bboxes
+      Name: filtered bbox
+      Namespaces:
+        box3D: true
+      Queue Size: 100
+      Value: true
     - Class: rviz/MarkerArray
       Enabled: false
       Marker Topic: /onboard_detector/tracked_bboxes
@@ -366,9 +366,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.2597966194152832
+      Pitch: 1.3497965335845947
       Target Frame: <Fixed Frame>
-      Yaw: 3.165418863296509
+      Yaw: 3.135418176651001
     Saved: ~
 Window Geometry:
   Displays:

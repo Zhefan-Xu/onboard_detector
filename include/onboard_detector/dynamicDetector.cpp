@@ -1213,19 +1213,25 @@ namespace onboardDetector{
         if (this->lidarCloud_ != NULL){
             this->lidarDetector_->getPointcloud(this->lidarCloud_);
             this->lidarDetector_->lidarDBSCAN();
-            this->lidarClusters_ = this->lidarDetector_->getClusters();
+            // this->lidarClusters_ = this->lidarDetector_->getClusters();
             
             // Zhefan--
+            std::vector<onboardDetector::Cluster> lidarClustersRaw = this->lidarDetector_->getClusters();
+            std::vector<onboardDetector::Cluster> lidarClustersFiltered;
             std::vector<onboardDetector::box3D> lidarBBoxesRaw = this->lidarDetector_->getBBoxes();
             std::vector<onboardDetector::box3D> lidarBBoxesFiltered;
-            for (onboardDetector::box3D& lidarBBox : lidarBBoxesRaw){
+            // for (onboardDetector::box3D& lidarBBox : lidarBBoxesRaw){
+            for (int i=0; i<int(lidarBBoxesRaw.size()); ++i){
+                onboardDetector::box3D lidarBBox = lidarBBoxesRaw[i];
                 // filter out lidar bounding boxes that are too large
                 if(lidarBBox.x_width > this->targetObjectSizeThresh_[0] || lidarBBox.y_width > this->targetObjectSizeThresh_[1] || lidarBBox.z_width > this->targetObjectSizeThresh_[2]){
                     continue;
                 }
-                lidarBBoxesFiltered.push_back(lidarBBox);            
+                lidarBBoxesFiltered.push_back(lidarBBox);
+                lidarClustersFiltered.push_back(lidarClustersRaw[i]);            
             }
             this->lidarBBoxes_ = lidarBBoxesFiltered;
+            this->lidarClusters_ = lidarClustersFiltered;
             // --
             
             // this->lidarBBoxes_ = this->lidarDetector_->getBBoxes();
@@ -1546,6 +1552,11 @@ namespace onboardDetector{
                 visualPcClustersTemp.push_back(matchedPcCluster);
                 visualPcClusterCentersTemp.push_back(matchedPcClusterCenter);
                 visualPcClusterStdsTemp.push_back(matchedPcClusterStd);
+
+                // cout << "================================================================" << endl;
+                // cout << "center: " << bbox.x << " " << bbox.y << " " << bbox.z << endl;
+                // cout << "cluster center: " << matchedPcClusterCenter.transpose() << endl; 
+                // cout << "cluster points 0: " << matchedPcCluster[0].transpose() << endl; 
             }
         }
         // Zhefan --
@@ -1563,8 +1574,7 @@ namespace onboardDetector{
             //     continue;
             // }
             
-            lidarBBoxesTemp.push_back(lidarBBox);
-
+            
             // get corresponding point cloud cluster
             onboardDetector::Cluster cluster = this->lidarClusters_[i];
 
@@ -1579,10 +1589,15 @@ namespace onboardDetector{
             // compute std
             Eigen::Vector3d clusterStd = cluster.eigen_values.cwiseSqrt().cast<double>();
 
-
+            lidarBBoxesTemp.push_back(lidarBBox);
             lidarPcClustersTemp.push_back(pcCluster);
             lidarPcClusterCentersTemp.push_back(clusterCenter);
             lidarPcClusterStdsTemp.push_back(clusterStd);
+
+            // cout << "================================================================" << endl;
+            // cout << "center: " << lidarBBox.x << " " << lidarBBox.y << " " << lidarBBox.z << endl;
+            // cout << "cluster center: " << clusterCenter.transpose() << endl; 
+            // cout << "cluster points 0: " << pcCluster[0].transpose() << endl;
         }
 
 
@@ -1953,7 +1968,7 @@ namespace onboardDetector{
                 //     best3DBBoxForYOLO[i] = bestIdx;
                 // }
 
-                if (bestIOU > 0.2){
+                if (bestIOU > 0.0){
                     best3DBBoxForYOLO[i] = bestIdx;
                 }
             }
@@ -1982,6 +1997,16 @@ namespace onboardDetector{
                     }
                 } 
             }
+
+            // Zhefan: check whether the bounding box center is consistent or not
+            // for (int ntest=0; ntest<int(filteredBBoxesTemp.size()); ++ntest){
+            //     onboardDetector::box3D testBBox = filteredBBoxesTemp[ntest];
+            //     Eigen::Vector3d testClusterCenter = filteredPcClusterCentersTemp[ntest];
+            //     std::vector<Eigen::Vector3d> testCluster = filteredPcClustersTemp[ntest];
+            //     cout << "center: " << testBBox.x << " " << testBBox.y << " " << testBBox.z << endl;
+            //     cout << "cluster center: " << testClusterCenter.transpose() << endl; 
+            //     cout << "cluster points 0: " << testCluster[0].transpose() << endl; 
+            // }
 
             std::vector<onboardDetector::box3D> newFilteredBBoxes;
             std::vector<std::vector<Eigen::Vector3d>> newFilteredPcClusters;
@@ -2047,7 +2072,7 @@ namespace onboardDetector{
 
                             int u = (this->fxC_ * ptCam(0) + this->cxC_ * ptCam(2)) / ptCam(2);
                             int v = (this->fyC_ * ptCam(1) + this->cyC_ * ptCam(2)) / ptCam(2);
-                            // cout << "pt world: " << ptWorld.transpose() << endl;
+                            // cout << "pt world: " << ptWorld.transpose() << "cluster bbox center: " << filteredBBoxesTemp[idx3D].x << " " << filteredBBoxesTemp[idx3D].y << " " << filteredBBoxesTemp[idx3D].z << endl;
                             // cout << "pt cam: " << ptCam.transpose() << endl;
                             // cout << "u: " << u << " v: " << v << endl;
                             if (u >= xMin && u <= xMax && v >= yMin && v <= yMax) {

@@ -629,6 +629,9 @@ namespace onboardDetector{
         // lidar cluster pub 
         this->lidarClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
 
+        // lidar cluster pub 
+        this->filteredClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_clusters", 10);
+
         // lidar bbox pub
         this->lidarBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/lidar_bboxes", 10);
 
@@ -1144,6 +1147,7 @@ namespace onboardDetector{
         this->publishHistoryTraj();
         this->publishVelVis();
         this->publishLidarClusters(); // colored clusters
+        this->publishFilteredClusters();
         this->publish3dBox(this->visualBBoxes_, this->visualBBoxesPub_, 0.3, 0.8, 1.0);
         this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5); // raw lidar cluster bounding boxes
         this->publish3dBox(this->propedBoxes_, this->propedBoxesPub_, 0, 1, 1);
@@ -1983,20 +1987,20 @@ namespace onboardDetector{
             }
 
             // Zhefan: debug box3d to YOLO
-            for (const auto& pair : box3DToYolo){
-                onboardDetector::box3D currBox = filteredBBoxesTemp[pair.first];
-                cout << "curr box: " << currBox.x << " " << currBox.y << " " << currBox.z << endl;
-                for (int yoloIdx : pair.second){
-                    if (yoloIdx != -1){
-                        int tlXTarget = int(this->yoloDetectionResults_.detections[yoloIdx].bbox.center.x);
-                        int tlYTarget = int(this->yoloDetectionResults_.detections[yoloIdx].bbox.center.y);
-                        int brXTarget = tlXTarget + int(this->yoloDetectionResults_.detections[yoloIdx].bbox.size_x);
-                        int brYTarget = tlYTarget + int(this->yoloDetectionResults_.detections[yoloIdx].bbox.size_y);    
-                        cout << "YOLO idx: " << yoloIdx << " data: " << tlXTarget << " " << tlYTarget << " " << brXTarget
-                        << " " <<  brYTarget << endl;          
-                    }
-                } 
-            }
+            // for (const auto& pair : box3DToYolo){
+            //     onboardDetector::box3D currBox = filteredBBoxesTemp[pair.first];
+            //     cout << "curr box: " << currBox.x << " " << currBox.y << " " << currBox.z << endl;
+            //     for (int yoloIdx : pair.second){
+            //         if (yoloIdx != -1){
+            //             int tlXTarget = int(this->yoloDetectionResults_.detections[yoloIdx].bbox.center.x);
+            //             int tlYTarget = int(this->yoloDetectionResults_.detections[yoloIdx].bbox.center.y);
+            //             int brXTarget = tlXTarget + int(this->yoloDetectionResults_.detections[yoloIdx].bbox.size_x);
+            //             int brYTarget = tlYTarget + int(this->yoloDetectionResults_.detections[yoloIdx].bbox.size_y);    
+            //             cout << "YOLO idx: " << yoloIdx << " data: " << tlXTarget << " " << tlYTarget << " " << brXTarget
+            //             << " " <<  brYTarget << endl;          
+            //         }
+            //     } 
+            // }
 
             // Zhefan: check whether the bounding box center is consistent or not
             // for (int ntest=0; ntest<int(filteredBBoxesTemp.size()); ++ntest){
@@ -2033,8 +2037,8 @@ namespace onboardDetector{
                     newFilteredPcClusterCenters.push_back(filteredPcClusterCentersTemp[idx3D]);
                     newFilteredPcClusterStds.push_back(filteredPcClusterStdsTemp[idx3D]);
                 } else {
-                    cout << "try to split yolo." << endl;
-                    cout << "cluster bbox center: " << filteredBBoxesTemp[idx3D].x << " " << filteredBBoxesTemp[idx3D].y << " " << filteredBBoxesTemp[idx3D].z << endl;
+                    // cout << "try to split yolo." << endl;
+                    // cout << "cluster bbox center: " << filteredBBoxesTemp[idx3D].x << " " << filteredBBoxesTemp[idx3D].y << " " << filteredBBoxesTemp[idx3D].z << endl;
                     // *Case 3: multiple yolo boxes correspond to one 3D box
                     std::vector<Eigen::Vector3d> cloudCluster = filteredPcClustersTemp[idx3D];
 
@@ -2080,8 +2084,8 @@ namespace onboardDetector{
                                 flag[i] = true;
                             }
                         }
-                        cout << "cloud size: " << cloudCluster.size() << endl;
-                        cout << "sub cloud size: " << subCloud.size() << " for YOLO idx: " << yidx << endl;
+                        // cout << "cloud size: " << cloudCluster.size() << endl;
+                        // cout << "sub cloud size: " << subCloud.size() << " for YOLO idx: " << yidx << endl;
                         // TODO: check 3D projection logic
                         if (!subCloud.empty()) {
                             onboardDetector::box3D newBox;
@@ -2120,6 +2124,54 @@ namespace onboardDetector{
                             newFilteredPcClusterCenters.push_back(center);
                             newFilteredPcClusterStds.push_back(stddev);
                         }
+                    }
+                    // Zhefan: create a cloud cluster and bbox for the rest of points, the
+                    // only difference is that the rest of cloud will not be identified as dynamic directly
+                    std::vector<Eigen::Vector3d> restCloud;
+                    for (size_t i = 0; i < cloudCluster.size(); ++i){
+                        // Skip if the point has been assigned to a subcloud
+                        if (flag[i]) {
+                            continue; 
+                        }
+                        Eigen::Vector3d ptWorld = cloudCluster[i];
+                        restCloud.push_back(ptWorld);
+                        flag[i] = true;
+                    }
+
+                    if (!restCloud.empty()){
+                        onboardDetector::box3D newBox;
+                        Eigen::Vector3d center, stddev;
+                        center = computeCenter(restCloud);
+                        newBox.x = center(0);
+                        newBox.y = center(1);
+                        newBox.z = center(2);
+
+                        double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
+                        double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
+                        double zMin = std::numeric_limits<double>::max(), zMax = std::numeric_limits<double>::lowest();
+
+                        for (const auto &pt : restCloud) {
+                            xMin = std::min(xMin, pt.x());
+                            xMax = std::max(xMax, pt.x());
+                            yMin = std::min(yMin, pt.y());
+                            yMax = std::max(yMax, pt.y());
+                            zMin = std::min(zMin, pt.z());
+                            zMax = std::max(zMax, pt.z());
+                        }
+                        // create a new bounding box
+                        newBox.x_width = xMax - xMin;
+                        newBox.y_width = yMax - yMin;
+                        newBox.z_width = zMax - zMin;
+                        newBox.x = (xMin + xMax) / 2;
+                        newBox.y = (yMin + yMax) / 2;
+                        newBox.z = (zMin + zMax) / 2;
+
+                        stddev = computeStd(restCloud, center);
+
+                        newFilteredBBoxes.push_back(newBox);
+                        newFilteredPcClusters.push_back(restCloud);
+                        newFilteredPcClusterCenters.push_back(center);
+                        newFilteredPcClusterStds.push_back(stddev);
                     }
                 }
             }
@@ -3562,6 +3614,37 @@ namespace onboardDetector{
         lidarClustersMsg.header.frame_id = "map";
         lidarClustersMsg.header.stamp = ros::Time::now();
         this->lidarClustersPub_.publish(lidarClustersMsg);
+    }
+
+    void dynamicDetector::publishFilteredClusters(){
+        sensor_msgs::PointCloud2 filteredClustersMsg;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+        for (size_t i=0; i<this->filteredPcClusters_.size(); ++i){
+            std_msgs::ColorRGBA color;
+            // srand(i);
+            color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.r = 0.5;
+            color.g = 0.5;
+            color.b = 0.5;
+            color.a = 1.0;
+
+            for (size_t j=0; j<this->filteredPcClusters_[i].size(); ++j){
+                pcl::PointXYZRGB point;
+                point.x = this->filteredPcClusters_[i][j](0);
+                point.y = this->filteredPcClusters_[i][j](1);
+                point.z = this->filteredPcClusters_[i][j](2);
+                point.r = color.r * 255;
+                point.g = color.g * 255;
+                point.b = color.b * 255;
+                colored_cloud->push_back(point);
+            }
+        }
+        pcl::toROSMsg(*colored_cloud, filteredClustersMsg);
+        filteredClustersMsg.header.frame_id = "map";
+        filteredClustersMsg.header.stamp = ros::Time::now();
+        this->filteredClustersPub_.publish(filteredClustersMsg);
     }
 
     void dynamicDetector::transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,

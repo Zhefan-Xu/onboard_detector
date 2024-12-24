@@ -74,6 +74,7 @@ namespace onboardDetector{
         ros::Publisher velVisPub_;
         ros::Publisher visualBBoxesPub_; // Zhefan
         ros::Publisher lidarClustersPub_;
+        ros::Publisher filteredClustersPub_; // Zhefan
         ros::Publisher lidarBBoxesPub_;
         ros::Publisher lidarCloudPub_;
         ros::Publisher propedBoxesPub_;
@@ -281,6 +282,7 @@ namespace onboardDetector{
         void publishHistoryTraj();
         void publishVelVis();
         void publishLidarClusters();
+        void publishFilteredClusters();
 
         // helper function
         void transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,

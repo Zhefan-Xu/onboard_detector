@@ -2107,57 +2107,92 @@ namespace onboardDetector{
                     newFilteredPcClusterCenters.push_back(filteredPcClusterCentersTemp[idx3D]);
                     newFilteredPcClusterStds.push_back(filteredPcClusterStdsTemp[idx3D]);
                 } else {
-                    // cout << "try to split yolo." << endl;
+                    cout << "try to split yolo." << endl;
                     // cout << "cluster bbox center: " << filteredBBoxesTemp[idx3D].x << " " << filteredBBoxesTemp[idx3D].y << " " << filteredBBoxesTemp[idx3D].z << endl;
                     // *Case 3: multiple yolo boxes correspond to one 3D box
                     std::vector<Eigen::Vector3d> cloudCluster = filteredPcClustersTemp[idx3D];
 
-                    // Initialize flag array for cloudCluster
+
+                    // iterate to assign all points
+                    int allowMargin = 2; // pixel TODO: hardcode removal
+                    std::vector<int> assignment(cloudCluster.size(), -1);
+                    for (size_t i = 0; i < cloudCluster.size(); ++i){
+                        Eigen::Vector3d ptWorld = cloudCluster[i];
+                        Eigen::Vector3d ptCam = this->orientationColor_.inverse() * (ptWorld - this->positionColor_);
+
+                        int u = (this->fxC_ * ptCam(0) + this->cxC_ * ptCam(2)) / ptCam(2);
+                        int v = (this->fyC_ * ptCam(1) + this->cyC_ * ptCam(2)) / ptCam(2);
+
+                        int closestDist = std::numeric_limits<int>::max();
+                        for (int yidx : yoloIndices){
+                            int XTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.x);
+                            int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
+                            int XTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_x);
+                            int YTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_y);
+                            int xMin = XTarget - XTargetWid;
+                            int xMax = XTarget + XTargetWid;
+                            int yMin = YTarget - YTargetWid;
+                            int yMax = YTarget + YTargetWid;
+                            
+                            // int xCenter = (xMin + xMax) / 2;
+                            // int yCenter = (yMin + yMax) / 2;
+                            // int distance = std::abs(xCenter - u) + std::abs(yCenter - v); 
+
+                            if (u >= xMin-allowMargin && u <= xMax+allowMargin && v >= yMin-allowMargin && v <= yMax+allowMargin) {
+                                // Horizontal signed distance
+                                int horizontalDistance = 0;
+                                if (u < xMin) {
+                                    horizontalDistance = xMin - u; // Outside on the left
+                                } else if (u > xMax) {
+                                    horizontalDistance = u - xMax; // Outside on the right
+                                } else {
+                                    horizontalDistance = std::min(u - xMin, xMax - u); // Inside horizontally
+                                }
+
+                                // Vertical signed distance
+                                int verticalDistance = 0;
+                                if (v < yMin) {
+                                    verticalDistance = yMin - v; // Outside on the top
+                                } else if (v > yMax) {
+                                    verticalDistance = v - yMax; // Outside on the bottom
+                                } else {
+                                    verticalDistance = std::min(v - yMin, yMax - v); // Inside vertically
+                                }
+
+                                // Compute signed distance to the closest edge
+                                int signedDistance;
+                                if (u < xMin || u > xMax || v < yMin || v > yMax) {
+                                    // Outside: Take the larger of horizontal or vertical distance
+                                    signedDistance = std::max(horizontalDistance, verticalDistance);
+                                } else {
+                                    // Inside: Take the negative of the minimum distance to any edge
+                                    signedDistance = -std::min(horizontalDistance, verticalDistance);
+                                }
+                                int distance = signedDistance;
+                                if (distance < closestDist){
+                                    assignment[i] = yidx;
+                                    closestDist = distance;
+                                }
+                            }
+                        }
+                    }
+
                     std::vector<bool> flag(cloudCluster.size(), false);
-                    // ROS_INFO("Looping through yolo indices");
-                    for (int yidx : yoloIndices) {
-                        int XTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.x);
-                        int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
-                        int XTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_x);
-                        int YTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_y);
-
-
-                        // ZHefan: this might be the issue (don' need to divide 2)
-                        // int xMin = XTarget - XTargetWid / 2;
-                        // int xMax = XTarget + XTargetWid / 2;
-                        // int yMin = YTarget - YTargetWid / 2;
-                        // int yMax = YTarget + YTargetWid / 2;
-                        int xMin = XTarget - XTargetWid;
-                        int xMax = XTarget + XTargetWid;
-                        int yMin = YTarget - YTargetWid;
-                        int yMax = YTarget + YTargetWid;
-
+                    yoloIndices.push_back(-1); // to account for non-assigned points
+                    for (int yidx : yoloIndices){
                         std::vector<Eigen::Vector3d> subCloud;
-
-                        for (size_t i = 0; i < cloudCluster.size(); ++i) {
-                            // Skip if the point has been assigned to a subcloud
-                            if (flag[i]) {
-                                continue; 
+                        for (size_t i = 0; i < cloudCluster.size(); ++i){
+                            if (flag[i]){
+                                continue;
                             }
 
-                            // auto &pt = cloudCluster[i];
-                            Eigen::Vector3d ptWorld = cloudCluster[i];
-                            Eigen::Vector3d ptCam = this->orientationColor_.inverse() * (ptWorld - this->positionColor_);
-
-                            int u = (this->fxC_ * ptCam(0) + this->cxC_ * ptCam(2)) / ptCam(2);
-                            int v = (this->fyC_ * ptCam(1) + this->cyC_ * ptCam(2)) / ptCam(2);
-                            // cout << "pt world: " << ptWorld.transpose() << "cluster bbox center: " << filteredBBoxesTemp[idx3D].x << " " << filteredBBoxesTemp[idx3D].y << " " << filteredBBoxesTemp[idx3D].z << endl;
-                            // cout << "pt cam: " << ptCam.transpose() << endl;
-                            // cout << "u: " << u << " v: " << v << endl;
-                            if (u >= xMin && u <= xMax && v >= yMin && v <= yMax) {
-                                subCloud.push_back(ptWorld);
+                            if (assignment[i] == yidx){
+                                subCloud.push_back(cloudCluster[i]);
                                 flag[i] = true;
                             }
                         }
-                        // cout << "cloud size: " << cloudCluster.size() << endl;
-                        // cout << "sub cloud size: " << subCloud.size() << " for YOLO idx: " << yidx << endl;
-                        // TODO: check 3D projection logic
-                        if (!subCloud.empty()) {
+                        cout << "subcloud size: " << subCloud.size() << endl;
+                        if (subCloud.size() != 0){
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
                             center = computeCenter(subCloud);
@@ -2184,9 +2219,10 @@ namespace onboardDetector{
                             newBox.x = (xMin + xMax) / 2;
                             newBox.y = (yMin + yMax) / 2;
                             newBox.z = (zMin + zMax) / 2;
-                            newBox.is_dynamic = true;
-                            newBox.is_human = true;
-
+                            if (yidx != -1){
+                                newBox.is_dynamic = true;
+                                newBox.is_human = true;
+                            }
                             stddev = computeStd(subCloud, center);
 
                             newFilteredBBoxes.push_back(newBox);
@@ -2195,54 +2231,137 @@ namespace onboardDetector{
                             newFilteredPcClusterStds.push_back(stddev);
                         }
                     }
-                    // Zhefan: create a cloud cluster and bbox for the rest of points, the
-                    // only difference is that the rest of cloud will not be identified as dynamic directly
-                    std::vector<Eigen::Vector3d> restCloud;
-                    for (size_t i = 0; i < cloudCluster.size(); ++i){
-                        // Skip if the point has been assigned to a subcloud
-                        if (flag[i]) {
-                            continue; 
-                        }
-                        Eigen::Vector3d ptWorld = cloudCluster[i];
-                        restCloud.push_back(ptWorld);
-                        flag[i] = true;
-                    }
+                    // Initialize flag array for cloudCluster
+                    // std::vector<bool> flag(cloudCluster.size(), false);
+                    // // ROS_INFO("Looping through yolo indices");
+                    // for (int yidx : yoloIndices) {
+                    //     int XTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.x);
+                    //     int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
+                    //     int XTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_x);
+                    //     int YTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_y);
 
-                    if (!restCloud.empty()){
-                        onboardDetector::box3D newBox;
-                        Eigen::Vector3d center, stddev;
-                        center = computeCenter(restCloud);
-                        newBox.x = center(0);
-                        newBox.y = center(1);
-                        newBox.z = center(2);
 
-                        double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
-                        double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
-                        double zMin = std::numeric_limits<double>::max(), zMax = std::numeric_limits<double>::lowest();
+                    //     // ZHefan: this might be the issue (don' need to divide 2)
+                    //     // int xMin = XTarget - XTargetWid / 2;
+                    //     // int xMax = XTarget + XTargetWid / 2;
+                    //     // int yMin = YTarget - YTargetWid / 2;
+                    //     // int yMax = YTarget + YTargetWid / 2;
+                    //     int xMin = XTarget - XTargetWid;
+                    //     int xMax = XTarget + XTargetWid;
+                    //     int yMin = YTarget - YTargetWid;
+                    //     int yMax = YTarget + YTargetWid;
 
-                        for (const auto &pt : restCloud) {
-                            xMin = std::min(xMin, pt.x());
-                            xMax = std::max(xMax, pt.x());
-                            yMin = std::min(yMin, pt.y());
-                            yMax = std::max(yMax, pt.y());
-                            zMin = std::min(zMin, pt.z());
-                            zMax = std::max(zMax, pt.z());
-                        }
-                        // create a new bounding box
-                        newBox.x_width = xMax - xMin;
-                        newBox.y_width = yMax - yMin;
-                        newBox.z_width = zMax - zMin;
-                        newBox.x = (xMin + xMax) / 2;
-                        newBox.y = (yMin + yMax) / 2;
-                        newBox.z = (zMin + zMax) / 2;
+                    //     std::vector<Eigen::Vector3d> subCloud;
 
-                        stddev = computeStd(restCloud, center);
+                    //     for (size_t i = 0; i < cloudCluster.size(); ++i) {
+                    //         // Skip if the point has been assigned to a subcloud
+                    //         if (flag[i]) {
+                    //             continue; 
+                    //         }
 
-                        newFilteredBBoxes.push_back(newBox);
-                        newFilteredPcClusters.push_back(restCloud);
-                        newFilteredPcClusterCenters.push_back(center);
-                        newFilteredPcClusterStds.push_back(stddev);
-                    }
+                    //         // auto &pt = cloudCluster[i];
+                    //         Eigen::Vector3d ptWorld = cloudCluster[i];
+                    //         Eigen::Vector3d ptCam = this->orientationColor_.inverse() * (ptWorld - this->positionColor_);
+
+                    //         int u = (this->fxC_ * ptCam(0) + this->cxC_ * ptCam(2)) / ptCam(2);
+                    //         int v = (this->fyC_ * ptCam(1) + this->cyC_ * ptCam(2)) / ptCam(2);
+                    //         // cout << "pt world: " << ptWorld.transpose() << "cluster bbox center: " << filteredBBoxesTemp[idx3D].x << " " << filteredBBoxesTemp[idx3D].y << " " << filteredBBoxesTemp[idx3D].z << endl;
+                    //         // cout << "pt cam: " << ptCam.transpose() << endl;
+                    //         // cout << "u: " << u << " v: " << v << endl;
+                    //         if (u >= xMin && u <= xMax && v >= yMin && v <= yMax) {
+                    //             subCloud.push_back(ptWorld);
+                    //             flag[i] = true;
+                    //         }
+                    //     }
+                    //     // cout << "cloud size: " << cloudCluster.size() << endl;
+                    //     // cout << "sub cloud size: " << subCloud.size() << " for YOLO idx: " << yidx << endl;
+                    //     // TODO: check 3D projection logic
+                    //     if (!subCloud.empty()) {
+                    //         onboardDetector::box3D newBox;
+                    //         Eigen::Vector3d center, stddev;
+                    //         center = computeCenter(subCloud);
+                    //         newBox.x = center(0);
+                    //         newBox.y = center(1);
+                    //         newBox.z = center(2);
+
+                    //         double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
+                    //         double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
+                    //         double zMin = std::numeric_limits<double>::max(), zMax = std::numeric_limits<double>::lowest();
+
+                    //         for (const auto &pt : subCloud) {
+                    //             xMin = std::min(xMin, pt.x());
+                    //             xMax = std::max(xMax, pt.x());
+                    //             yMin = std::min(yMin, pt.y());
+                    //             yMax = std::max(yMax, pt.y());
+                    //             zMin = std::min(zMin, pt.z());
+                    //             zMax = std::max(zMax, pt.z());
+                    //         }
+                    //         // create a new bounding box
+                    //         newBox.x_width = xMax - xMin;
+                    //         newBox.y_width = yMax - yMin;
+                    //         newBox.z_width = zMax - zMin;
+                    //         newBox.x = (xMin + xMax) / 2;
+                    //         newBox.y = (yMin + yMax) / 2;
+                    //         newBox.z = (zMin + zMax) / 2;
+                    //         newBox.is_dynamic = true;
+                    //         newBox.is_human = true;
+
+                    //         stddev = computeStd(subCloud, center);
+
+                    //         newFilteredBBoxes.push_back(newBox);
+                    //         newFilteredPcClusters.push_back(subCloud);
+                    //         newFilteredPcClusterCenters.push_back(center);
+                    //         newFilteredPcClusterStds.push_back(stddev);
+                    //     }
+                    // }
+                    // // Zhefan: create a cloud cluster and bbox for the rest of points, the
+                    // // only difference is that the rest of cloud will not be identified as dynamic directly
+                    // std::vector<Eigen::Vector3d> restCloud;
+                    // for (size_t i = 0; i < cloudCluster.size(); ++i){
+                    //     // Skip if the point has been assigned to a subcloud
+                    //     if (flag[i]) {
+                    //         continue; 
+                    //     }
+                    //     Eigen::Vector3d ptWorld = cloudCluster[i];
+                    //     restCloud.push_back(ptWorld);
+                    //     flag[i] = true;
+                    // }
+
+                    // if (!restCloud.empty()){
+                    //     onboardDetector::box3D newBox;
+                    //     Eigen::Vector3d center, stddev;
+                    //     center = computeCenter(restCloud);
+                    //     newBox.x = center(0);
+                    //     newBox.y = center(1);
+                    //     newBox.z = center(2);
+
+                    //     double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
+                    //     double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
+                    //     double zMin = std::numeric_limits<double>::max(), zMax = std::numeric_limits<double>::lowest();
+
+                    //     for (const auto &pt : restCloud) {
+                    //         xMin = std::min(xMin, pt.x());
+                    //         xMax = std::max(xMax, pt.x());
+                    //         yMin = std::min(yMin, pt.y());
+                    //         yMax = std::max(yMax, pt.y());
+                    //         zMin = std::min(zMin, pt.z());
+                    //         zMax = std::max(zMax, pt.z());
+                    //     }
+                    //     // create a new bounding box
+                    //     newBox.x_width = xMax - xMin;
+                    //     newBox.y_width = yMax - yMin;
+                    //     newBox.z_width = zMax - zMin;
+                    //     newBox.x = (xMin + xMax) / 2;
+                    //     newBox.y = (yMin + yMax) / 2;
+                    //     newBox.z = (zMin + zMax) / 2;
+
+                    //     stddev = computeStd(restCloud, center);
+
+                    //     newFilteredBBoxes.push_back(newBox);
+                    //     newFilteredPcClusters.push_back(restCloud);
+                    //     newFilteredPcClusterCenters.push_back(center);
+                    //     newFilteredPcClusterStds.push_back(stddev);
+                    // }
                 }
             }
             filteredBBoxesTemp.clear();

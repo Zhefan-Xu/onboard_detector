@@ -62,7 +62,8 @@ downsample_threshold: 3000 # threshold for downsampling
 
 
 # bounding box filtering
-filtering_BBox_IOU_threshold: 0.05
+# filtering_BBox_IOU_threshold: 0.05
+filtering_BBox_IOU_threshold: 0.2
 yolo_overwrite_distance: 10
 
 # tracking and data association

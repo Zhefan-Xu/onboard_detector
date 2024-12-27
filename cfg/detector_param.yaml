@@ -69,7 +69,7 @@ yolo_overwrite_distance: 10
 # tracking and data association
 history_size: 100 # size of tracking history. history[0] is current detection
 prediction_size: 20 # size of prediction
-similarity_threshold: 0.98 # similiary threshold for data association matching comparisonpublish3dBox
+similarity_threshold: 0.9 # similiary threshold for data association matching comparison
 retrack_similarity_threshold: 0.95 # similiary threshold for retracking
 fix_size_history_threshold: 10 # History threshold (num of frames) to fix box size
 fix_size_dimension_threshold: 0.4 # dimension threshold (size of proportional) to fix box size

@@ -2931,16 +2931,38 @@ namespace onboardDetector{
         for (int i=0 ; i<numObjs ; i++){
             double bestSim = -1.;
             int bestMatchInd = -1;
+            // Zhefan debug:
+            onboardDetector::box3D currBBox = this->filteredBBoxes_[i];
+            if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
+                cout << "----------------------------------------------------" << endl;
+                cout << "current bbox: " << currBBox.x << " " << currBBox.y << endl;
+            }
             for (size_t j=0 ; j<propedBoxes.size() ; j++){
+
                 double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
                 if (sim >= bestSim){
                     bestSim = sim;
                     bestSims[i] = sim;
                     bestMatchInd = j;
                 }
+                // Zhefan debug:
+                if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
+                    onboardDetector::box3D propedBox = propedBoxes[j];
+                    if (propedBox.x > 0.5 and propedBox.x < 3.5 and propedBox.y > -2. and propedBox.y < 1.5){
+                        cout << "proped bbox: " << propedBox.x << " " << propedBox.y << endl;
+                        cout << "sim: " << sim << endl;
+                        cout << "ID: " << j << endl;
+                    }
+                }
             }
 
             double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
+            // ZHefan debug:
+            if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
+                cout << "IOU: " << iou << endl;
+                cout << "best match ID: " << bestMatchInd << endl;
+            }
+
             // std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
             // TODO: add distance check and find a better way to avoid false positives
             // double fX = this->filteredBBoxes_[i].x;

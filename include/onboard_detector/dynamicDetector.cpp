@@ -3366,16 +3366,33 @@ namespace onboardDetector{
     }
  
     void dynamicDetector::getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc){
+        // Zhefan: Legacy code for getting dynamic obstacles (This only comes from visual)
+        // Eigen::Vector3d curPoint;
+        // for (size_t i=0 ; i<this->filteredPoints_.size() ; ++i){
+        //     curPoint = this->filteredPoints_[i];
+        //     for (size_t j=0; j<this->dynamicBBoxes_.size() ; ++j){
+        //         if (abs(curPoint(0)-this->dynamicBBoxes_[j].x)<=this->dynamicBBoxes_[j].x_width/2 and 
+        //             abs(curPoint(1)-this->dynamicBBoxes_[j].y)<=this->dynamicBBoxes_[j].y_width/2 and 
+        //             abs(curPoint(2)-this->dynamicBBoxes_[j].z)<=this->dynamicBBoxes_[j].z_width/2) {
+        //                 dynamicPc.push_back(curPoint);
+        //                 break;
+        //             }
+        //     }
+        // }
+
+        // new code:
         Eigen::Vector3d curPoint;
-        for (size_t i=0 ; i<this->filteredPoints_.size() ; ++i){
-            curPoint = this->filteredPoints_[i];
-            for (size_t j=0; j<this->dynamicBBoxes_.size() ; ++j){
-                if (abs(curPoint(0)-this->dynamicBBoxes_[j].x)<=this->dynamicBBoxes_[j].x_width/2 and 
-                    abs(curPoint(1)-this->dynamicBBoxes_[j].y)<=this->dynamicBBoxes_[j].y_width/2 and 
-                    abs(curPoint(2)-this->dynamicBBoxes_[j].z)<=this->dynamicBBoxes_[j].z_width/2) {
+        for (size_t i=0; i<this->filteredPcClusters_.size(); ++i){
+            for (size_t j=0; j<this->filteredPcClusters_[i].size(); ++j){
+                curPoint = this->filteredPcClusters_[i][j];
+                for (size_t k=0; k<this->dynamicBBoxes_.size(); ++k){
+                    if (abs(curPoint(0)-this->dynamicBBoxes_[k].x)<=this->dynamicBBoxes_[k].x_width/2 and 
+                        abs(curPoint(1)-this->dynamicBBoxes_[k].y)<=this->dynamicBBoxes_[k].y_width/2 and 
+                        abs(curPoint(2)-this->dynamicBBoxes_[k].z)<=this->dynamicBBoxes_[k].z_width/2) {
                         dynamicPc.push_back(curPoint);
                         break;
                     }
+                }
             }
         }
     } 

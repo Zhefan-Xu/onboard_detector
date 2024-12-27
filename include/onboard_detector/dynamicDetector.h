@@ -254,17 +254,16 @@ namespace onboardDetector{
         void calculateMAD(std::vector<double>& depthValues, double& depthMedian, double& MAD);
 
         // Data association and tracking functions
-        void boxAssociation(std::vector<int>& bestMatch, std::vector<int> &boxOOR);
-        void boxAssociationHelper(std::vector<int>& bestMatch, std::vector<int> &boxOOR);
+        void boxAssociation(std::vector<int>& bestMatch);
+        void boxAssociationHelper(std::vector<int>& bestMatch);
         void genFeat(const std::vector<onboardDetector::box3D>& propedBoxes, int numObjs, std::vector<Eigen::VectorXd>& propedBoxesFeat, std::vector<Eigen::VectorXd>& currBoxesFeat);
         void genFeatHelper(std::vector<Eigen::VectorXd>& feature, const std::vector<onboardDetector::box3D>& boxes);
         void linearProp(std::vector<onboardDetector::box3D>& propedBoxes);
         void findBestMatch(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch);
         void findBestMatchEstimate(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch, std::vector<int>& boxOOR);
         void getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch); 
-        int getEstimateFrameNum(const std::deque<onboardDetector::box3D> &boxHist);
         void getEstimateBox(const std::deque<onboardDetector::box3D> &boxHist, onboardDetector::box3D &estimatedBBox);
-        void kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch, const std::vector<int> &boxOOR);
+        void kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch);
         void kalmanFilterMatrixVel(const onboardDetector::box3D& currDetectedBBox, MatrixXd& states, MatrixXd& A, MatrixXd& B, MatrixXd& H, MatrixXd& P, MatrixXd& Q, MatrixXd& R);
         void kalmanFilterMatrixAcc(const onboardDetector::box3D& currDetectedBBox, MatrixXd& states, MatrixXd& A, MatrixXd& B, MatrixXd& H, MatrixXd& P, MatrixXd& Q, MatrixXd& R);
         void getKalmanObservationVel(const onboardDetector::box3D& currDetectedBBox, int bestMatchIdx, MatrixXd& Z);

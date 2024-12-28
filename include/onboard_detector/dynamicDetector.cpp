@@ -2940,7 +2940,7 @@ namespace onboardDetector{
         std::vector<double> bestSims; // best similarity
         bestSims.resize(numObjs, 0);
 
-        double matchRange = 0.3; // maximum match range. TODO: consider make this a parameter
+        double matchRange = 0.5; // maximum match range. TODO: consider make this a parameter
         double sizeRange = 0.5; // maximum width difference
 
         for (int i=0 ; i<numObjs ; i++){
@@ -2960,6 +2960,8 @@ namespace onboardDetector{
                 double currWidth = std::max(currBBox.x_width, currBBox.y_width);
                 if (std::abs(propedWidth - currWidth) < sizeRange){
                     if (pow(pow(propedBox.x - currBBox.x, 2) + pow(propedBox.y - currBBox.y, 2), 0.5) < matchRange){
+                    // if (pow(pow(propedBox.x - currBBox.x, 2) + pow(propedBox.y - currBBox.y, 2), 0.5) < 0.1 + currWidth/2.0){
+
                         // calculate the velocity feature based on propedBox and currBBox
                         double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
                         if (sim >= bestSim){

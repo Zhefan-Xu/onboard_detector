@@ -2454,14 +2454,55 @@ namespace onboardDetector{
             }
         }
 
-        pcClusters.clear();
-        pcClusters.resize(clusterNum);
+        
+        // pcClusters.resize(clusterNum);
+        std::vector<std::vector<Eigen::Vector3d>> pcClustersTemp;
+        pcClustersTemp.resize(clusterNum);
         for (size_t i=0; i<this->dbCluster_->m_points.size(); ++i){
             onboardDetector::Point pDB = this->dbCluster_->m_points[i];
             if (pDB.clusterID > 0){
                 Eigen::Vector3d p = this->dbPointToEigen(pDB);
-                pcClusters[pDB.clusterID-1].push_back(p);
+                pcClustersTemp[pDB.clusterID-1].push_back(p);
             }            
+        }
+
+
+        // calculate the bounding boxes and clusters
+        pcClusters.clear();
+        bboxes.clear();
+        // bboxes.resize(clusterNum);
+        for (size_t i=0; i<pcClustersTemp.size(); ++i){
+            onboardDetector::box3D box;
+
+            double xmin = pcClustersTemp[i][0](0);
+            double ymin = pcClustersTemp[i][0](1);
+            double zmin = pcClustersTemp[i][0](2);
+            double xmax = pcClustersTemp[i][0](0);
+            double ymax = pcClustersTemp[i][0](1);
+            double zmax = pcClustersTemp[i][0](2);
+            for (size_t j=0; j<pcClustersTemp[i].size(); ++j){
+                xmin = (pcClustersTemp[i][j](0)<xmin)?pcClustersTemp[i][j](0):xmin;
+                ymin = (pcClustersTemp[i][j](1)<ymin)?pcClustersTemp[i][j](1):ymin;
+                zmin = (pcClustersTemp[i][j](2)<zmin)?pcClustersTemp[i][j](2):zmin;
+                xmax = (pcClustersTemp[i][j](0)>xmax)?pcClustersTemp[i][j](0):xmax;
+                ymax = (pcClustersTemp[i][j](1)>ymax)?pcClustersTemp[i][j](1):ymax;
+                zmax = (pcClustersTemp[i][j](2)>zmax)?pcClustersTemp[i][j](2):zmax;
+            }
+            box.id = i;
+
+            box.x = (xmax + xmin)/2.0;
+            box.y = (ymax + ymin)/2.0;
+            box.z = (zmax + zmin)/2.0;
+            box.x_width = (xmax - xmin)>0.1?(xmax-xmin):0.1;
+            box.y_width = (ymax - ymin)>0.1?(ymax-ymin):0.1;
+            box.z_width = (zmax - zmin);
+
+            // filter out bounding boxes that are too large
+            if(box.x_width > this->targetObjectSizeThresh_[0] || box.y_width > this->targetObjectSizeThresh_[1] || box.z_width > this->targetObjectSizeThresh_[2]){
+                continue;
+            }
+            bboxes.push_back(box);
+            pcClusters.push_back(pcClustersTemp[i]);
         }
 
         for (size_t i=0 ; i<pcClusters.size() ; ++i){
@@ -2472,36 +2513,6 @@ namespace onboardDetector{
             pcClusterStds.push_back(pcClusterStd);
         }
 
-        // calculate the bounding boxes based on the clusters
-        bboxes.clear();
-        // bboxes.resize(clusterNum);
-        for (size_t i=0; i<pcClusters.size(); ++i){
-            onboardDetector::box3D box;
-
-            double xmin = pcClusters[i][0](0);
-            double ymin = pcClusters[i][0](1);
-            double zmin = pcClusters[i][0](2);
-            double xmax = pcClusters[i][0](0);
-            double ymax = pcClusters[i][0](1);
-            double zmax = pcClusters[i][0](2);
-            for (size_t j=0; j<pcClusters[i].size(); ++j){
-                xmin = (pcClusters[i][j](0)<xmin)?pcClusters[i][j](0):xmin;
-                ymin = (pcClusters[i][j](1)<ymin)?pcClusters[i][j](1):ymin;
-                zmin = (pcClusters[i][j](2)<zmin)?pcClusters[i][j](2):zmin;
-                xmax = (pcClusters[i][j](0)>xmax)?pcClusters[i][j](0):xmax;
-                ymax = (pcClusters[i][j](1)>ymax)?pcClusters[i][j](1):ymax;
-                zmax = (pcClusters[i][j](2)>zmax)?pcClusters[i][j](2):zmax;
-            }
-            box.id = i;
-
-            box.x = (xmax + xmin)/2.0;
-            box.y = (ymax + ymin)/2.0;
-            box.z = (zmax + zmin)/2.0;
-            box.x_width = (xmax - xmin)>0.1?(xmax-xmin):0.1;
-            box.y_width = (ymax - ymin)>0.1?(ymax-ymin):0.1;
-            box.z_width = (zmax - zmin);
-            bboxes.push_back(box);
-        }
     }
 
     void dynamicDetector::voxelFilter(const std::vector<Eigen::Vector3d>& points, std::vector<Eigen::Vector3d>& filteredPoints){
@@ -2893,7 +2904,8 @@ namespace onboardDetector{
             feature(3) = boxes[i].x_width * featureWeights(3);
             feature(4) = boxes[i].y_width * featureWeights(4);
             feature(5) = boxes[i].z_width * featureWeights(5);
-            feature(6) = this->filteredPcClusters_[i].size() * featureWeights(6);
+            feature(6) = 0;
+            // feature(6) = this->filteredPcClusters_[i].size() * featureWeights(6);
             // feature(7) = this->filteredPcClusterStds_[i](0) * featureWeights(7);
             // feature(8) = this->filteredPcClusterStds_[i](1) * featureWeights(8);
             // feature(9) = this->filteredPcClusterStds_[i](2) * featureWeights(9);
@@ -2926,64 +2938,66 @@ namespace onboardDetector{
         // ROS_INFO("FindBestMatch");
         int numObjs = this->filteredBBoxes_.size();
         std::vector<double> bestSims; // best similarity
-        bestSims.resize(numObjs);
+        bestSims.resize(numObjs, 0);
+
+        double matchRange = 0.5; // maximum match range. TODO: consider make this a parameter
+        double sizeRange = 0.5; // maximum width difference
 
         for (int i=0 ; i<numObjs ; i++){
             double bestSim = -1.;
             int bestMatchInd = -1;
-            // Zhefan debug:
             onboardDetector::box3D currBBox = this->filteredBBoxes_[i];
-            if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
-                cout << "----------------------------------------------------" << endl;
-                cout << "current bbox: " << currBBox.x << " " << currBBox.y << endl;
-            }
+            
+            // Zhefan debug:
+            
+            // if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
+            //     cout << "----------------------------------------------------" << endl;
+            //     cout << "current bbox: " << currBBox.x << " " << currBBox.y << endl;
+            // }
             for (size_t j=0 ; j<propedBoxes.size() ; j++){
-
-                double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
-                if (sim >= bestSim){
-                    bestSim = sim;
-                    bestSims[i] = sim;
-                    bestMatchInd = j;
-                }
-                // Zhefan debug:
-                if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
-                    onboardDetector::box3D propedBox = propedBoxes[j];
-                    if (propedBox.x > 0.5 and propedBox.x < 3.5 and propedBox.y > -2. and propedBox.y < 1.5){
-                        cout << "proped bbox: " << propedBox.x << " " << propedBox.y << endl;
-                        cout << "sim: " << sim << endl;
-                        cout << "ID: " << j << endl;
+                onboardDetector::box3D propedBox = propedBoxes[j];
+                double propedWidth = std::max(propedBox.x_width, propedBox.y_width);
+                double currWidth = std::max(currBBox.x_width, currBBox.y_width);
+                if (std::abs(propedWidth - currWidth) < sizeRange){
+                    if (pow(pow(propedBox.x - currBBox.x, 2) + pow(propedBox.y - currBBox.y, 2), 0.5) < matchRange){
+                        // calculate the velocity feature based on propedBox and currBBox
+                        double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
+                        if (sim >= bestSim){
+                            bestSim = sim;
+                            bestSims[i] = sim;
+                            bestMatchInd = j;
+                        }
+                        // Zhefan debug:
+                        // if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
+                            
+                        //     if (propedBox.x > 0.5 and propedBox.x < 3.5 and propedBox.y > -2. and propedBox.y < 1.5){
+                        //         cout << "proped bbox: " << propedBox.x << " " << propedBox.y << endl;
+                        //         cout << "sim: " << sim << endl;
+                        //         cout << "ID: " << j << endl;
+                        //     }
+                        // }
                     }
+
                 }
             }
 
-            double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
-            // ZHefan debug:
-            if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
-                cout << "IOU: " << iou << endl;
-                cout << "best match ID: " << bestMatchInd << endl;
-            }
+            bestMatch[i] = bestMatchInd;
+            // double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
+            // // ZHefan debug:
+            // if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
+            //     cout << "IOU: " << iou << endl;
+            //     cout << "best match ID: " << bestMatchInd << endl;
+            // }
 
-            // std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
-            // TODO: add distance check and find a better way to avoid false positives
-            // double fX = this->filteredBBoxes_[i].x;
-            // double fY = this->filteredBBoxes_[i].y;
-            // double fZ = this->filteredBBoxes_[i].z;
-            // double pX = propedBoxes[bestMatchInd].x;
-            // double pY = propedBoxes[bestMatchInd].y;
-            // double pZ = propedBoxes[bestMatchInd].z;
 
-            // double dist = std::sqrt(std::pow(fX - pX, 2) + std::pow(fY - pY, 2) + std::pow(fZ - pZ, 2));
-            // bool distCheck = dist < 0.15;
-
-            // if(!(bestSims[i]>this->simThresh_ && iou && distCheck)){
-            if(!(bestSims[i]>this->simThresh_ && iou)){
-                bestSims[i] = 0;
-                bestMatch[i] = -1;
-            }
-            else {
-                bestSims[i] = bestSim;
-                bestMatch[i] = bestMatchInd;
-            }
+            // if(!(bestSims[i]>this->simThresh_ && iou)){
+            //     bestSims[i] = 0;
+            //     bestMatch[i] = -1;
+            // }
+            // else {
+            //     bestSims[i] = bestSim;
+            //     bestMatch[i] = bestMatchInd;
+            // }
         }
     }
 

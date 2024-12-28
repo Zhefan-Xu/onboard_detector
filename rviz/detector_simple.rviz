@@ -113,8 +113,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -9999
-        Min Value: 9999
+        Max Value: 1.530540943145752
+        Min Value: 0.4357345402240753
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -139,7 +139,7 @@ Visualization Manager:
       Use rainbow: true
       Value: true
     - Class: rviz/Image
-      Enabled: false
+      Enabled: true
       Image Topic: /onboard_detector/detected_color_image
       Max Value: 1
       Median window: 5
@@ -149,7 +149,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: false
+      Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -263,7 +263,7 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /onboard_detector/detected_color_image
       Max Value: 1
       Median window: 5
@@ -273,7 +273,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /onboard_detector/history_trajectories
@@ -347,13 +347,13 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /onboard_detector/filtered_bboxes
       Name: filtered bbox
       Namespaces:
-        box3D: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: false
       Marker Topic: /onboard_detector/tracked_bboxes
@@ -363,21 +363,21 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/MarkerArray
-      Enabled: false
+      Enabled: true
       Marker Topic: /onboard_detector/dynamic_bboxes
       Name: dynamic obstacles
+      Namespaces:
+        box3D: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: false
+      Marker Topic: /onboard_detector/velocity_visualizaton
+      Name: vel info
       Namespaces:
         {}
       Queue Size: 100
       Value: false
-    - Class: rviz/MarkerArray
-      Enabled: true
-      Marker Topic: /onboard_detector/velocity_visualizaton
-      Name: vel info
-      Namespaces:
-        dynamic_detector: true
-      Queue Size: 100
-      Value: true
   Enabled: true
   Global Options:
     Background Color: 211; 215; 207
@@ -406,7 +406,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 31.86870765686035
+      Distance: 42.86675262451172
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -414,9 +414,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.8091555833816528
-        Y: -3.0113086700439453
-        Z: -5.041355133056641
+        X: 1.577796220779419
+        Y: -1.8272842168807983
+        Z: -5.043785095214844
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false

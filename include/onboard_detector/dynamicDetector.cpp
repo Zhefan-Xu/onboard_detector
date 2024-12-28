@@ -2940,7 +2940,7 @@ namespace onboardDetector{
         std::vector<double> bestSims; // best similarity
         bestSims.resize(numObjs, 0);
 
-        double matchRange = 0.5; // maximum match range. TODO: consider make this a parameter
+        double matchRange = 0.3; // maximum match range. TODO: consider make this a parameter
         double sizeRange = 0.5; // maximum width difference
 
         for (int i=0 ; i<numObjs ; i++){

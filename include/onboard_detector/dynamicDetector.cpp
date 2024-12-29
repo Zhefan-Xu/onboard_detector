@@ -1884,6 +1884,11 @@ namespace onboardDetector{
             filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
             processedLidarBoxes[i] = true;
         }
+        // for (onboardDetector::box3D box : filteredBBoxesTemp){
+        //     // if (box.x_width <= 0 or box.y_width <= 0){
+        //         cout << "before yolo box: " << box.x << " " << box.y << " " << box.x_width << " " << box.y_width << endl;
+        //     // }
+        // }
 
         // Zhefan --
         this->filteredBBoxesBeforeYolo_ = filteredBBoxesTemp;
@@ -2162,7 +2167,7 @@ namespace onboardDetector{
                             }
                         }
                         cout << "subcloud size: " << subCloud.size() << endl;
-                        if (subCloud.size() > 1){
+                        if (subCloud.size() != 0){
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
                             center = computeCenter(subCloud);
@@ -2186,6 +2191,9 @@ namespace onboardDetector{
                             newBox.x_width = xMax - xMin;
                             newBox.y_width = yMax - yMin;
                             newBox.z_width = zMax - zMin;
+                            if (newBox.x_width <= 0 or newBox.y_width <= 0 or newBox.x_width <= 0){
+                                continue;
+                            }
                             newBox.x = (xMin + xMax) / 2;
                             newBox.y = (yMin + yMax) / 2;
                             newBox.z = (zMin + zMax) / 2;
@@ -2349,6 +2357,11 @@ namespace onboardDetector{
             newFilteredPcClusterCenters.clear();
             newFilteredPcClusterStds.clear();
         }
+        // for (onboardDetector::box3D box : filteredBBoxesTemp){
+        //     // if (box.x_width <= 0 or box.y_width <= 0){
+        //         cout << "box: " << box.x << " " << box.y << " " << box.x_width << " " << box.y_width << endl;
+        //     // }
+        // }
 
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
@@ -2914,13 +2927,13 @@ namespace onboardDetector{
             feature(4) = boxes[i].y_width * featureWeights(4);
             feature(5) = boxes[i].z_width * featureWeights(5);
             feature(6) = 0;
+            feature(7) = 0;
+            feature(8) = 0;
+            feature(9) = 0;
             // feature(6) = this->filteredPcClusters_[i].size() * featureWeights(6);
             // feature(7) = this->filteredPcClusterStds_[i](0) * featureWeights(7);
             // feature(8) = this->filteredPcClusterStds_[i](1) * featureWeights(8);
             // feature(9) = this->filteredPcClusterStds_[i](2) * featureWeights(9);
-            feature(7) = 0;
-            feature(8) = 0;
-            feature(9) = 0;
             // fix nan problem
             for(int j = 0; j < feature.size(); ++j) {
                 if (std::isnan(feature(j)) || std::isinf(feature(j))) {
@@ -2975,11 +2988,10 @@ namespace onboardDetector{
             for (size_t j=0 ; j<propedBoxes.size() ; j++){
                 onboardDetector::box3D propedBox = propedBoxes[j];
                 onboardDetector::box3D prevBox = prevBBoxes[j];
-                double prevWidth = std::max(prevBox.x_width, prevBox.y_width);
+                double propedWidth = std::max(propedBox.x_width, propedBox.y_width);
                 double currWidth = std::max(currBBox.x_width, currBBox.y_width);
-                if (std::abs(prevWidth - currWidth) < sizeRange){
-                    if (pow(pow(prevBox.x - currBBox.x, 2) + pow(prevBox.y - currBBox.y, 2), 0.5) < matchRange){
-                    // if (pow(pow(propedBox.x - currBBox.x, 2) + pow(propedBox.y - currBBox.y, 2), 0.5) < 0.1 + currWidth/2.0){
+                if (std::abs(propedWidth - currWidth) < sizeRange){
+                    if (pow(pow(propedBox.x - currBBox.x, 2) + pow(propedBox.y - currBBox.y, 2), 0.5) < matchRange){
 
                         // calculate the velocity feature based on propedBox and currBBox
                         double simPrev = prevBoxesFeat[j].dot(currBoxesFeat[i])/(prevBoxesFeat[j].norm()*currBoxesFeat[i].norm());

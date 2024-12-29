@@ -2162,7 +2162,7 @@ namespace onboardDetector{
                             }
                         }
                         cout << "subcloud size: " << subCloud.size() << endl;
-                        if (subCloud.size() != 0){
+                        if (subCloud.size() > 1){
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
                             center = computeCenter(subCloud);
@@ -2349,6 +2349,7 @@ namespace onboardDetector{
             newFilteredPcClusterCenters.clear();
             newFilteredPcClusterStds.clear();
         }
+
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
         this->filteredPcClusterCenters_ = filteredPcClusterCentersTemp;
@@ -2833,9 +2834,11 @@ namespace onboardDetector{
 
     void dynamicDetector::boxAssociationHelper(std::vector<int>& bestMatch){
         int numObjs = int(this->filteredBBoxes_.size());
+        std::vector<onboardDetector::box3D> prevBBoxes;
         std::vector<onboardDetector::box3D> propedBoxes;
         std::vector<Eigen::VectorXd> propedBoxesFeat;
         std::vector<Eigen::VectorXd> currBoxesFeat;
+        std::vector<Eigen::VectorXd> prevBoxesFeat;
         bestMatch.resize(numObjs);
         std::deque<std::deque<onboardDetector::box3D>> boxHistTemp; 
 
@@ -2845,8 +2848,12 @@ namespace onboardDetector{
         // generate feature
         this->genFeat(propedBoxes, numObjs, propedBoxesFeat, currBoxesFeat);
 
+        // generate feature for prevBBoxes
+        this->getPrevBBoxes(prevBBoxes);
+        this->genFeatHelper(prevBoxesFeat, prevBBoxes);
+
         // calculate association: find best match
-        this->findBestMatch(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch);      
+        this->findBestMatch(prevBoxesFeat, prevBBoxes, propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch);      
     }
 
     void dynamicDetector::genFeat(const std::vector<onboardDetector::box3D>& propedBoxes, int numObjs, std::vector<Eigen::VectorXd>& propedBoxesFeat, std::vector<Eigen::VectorXd>& currBoxesFeat){
@@ -2924,6 +2931,13 @@ namespace onboardDetector{
         }
     }
 
+    void dynamicDetector::getPrevBBoxes(std::vector<onboardDetector::box3D>& prevBoxes){
+        onboardDetector::box3D prevBox;
+        for (size_t i=0 ; i<this->boxHist_.size() ; i++){
+            prevBox = this->boxHist_[i][0];
+            prevBoxes.push_back(prevBox);
+        }
+    }
       
     void dynamicDetector::linearProp(std::vector<onboardDetector::box3D>& propedBoxes){
         onboardDetector::box3D propedBox;
@@ -2936,7 +2950,9 @@ namespace onboardDetector{
         this->propedBoxes_ = propedBoxes;
     }
 
-    void dynamicDetector::findBestMatch(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch){
+    void dynamicDetector::findBestMatch(const std::vector<Eigen::VectorXd>& prevBoxesFeat, const std::vector<onboardDetector::box3D>& prevBBoxes,
+                                        const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, 
+                                        const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch){
         // ROS_INFO("FindBestMatch");
         int numObjs = this->filteredBBoxes_.size();
         std::vector<double> bestSims; // best similarity
@@ -2958,14 +2974,17 @@ namespace onboardDetector{
             // }
             for (size_t j=0 ; j<propedBoxes.size() ; j++){
                 onboardDetector::box3D propedBox = propedBoxes[j];
-                double propedWidth = std::max(propedBox.x_width, propedBox.y_width);
+                onboardDetector::box3D prevBox = prevBBoxes[j];
+                double prevWidth = std::max(prevBox.x_width, prevBox.y_width);
                 double currWidth = std::max(currBBox.x_width, currBBox.y_width);
-                if (std::abs(propedWidth - currWidth) < sizeRange){
-                    if (pow(pow(propedBox.x - currBBox.x, 2) + pow(propedBox.y - currBBox.y, 2), 0.5) < matchRange){
+                if (std::abs(prevWidth - currWidth) < sizeRange){
+                    if (pow(pow(prevBox.x - currBBox.x, 2) + pow(prevBox.y - currBBox.y, 2), 0.5) < matchRange){
                     // if (pow(pow(propedBox.x - currBBox.x, 2) + pow(propedBox.y - currBBox.y, 2), 0.5) < 0.1 + currWidth/2.0){
 
                         // calculate the velocity feature based on propedBox and currBBox
-                        double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
+                        double simPrev = prevBoxesFeat[j].dot(currBoxesFeat[i])/(prevBoxesFeat[j].norm()*currBoxesFeat[i].norm());
+                        double simProped = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
+                        double sim = simPrev + simProped;
                         if (sim >= bestSim){
                             bestSim = sim;
                             bestSims[i] = sim;

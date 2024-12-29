@@ -940,6 +940,7 @@ namespace onboardDetector{
         else {
             this->boxHist_.clear();
             this->pcHist_.clear();
+            this->pcCenterHist_.clear();
         }
     }
 
@@ -2171,9 +2172,7 @@ namespace onboardDetector{
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
                             center = computeCenter(subCloud);
-                            newBox.x = center(0);
-                            newBox.y = center(1);
-                            newBox.z = center(2);
+
 
                             double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
                             double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
@@ -2188,15 +2187,16 @@ namespace onboardDetector{
                                 zMax = std::max(zMax, pt.z());
                             }
                             // create a new bounding box
+                            newBox.x = (xMin + xMax) / 2.;
+                            newBox.y = (yMin + yMax) / 2.;
+                            newBox.z = (zMin + zMax) / 2.;
                             newBox.x_width = xMax - xMin;
                             newBox.y_width = yMax - yMin;
                             newBox.z_width = zMax - zMin;
                             if (newBox.x_width <= 0 or newBox.y_width <= 0 or newBox.x_width <= 0){
                                 continue;
                             }
-                            newBox.x = (xMin + xMax) / 2;
-                            newBox.y = (yMin + yMax) / 2;
-                            newBox.z = (zMin + zMax) / 2;
+
                             if (yidx != -1){
                                 newBox.is_dynamic = true;
                                 newBox.is_human = true;
@@ -2362,6 +2362,7 @@ namespace onboardDetector{
         //         cout << "box: " << box.x << " " << box.y << " " << box.x_width << " " << box.y_width << endl;
         //     // }
         // }
+
 
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
@@ -2822,11 +2823,13 @@ namespace onboardDetector{
         if (this->boxHist_.size() == 0){ // initialize new bounding box history if no history exists
             this->boxHist_.resize(numObjs);
             this->pcHist_.resize(numObjs);
+            this->pcCenterHist_.resize(numObjs);
             bestMatch.resize(this->filteredBBoxes_.size(), -1); // first detection no match
             for (int i=0 ; i<numObjs ; ++i){
                 // initialize history for bbox, pc and KF
                 this->boxHist_[i].push_back(this->filteredBBoxes_[i]);
                 this->pcHist_[i].push_back(this->filteredPcClusters_[i]);
+                this->pcCenterHist_[i].push_back(this->filteredPcClusterCenters_[i]);
                 MatrixXd states, A, B, H, P, Q, R;       
                 this->kalmanFilterMatrixAcc(this->filteredBBoxes_[i], states, A, B, H, P, Q, R);
                 onboardDetector::kalman_filter newFilter;
@@ -2850,30 +2853,34 @@ namespace onboardDetector{
         std::vector<onboardDetector::box3D> prevBBoxes;
         std::vector<onboardDetector::box3D> propedBoxes;
         std::vector<Eigen::VectorXd> propedBoxesFeat;
+        std::vector<Eigen::Vector3d> propedPcCenters;
         std::vector<Eigen::VectorXd> currBoxesFeat;
         std::vector<Eigen::VectorXd> prevBoxesFeat;
+        std::vector<Eigen::Vector3d> prevPcCenters;
         bestMatch.resize(numObjs);
         std::deque<std::deque<onboardDetector::box3D>> boxHistTemp; 
 
         // linear propagation: prediction of previous box in current frame
-        this->linearProp(propedBoxes);
+        this->linearProp(propedBoxes, propedPcCenters);
 
         // generate feature
-        this->genFeat(propedBoxes, numObjs, propedBoxesFeat, currBoxesFeat);
+        this->genFeat(propedBoxes, propedPcCenters, numObjs, propedBoxesFeat, currBoxesFeat);
 
         // generate feature for prevBBoxes
-        this->getPrevBBoxes(prevBBoxes);
-        this->genFeatHelper(prevBoxesFeat, prevBBoxes);
+        this->getPrevBBoxes(prevBBoxes, prevPcCenters);
+        this->genFeatHelper(prevBoxesFeat, prevBBoxes, prevPcCenters);
 
         // calculate association: find best match
         this->findBestMatch(prevBoxesFeat, prevBBoxes, propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch);      
     }
 
-    void dynamicDetector::genFeat(const std::vector<onboardDetector::box3D>& propedBoxes, int numObjs, std::vector<Eigen::VectorXd>& propedBoxesFeat, std::vector<Eigen::VectorXd>& currBoxesFeat){
+    void dynamicDetector::genFeat(const std::vector<onboardDetector::box3D>& propedBoxes, const std::vector<Eigen::Vector3d>& propedBoxesPcCenters,  
+                                        int numObjs, std::vector<Eigen::VectorXd>& propedBoxesFeat,
+                                        std::vector<Eigen::VectorXd>& currBoxesFeat){
         propedBoxesFeat.resize(propedBoxes.size());
         currBoxesFeat.resize(numObjs);
-        this->genFeatHelper(propedBoxesFeat, propedBoxes);
-        this->genFeatHelper(currBoxesFeat, this->filteredBBoxes_);
+        this->genFeatHelper(propedBoxesFeat, propedBoxes, propedBoxesPcCenters);
+        this->genFeatHelper(currBoxesFeat, this->filteredBBoxes_, this->filteredPcClusterCenters_);
 
         // std::cout << "PosZ:" << this->position_(2) << std::endl;
 
@@ -2909,8 +2916,8 @@ namespace onboardDetector{
 
     void dynamicDetector::genFeatHelper(
         std::vector<Eigen::VectorXd>& features, 
-        const std::vector<onboardDetector::box3D>& boxes
-        ) { 
+        const std::vector<onboardDetector::box3D>& boxes,
+        const std::vector<Eigen::Vector3d>& pcCenters){ 
         Eigen::VectorXd featureWeights = Eigen::VectorXd::Zero(10); // 3pos + 3size + 1 pc length + 3 pc std
         // featureWeights << 10, 10, 10, 1, 1, 1, 5, 0.5, 0.5, 0.5;
         featureWeights = this->featureWeights_;
@@ -2926,9 +2933,9 @@ namespace onboardDetector{
             feature(3) = boxes[i].x_width * featureWeights(3);
             feature(4) = boxes[i].y_width * featureWeights(4);
             feature(5) = boxes[i].z_width * featureWeights(5);
-            feature(6) = 0;
-            feature(7) = 0;
-            feature(8) = 0;
+            feature(6) = pcCenters[i](0);
+            feature(7) = pcCenters[i](1);
+            feature(8) = pcCenters[i](2);
             feature(9) = 0;
             // feature(6) = this->filteredPcClusters_[i].size() * featureWeights(6);
             // feature(7) = this->filteredPcClusterStds_[i](0) * featureWeights(7);
@@ -2944,21 +2951,29 @@ namespace onboardDetector{
         }
     }
 
-    void dynamicDetector::getPrevBBoxes(std::vector<onboardDetector::box3D>& prevBoxes){
+    void dynamicDetector::getPrevBBoxes(std::vector<onboardDetector::box3D>& prevBoxes, std::vector<Eigen::Vector3d>& prevPcCenters){
         onboardDetector::box3D prevBox;
         for (size_t i=0 ; i<this->boxHist_.size() ; i++){
             prevBox = this->boxHist_[i][0];
             prevBoxes.push_back(prevBox);
+
+            Eigen::Vector3d prevPcCenter = this->pcCenterHist_[i][0];
+            prevPcCenters.push_back(prevPcCenter);
         }
     }
       
-    void dynamicDetector::linearProp(std::vector<onboardDetector::box3D>& propedBoxes){
+    void dynamicDetector::linearProp(std::vector<onboardDetector::box3D>& propedBoxes, std::vector<Eigen::Vector3d>& propedPcCenters){
         onboardDetector::box3D propedBox;
         for (size_t i=0 ; i<this->boxHist_.size() ; i++){
             propedBox = this->boxHist_[i][0];
             propedBox.x += propedBox.Vx*this->dt_;
             propedBox.y += propedBox.Vy*this->dt_;
             propedBoxes.push_back(propedBox);
+
+            Eigen::Vector3d propedPcCenter = this->pcCenterHist_[i][0];
+            propedPcCenter(0) += propedBox.Vx*this->dt_;
+            propedPcCenter(1) += propedBox.Vy*this->dt_;
+            propedPcCenters.push_back(propedPcCenter);
         }
         this->propedBoxes_ = propedBoxes;
     }
@@ -3039,14 +3054,17 @@ namespace onboardDetector{
     void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch){
         std::vector<std::deque<onboardDetector::box3D>> boxHistTemp; 
         std::vector<std::deque<std::vector<Eigen::Vector3d>>> pcHistTemp;
+        std::vector<std::deque<Eigen::Vector3d>> pcCenterHistTemp;
         std::vector<onboardDetector::kalman_filter> filtersTemp;
         std::deque<onboardDetector::box3D> newSingleBoxHist;
         std::deque<std::vector<Eigen::Vector3d>> newSinglePcHist; 
+        std::deque<Eigen::Vector3d> newSinglePcCenterHist; 
         onboardDetector::kalman_filter newFilter;
         std::vector<onboardDetector::box3D> trackedBBoxesTemp;
 
         newSingleBoxHist.resize(0);
         newSinglePcHist.resize(0);
+        newSinglePcCenterHist.resize(0);
         int numObjs = this->filteredBBoxes_.size();
 
         for (int i=0 ; i<numObjs ; i++){
@@ -3056,6 +3074,7 @@ namespace onboardDetector{
             if (bestMatch[i]>=0){
                 boxHistTemp.push_back(this->boxHist_[bestMatch[i]]);
                 pcHistTemp.push_back(this->pcHist_[bestMatch[i]]);
+                pcCenterHistTemp.push_back(this->pcCenterHist_[bestMatch[i]]);
                 filtersTemp.push_back(this->filters_[bestMatch[i]]);
 
                 // kalman filter to get new state estimation
@@ -3084,6 +3103,7 @@ namespace onboardDetector{
             else{
                 boxHistTemp.push_back(newSingleBoxHist);
                 pcHistTemp.push_back(newSinglePcHist);
+                pcCenterHistTemp.push_back(newSinglePcCenterHist);
 
                 // create new kalman filter for this object
                 onboardDetector::box3D currDetectedBBox = this->filteredBBoxes_[i];
@@ -3100,11 +3120,13 @@ namespace onboardDetector{
             if (int(boxHistTemp[i].size()) == this->histSize_){
                 boxHistTemp[i].pop_back();
                 pcHistTemp[i].pop_back();
+                pcCenterHistTemp[i].pop_back();
             }
 
             // push new data into history
             boxHistTemp[i].push_front(newEstimatedBBox); 
             pcHistTemp[i].push_front(this->filteredPcClusters_[i]);
+            pcCenterHistTemp[i].push_front(this->filteredPcClusterCenters_[i]);
 
             // update new tracked bounding boxes
             trackedBBoxesTemp.push_back(newEstimatedBBox);
@@ -3132,6 +3154,7 @@ namespace onboardDetector{
         // update history member variable
         this->boxHist_ = boxHistTemp;
         this->pcHist_ = pcHistTemp;
+        this->pcCenterHist_ = pcCenterHistTemp;
         this->filters_ = filtersTemp;
 
         // update tracked bounding boxes

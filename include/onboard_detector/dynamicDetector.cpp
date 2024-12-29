@@ -1050,13 +1050,15 @@ namespace onboardDetector{
             // 1. point cloud voting ratio.
             // 2. velocity (from kalman filter) 
             // 3. enough valid point correspondence 
-            if (voteRatio>=this->dynaVoteThresh_ && velNorm>=this->dynaVelThresh_ && double(numSkip)/double(numPoints)<this->maxSkipRatio_){
+            // if (voteRatio>=this->dynaVoteThresh_ && velNorm>=this->dynaVelThresh_ && double(numSkip)/double(numPoints)<this->maxSkipRatio_){
+            if (voteRatio>=this->dynaVoteThresh_ && velNorm>=this->dynaVelThresh_){
+            // if (velNorm>=this->dynaVelThresh_){
                 this->boxHist_[i][0].is_dynamic_candidate = true;
                 // dynamic-consistency check
                 int dynaConsistCount = 0;
                 if (int(this->boxHist_[i].size()) >= this->dynamicConsistThresh_){
                     for (int j=0 ; j<this->dynamicConsistThresh_; ++j){
-                        if (this->boxHist_[i][j].is_dynamic_candidate){
+                        if (this->boxHist_[i][j].is_dynamic_candidate or this->boxHist_[i][j].is_human or this->boxHist_[i][j].is_dynamic){
                             ++dynaConsistCount;
                         }
                     }

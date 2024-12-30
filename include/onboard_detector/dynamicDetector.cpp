@@ -312,14 +312,32 @@ namespace onboardDetector{
         }
         else{
             cout << this->hint_ << ": Threshold for boununding box IOU filtering is set to: " << this->boxIOUThresh_ << endl;
-        }  
+        }
+
+        // maximum match range
+        if (not this->nh_.getParam(this->ns_ + "/max_match_range", this->maxMatchRange_)){
+            this->maxMatchRange_ = 0.5;
+            cout << this->hint_ << ": No max match range parameter found. Use default: 0.5m." << endl;
+        }
+        else{
+            cout << this->hint_ << ": Max match range is set to: " << this->maxMatchRange_  << "m." << endl;
+        }   
+
+        // maximum size difference for matching
+        if (not this->nh_.getParam(this->ns_ + "/max_size_diff_range", this->maxMatchSizeRange_)){
+            this->maxMatchSizeRange_ = 0.5;
+            cout << this->hint_ << ": No max size difference range for matching parameter found. Use default: 0.5m." << endl;
+        }
+        else{
+            cout << this->hint_ << ": Max size difference range for matching is set to: " << this->maxMatchSizeRange_ << "m." << endl;
+        }   
 
         //feature weight
         std::vector<double> tempWeights;
         if (not nh_.getParam(ns_ + "/feature_weight", tempWeights)) {
             this->featureWeights_ = Eigen::VectorXd(10);
-            this->featureWeights_ << 3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0, 0;
-            std::cout << this->hint_ << ": No feature weights parameter found. Using default feature weights: [3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0, 0]." << std::endl;
+            this->featureWeights_ << 3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0;
+            std::cout << this->hint_ << ": No feature weights parameter found. Using default feature weights: [3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0]." << std::endl;
         }
         else {
             this->featureWeights_ = Eigen::Map<Eigen::VectorXd>(tempWeights.data(), tempWeights.size());
@@ -429,7 +447,7 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Voting threshold for dynamic classification is set to: " << this->dynaVoteThresh_ << std::endl;
         }  
 
-        // frames to froce dynamic
+        // frames to force dynamic
         if (not this->nh_.getParam(this->ns_ + "/frames_force_dynamic", this->forceDynaFrames_)){
             this->forceDynaFrames_ = 20;
             std::cout << this->hint_ << ": No range of searching dynamic obstacles in box history found. Use default: 20." << std::endl;
@@ -1980,7 +1998,6 @@ namespace onboardDetector{
 
     void dynamicDetector::boxAssociation(std::vector<int>& bestMatch){
         int numObjs = int(this->filteredBBoxes_.size()); // current detected bboxes
-        
         if (this->boxHist_.size() == 0){ // initialize new bounding box history if no history exists
             this->boxHist_.resize(numObjs);
             this->pcHist_.resize(numObjs);
@@ -2012,96 +2029,49 @@ namespace onboardDetector{
     void dynamicDetector::boxAssociationHelper(std::vector<int>& bestMatch){
         int numObjs = int(this->filteredBBoxes_.size());
         std::vector<onboardDetector::box3D> prevBBoxes;
-        std::vector<onboardDetector::box3D> propedBoxes;
-        std::vector<Eigen::VectorXd> propedBoxesFeat;
-        std::vector<Eigen::Vector3d> propedPcCenters;
-        std::vector<Eigen::VectorXd> currBoxesFeat;
-        std::vector<Eigen::VectorXd> prevBoxesFeat;
         std::vector<Eigen::Vector3d> prevPcCenters;
+        std::vector<Eigen::VectorXd> prevBBoxesFeat;
+        std::vector<onboardDetector::box3D> propedBBoxes;
+        std::vector<Eigen::Vector3d> propedPcCenters;
+        std::vector<Eigen::VectorXd> propedBBoxesFeat;
+        std::vector<Eigen::VectorXd> currBBoxesFeat;
+        currBBoxesFeat.resize(numObjs);
         bestMatch.resize(numObjs);
-        std::deque<std::deque<onboardDetector::box3D>> boxHistTemp; 
 
-        // linear propagation: prediction of previous box in current frame
-        this->linearProp(propedBoxes, propedPcCenters);
+        // Features for current detected bboxes
+        this->genFeatHelper(this->filteredBBoxes_, this->filteredPcClusterCenters_, currBBoxesFeat);
 
-        // generate feature
-        this->genFeat(propedBoxes, propedPcCenters, numObjs, propedBoxesFeat, currBoxesFeat);
-
-        // generate feature for prevBBoxes
+        // Features for previous time step bboxes
         this->getPrevBBoxes(prevBBoxes, prevPcCenters);
-        this->genFeatHelper(prevBoxesFeat, prevBBoxes, prevPcCenters);
+        this->genFeatHelper(prevBBoxes, prevPcCenters, prevBBoxesFeat);
+
+        // Features for propogated bboxes
+        this->linearProp(propedBBoxes, propedPcCenters);
+        this->genFeatHelper(propedBBoxes, propedPcCenters, propedBBoxesFeat);
 
         // calculate association: find best match
-        this->findBestMatch(prevBoxesFeat, prevBBoxes, propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch);      
+        this->findBestMatch(prevBBoxes, prevBBoxesFeat, propedBBoxes, propedBBoxesFeat, currBBoxesFeat, bestMatch);      
     }
 
-    void dynamicDetector::genFeat(const std::vector<onboardDetector::box3D>& propedBoxes, const std::vector<Eigen::Vector3d>& propedBoxesPcCenters,  
-                                        int numObjs, std::vector<Eigen::VectorXd>& propedBoxesFeat,
-                                        std::vector<Eigen::VectorXd>& currBoxesFeat){
-        propedBoxesFeat.resize(propedBoxes.size());
-        currBoxesFeat.resize(numObjs);
-        this->genFeatHelper(propedBoxesFeat, propedBoxes, propedBoxesPcCenters);
-        this->genFeatHelper(currBoxesFeat, this->filteredBBoxes_, this->filteredPcClusterCenters_);
-
-        // std::cout << "PosZ:" << this->position_(2) << std::endl;
-
-        // for(size_t i=0; i<propedBoxesFeat.size(); ++i){
-        //     std::cout << "Proped Box " << i << ": " << propedBoxesFeat[i].transpose() << std::endl;
-        //     std::cout << "Prop Z:" << propedBoxes[i].z << std::endl;
-        // }
-
-        // for(size_t i=0; i<currBoxesFeat.size(); ++i){
-        //     std::cout << "Curr Box " << i << ": " << currBoxesFeat[i].transpose() << std::endl;
-        //     std::cout << "Curr Z:" << this->filteredBBoxes_[i].z << std::endl;
-        // }
-    }
-
-    // void dynamicDetector::genFeatHelper(std::vector<Eigen::VectorXd>& features, const std::vector<onboardDetector::box3D>& boxes){ 
-    //     Eigen::VectorXd featureWeights(10); // 3pos + 3size + 1 pc length + 3 pc std
-    //     featureWeights << 2, 2, 2, 1, 1, 1, 0.5, 0.5, 0.5, 0.5;
-    //     for (size_t i=0 ; i<boxes.size() ; i++){
-    //         Eigen::VectorXd feature(10);
-    //         features[i] = feature;
-    //         features[i](0) = (boxes[i].x - this->position_(0)) * featureWeights(0) ;
-    //         features[i](1) = (boxes[i].y - this->position_(1)) * featureWeights(1);
-    //         features[i](2) = (boxes[i].z - this->position_(2)) * featureWeights(2);
-    //         features[i](3) = boxes[i].x_width * featureWeights(3);
-    //         features[i](4) = boxes[i].y_width * featureWeights(4);
-    //         features[i](5) = boxes[i].z_width * featureWeights(5);
-    //         features[i](6) = this->filteredPcClusters_[i].size() * featureWeights(6);
-    //         features[i](7) = this->filteredPcClusterStds_[i](0) * featureWeights(7);
-    //         features[i](8) = this->filteredPcClusterStds_[i](1) * featureWeights(8);
-    //         features[i](9) = this->filteredPcClusterStds_[i](2) * featureWeights(9);
-    //     }
-    // }
-
-    void dynamicDetector::genFeatHelper(
-        std::vector<Eigen::VectorXd>& features, 
+    void dynamicDetector::genFeatHelper( 
         const std::vector<onboardDetector::box3D>& boxes,
-        const std::vector<Eigen::Vector3d>& pcCenters){ 
-        Eigen::VectorXd featureWeights = Eigen::VectorXd::Zero(10); // 3pos + 3size + 1 pc length + 3 pc std
-        // featureWeights << 10, 10, 10, 1, 1, 1, 5, 0.5, 0.5, 0.5;
+        const std::vector<Eigen::Vector3d>& pcCenters,
+        std::vector<Eigen::VectorXd>& features){ 
+        Eigen::VectorXd featureWeights = Eigen::VectorXd::Zero(9); // 3 pos + 3 size + 3 pc centers
         featureWeights = this->featureWeights_;
-
         features.resize(boxes.size());
-
         for (size_t i = 0; i < boxes.size(); ++i) {
             Eigen::VectorXd feature = Eigen::VectorXd::Zero(10);
-            
             feature(0) = (boxes[i].x - position_(0)) * featureWeights(0);
             feature(1) = (boxes[i].y - position_(1)) * featureWeights(1);
             feature(2) = (boxes[i].z - position_(2)) * featureWeights(2);
             feature(3) = boxes[i].x_width * featureWeights(3);
             feature(4) = boxes[i].y_width * featureWeights(4);
             feature(5) = boxes[i].z_width * featureWeights(5);
-            feature(6) = pcCenters[i](0);
-            feature(7) = pcCenters[i](1);
-            feature(8) = pcCenters[i](2);
-            feature(9) = 0;
-            // feature(6) = this->filteredPcClusters_[i].size() * featureWeights(6);
-            // feature(7) = this->filteredPcClusterStds_[i](0) * featureWeights(7);
-            // feature(8) = this->filteredPcClusterStds_[i](1) * featureWeights(8);
-            // feature(9) = this->filteredPcClusterStds_[i](2) * featureWeights(9);
+            feature(6) = pcCenters[i](0) * featureWeights(6);
+            feature(7) = pcCenters[i](1) * featureWeights(7);
+            feature(8) = pcCenters[i](2) * featureWeights(8);
+
             // fix nan problem
             for(int j = 0; j < feature.size(); ++j) {
                 if (std::isnan(feature(j)) || std::isinf(feature(j))) {
@@ -2123,101 +2093,54 @@ namespace onboardDetector{
         }
     }
       
-    void dynamicDetector::linearProp(std::vector<onboardDetector::box3D>& propedBoxes, std::vector<Eigen::Vector3d>& propedPcCenters){
-        onboardDetector::box3D propedBox;
+    void dynamicDetector::linearProp(std::vector<onboardDetector::box3D>& propedBBoxes, std::vector<Eigen::Vector3d>& propedPcCenters){
+        onboardDetector::box3D propedBBox;
         for (size_t i=0 ; i<this->boxHist_.size() ; i++){
-            propedBox = this->boxHist_[i][0];
-            propedBox.x += propedBox.Vx*this->dt_;
-            propedBox.y += propedBox.Vy*this->dt_;
-            propedBoxes.push_back(propedBox);
+            propedBBox = this->boxHist_[i][0];
+            propedBBox.x += propedBBox.Vx*this->dt_;
+            propedBBox.y += propedBBox.Vy*this->dt_;
+            propedBBoxes.push_back(propedBBox);
 
             Eigen::Vector3d propedPcCenter = this->pcCenterHist_[i][0];
-            propedPcCenter(0) += propedBox.Vx*this->dt_;
-            propedPcCenter(1) += propedBox.Vy*this->dt_;
+            propedPcCenter(0) += propedBBox.Vx*this->dt_;
+            propedPcCenter(1) += propedBBox.Vy*this->dt_;
             propedPcCenters.push_back(propedPcCenter);
         }
     }
 
-    void dynamicDetector::findBestMatch(const std::vector<Eigen::VectorXd>& prevBoxesFeat, const std::vector<onboardDetector::box3D>& prevBBoxes,
-                                        const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, 
-                                        const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch){
-        // ROS_INFO("FindBestMatch");
+    void dynamicDetector::findBestMatch(const std::vector<onboardDetector::box3D>& prevBBoxes, const std::vector<Eigen::VectorXd>& prevBBoxesFeat, 
+                                        const std::vector<onboardDetector::box3D>& propedBBoxes, const std::vector<Eigen::VectorXd>& propedBBoxesFeat, 
+                                        const std::vector<Eigen::VectorXd>& currBBoxesFeat, std::vector<int>& bestMatch){
         int numObjs = this->filteredBBoxes_.size();
         std::vector<double> bestSims; // best similarity
         bestSims.resize(numObjs, 0);
-        // std::unordered_map<int, double> idToSimScore;
-
-        double matchRange = 0.5; // maximum match range. TODO: consider make this a parameter
-        double sizeRange = 0.5; // maximum width difference
 
         for (int i=0 ; i<numObjs ; i++){
             double bestSim = -1.;
             int bestMatchInd = -1;
             onboardDetector::box3D currBBox = this->filteredBBoxes_[i];
             
-            // Zhefan debug:
-            
-            // if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
-            //     cout << "----------------------------------------------------" << endl;
-            //     cout << "current bbox: " << currBBox.x << " " << currBBox.y << endl;
-            // }
-            for (size_t j=0 ; j<propedBoxes.size() ; j++){
-                onboardDetector::box3D propedBox = propedBoxes[j];
-                // onboardDetector::box3D prevBox = prevBBoxes[j];
-                double propedWidth = std::max(propedBox.x_width, propedBox.y_width);
+            for (size_t j=0 ; j<propedBBoxes.size() ; j++){
+                onboardDetector::box3D propedBBox = propedBBoxes[j];
+                double propedWidth = std::max(propedBBox.x_width, propedBBox.y_width);
                 double currWidth = std::max(currBBox.x_width, currBBox.y_width);
-                if (std::abs(propedWidth - currWidth) < sizeRange){
-                    if (pow(pow(propedBox.x - currBBox.x, 2) + pow(propedBox.y - currBBox.y, 2), 0.5) < matchRange){
-
-                        // calculate the velocity feature based on propedBox and currBBox
-                        double simPrev = prevBoxesFeat[j].dot(currBoxesFeat[i])/(prevBoxesFeat[j].norm()*currBoxesFeat[i].norm());
-                        double simProped = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
+                if (std::abs(propedWidth - currWidth) < this->maxMatchSizeRange_){
+                    if (pow(pow(propedBBox.x - currBBox.x, 2) + pow(propedBBox.y - currBBox.y, 2), 0.5) < this->maxMatchRange_){
+                        // calculate the velocity feature based on propedBBox and currBBox
+                        double simPrev = prevBBoxesFeat[j].dot(currBBoxesFeat[i])/(prevBBoxesFeat[j].norm()*currBBoxesFeat[i].norm());
+                        double simProped = propedBBoxesFeat[j].dot(currBBoxesFeat[i])/(propedBBoxesFeat[j].norm()*currBBoxesFeat[i].norm());
                         double sim = simPrev + simProped;
                         if (sim > bestSim){
                             bestSim = sim;
                             bestMatchInd = j;
                         }
-                        // Zhefan debug:
-                        // if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
-                            
-                        //     if (propedBox.x > 0.5 and propedBox.x < 3.5 and propedBox.y > -2. and propedBox.y < 1.5){
-                        //         cout << "proped bbox: " << propedBox.x << " " << propedBox.y << endl;
-                        //         cout << "sim: " << sim << endl;
-                        //         cout << "ID: " << j << endl;
-                        //     }
-                        // }
                     }
 
                 }
             }
             bestSims[i] = bestSim;
             bestMatch[i] = bestMatchInd;
-            // if (bestMatchInd == -1){
-            //     continue;
-            // }
-            
-            // if (idToSimScore.find(bestMatchInd) == idToSimScore.end()){
-            //     // cout << "current bbox: " << currBBox.x << " " << currBBox.y << " ID: " << bestMatchInd << endl;
-            //     idToSimScore[bestMatchInd] = bestSim;
-            // }
-            // else{
-            //     // cout << "change current bbox: " << currBBox.x << " " << currBBox.y << " ID: " << bestMatchInd << endl;
-            //     if (bestSim > idToSimScore[bestMatchInd]){
-            //         idToSimScore[bestMatchInd] = bestSim;
-            //     }
-            // }
         }
-
-        // only allow one by one match
-        // cout <<  "---------------------------" << endl;
-        // for (int i=0; i<int(bestMatch.size()); ++i){
-        //     if (bestMatch[i] == -1){
-        //         continue;
-        //     }
-        //     if (bestSims[i] < idToSimScore[bestMatch[i]]){
-        //         bestMatch[i] = -1;
-        //     }
-        // }
     }
 
     void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch){

@@ -224,24 +224,14 @@ namespace onboardDetector{
             }
         }
 
-        // time difference
+        // time step
         if (not this->nh_.getParam(this->ns_ + "/time_step", this->dt_)){
             this->dt_ = 0.033;
-            std::cout << this->hint_ << ": No time difference parameter found. Use default: 0.033." << std::endl;
+            std::cout << this->hint_ << ": No time step parameter found. Use default: 0.033." << std::endl;
         }
         else{
-            std::cout << this->hint_ << ": The time difference for the system is set to: " << this->dt_ << std::endl;
+            std::cout << this->hint_ << ": Time step for the system is set to: " << this->dt_ << std::endl;
         }  
-
-
-        // min num of points for a voxel to be occupied in voxel filter
-        if (not this->nh_.getParam(this->ns_ + "/voxel_occupied_thresh", this->voxelOccThresh_)){
-            this->voxelOccThresh_ = 10;
-            cout << this->hint_ << ": No voxel_occupied_threshold. Use default: 10." << endl;
-        }
-        else{
-            cout << this->hint_ << ": min num of points for a voxel to be occupied in voxel filter is set to be: " << this->voxelOccThresh_ << endl;
-        }
 
         // ground height
         if (not this->nh_.getParam(this->ns_ + "/ground_height", this->groundHeight_)){
@@ -259,6 +249,15 @@ namespace onboardDetector{
         }
         else{
             std::cout << this->hint_ << ": Roof height is set to: " << this->roofHeight_ << std::endl;
+        }
+
+        // min num of points for a voxel to be occupied in voxel filter
+        if (not this->nh_.getParam(this->ns_ + "/voxel_occupied_thresh", this->voxelOccThresh_)){
+            this->voxelOccThresh_ = 10;
+            cout << this->hint_ << ": No voxel_occupied_threshold. Use default: 10." << endl;
+        }
+        else{
+            cout << this->hint_ << ": min num of points for a voxel to be occupied in voxel filter is set to be: " << this->voxelOccThresh_ << endl;
         }
 
         // minimum number of points in each cluster
@@ -296,13 +295,14 @@ namespace onboardDetector{
         else{
             cout << this->hint_ << ": Lidar DBSCAN epsilon is set to: " << this->lidarDBEpsilon_ << endl;
         }
-
+        
+        // lidar points downsample threshold
         if(not this->nh_.getParam(this->ns_ + "/downsample_threshold", this->downSampleThresh_)){
             this->downSampleThresh_ = 4000;
             cout << this->hint_ << ": No downsample threshold parameter found. Use default: 4000." << endl;
         }
         else{
-            cout << this->hint_ << ": The downsample threshold is set to: " << this->downSampleThresh_ << endl;
+            cout << this->hint_ << ": Downsample threshold is set to: " << this->downSampleThresh_ << endl;
         }
 
         // IOU threshold
@@ -311,17 +311,27 @@ namespace onboardDetector{
             cout << this->hint_ << ": No threshold for boununding box IOU filtering parameter found. Use default: 0.5." << endl;
         }
         else{
-            cout << this->hint_ << ": The threshold for boununding box IOU filtering is set to: " << this->boxIOUThresh_ << endl;
+            cout << this->hint_ << ": Threshold for boununding box IOU filtering is set to: " << this->boxIOUThresh_ << endl;
         }  
 
-        // YOLO overwrite distance
-        if (not this->nh_.getParam(this->ns_ + "/yolo_overwrite_distance", this->yoloOverwriteDistance_)){
-            this->yoloOverwriteDistance_ = 3.5;
-            cout << this->hint_ << ": No threshold for YOLO overwrite distance. Use default: 3.5m." << endl;
+        //feature weight
+        std::vector<double> tempWeights;
+        if (not nh_.getParam(ns_ + "/feature_weight", tempWeights)) {
+            this->featureWeights_ = Eigen::VectorXd(10);
+            this->featureWeights_ << 3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0, 0;
+            std::cout << this->hint_ << ": No feature weights parameter found. Using default feature weights: [3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0, 0]." << std::endl;
         }
-        else{
-            cout << this->hint_ << ": The YOLO overwrite distance is set to: " << this->yoloOverwriteDistance_ << endl;
-        }  
+        else {
+            this->featureWeights_ = Eigen::Map<Eigen::VectorXd>(tempWeights.data(), tempWeights.size());
+            std::cout <<  this->hint_ << ": Feature weights are set to: [";
+            for (size_t i = 0; i < tempWeights.size(); ++i) {
+                std::cout << tempWeights[i];
+                if (i != tempWeights.size()-1){
+                    std::cout << ", ";
+                }
+            }
+            std::cout << "]." << std::endl;
+        } 
 
         // tracking history size
         if (not this->nh_.getParam(this->ns_ + "/history_size", this->histSize_)){
@@ -329,46 +339,10 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": No tracking history size parameter found. Use default: 5." << std::endl;
         }
         else{
-            std::cout << this->hint_ << ": The history for tracking is set to: " << this->histSize_ << std::endl;
+            std::cout << this->hint_ << ": History for tracking is set to: " << this->histSize_ << std::endl;
         }  
 
-        // similarity threshold for data association 
-        if (not this->nh_.getParam(this->ns_ + "/frame_skip", this->skipFrame_)){
-            this->skipFrame_ = 5;
-            std::cout << this->hint_ << ": No skip frame parameter found. Use default: 5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The frames skiped in classification when comparing two point cloud is set to: " << this->skipFrame_ << std::endl;
-        }  
-
-        // velocity threshold for dynamic classification
-        if (not this->nh_.getParam(this->ns_ + "/dynamic_velocity_threshold", this->dynaVelThresh_)){
-            this->dynaVelThresh_ = 0.35;
-            std::cout << this->hint_ << ": No dynamic velocity threshold parameter found. Use default: 0.35." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The velocity threshold for dynamic classification is set to: " << this->dynaVelThresh_ << std::endl;
-        }  
-
-        // voting threshold for dynamic classification
-        if (not this->nh_.getParam(this->ns_ + "/dynamic_voting_threshold", this->dynaVoteThresh_)){
-            this->dynaVoteThresh_ = 0.8;
-            std::cout << this->hint_ << ": No dynamic velocity threshold parameter found. Use default: 0.8." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The voting threshold for dynamic classification is set to: " << this->dynaVoteThresh_ << std::endl;
-        }  
-
-        // if the percentage of skipped points(because of being out of previous FOV) are higher than this, it will not be voted as dynamic
-        if (not this->nh_.getParam(this->ns_ + "/maximum_skip_ratio", this->maxSkipRatio_)){
-            this->maxSkipRatio_ = 0.5;
-            std::cout << this->hint_ << ": No maximum_skip_ratio parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The the upper limit of points skipping in classification is set to: " << this->maxSkipRatio_ << std::endl;
-        }  
-
-        // History threshold for fixing box size
+        // history threshold for fixing box size
         if (not this->nh_.getParam(this->ns_ + "/fix_size_history_threshold", this->fixSizeHistThresh_)){
             this->fixSizeHistThresh_ = 10;
             std::cout << this->hint_ << ": No history threshold for fixing size parameter found. Use default: 10." << std::endl;
@@ -377,7 +351,7 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": History threshold for fixing size parameter is set to: " << this->fixSizeHistThresh_ << std::endl;
         }  
 
-        // Dimension threshold for fixing box size
+        // dimension threshold for fixing box size
         if (not this->nh_.getParam(this->ns_ + "/fix_size_dimension_threshold", this->fixSizeDimThresh_)){
             this->fixSizeDimThresh_ = 0.4;
             std::cout << this->hint_ << ": No dimension threshold for fixing size parameter found. Use default: 0.4." << std::endl;
@@ -386,6 +360,7 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Dimension threshold for fixing size parameter is set to: " << this->fixSizeDimThresh_ << std::endl;
         } 
 
+        // kalman filter parameters
         std::vector<double> kalmanFilterParams;
         if (not this->nh_.getParam(this->ns_ + "/kalman_filter_param", kalmanFilterParams)){
             this->eP_ = 0.5;
@@ -405,7 +380,7 @@ namespace onboardDetector{
             this->eRPos_ = kalmanFilterParams[4]; // pos measurement noise
             this->eRVel_ = kalmanFilterParams[5]; // vel measurement noise
             this->eRAcc_ = kalmanFilterParams[6]; // acc measurement noise
-            std::cout << this->hint_ << ": The covariance for kalman filter is set to: [";
+            std::cout << this->hint_ << ": Kalman filter parameter is set to: [";
             for (int i=0; i<int(kalmanFilterParams.size()); ++i){
                 double param = kalmanFilterParams[i];
                 if (i != int(kalmanFilterParams.size())-1){
@@ -418,7 +393,6 @@ namespace onboardDetector{
             std::cout << "]." << std::endl;
         }  
 
-
         // num of frames used in KF for observation
         if (not this->nh_.getParam(this->ns_ + "/kalman_filter_averaging_frames", this->kfAvgFrames_)){
             this->kfAvgFrames_ = 10;
@@ -427,6 +401,33 @@ namespace onboardDetector{
         else{
             std::cout << this->hint_ << ": Number of frames used in KF for observation is set to: " << this->kfAvgFrames_ << std::endl;
         } 
+
+        // skip frame for classification
+        if (not this->nh_.getParam(this->ns_ + "/frame_skip", this->skipFrame_)){
+            this->skipFrame_ = 5;
+            std::cout << this->hint_ << ": No skip frame parameter found. Use default: 5." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Frames skiped in classification when comparing two point cloud is set to: " << this->skipFrame_ << std::endl;
+        }  
+
+        // velocity threshold for dynamic classification
+        if (not this->nh_.getParam(this->ns_ + "/dynamic_velocity_threshold", this->dynaVelThresh_)){
+            this->dynaVelThresh_ = 0.35;
+            std::cout << this->hint_ << ": No dynamic velocity threshold parameter found. Use default: 0.35." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Velocity threshold for dynamic classification is set to: " << this->dynaVelThresh_ << std::endl;
+        }  
+
+        // voting threshold for dynamic classification
+        if (not this->nh_.getParam(this->ns_ + "/dynamic_voting_threshold", this->dynaVoteThresh_)){
+            this->dynaVoteThresh_ = 0.8;
+            std::cout << this->hint_ << ": No dynamic velocity threshold parameter found. Use default: 0.8." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Voting threshold for dynamic classification is set to: " << this->dynaVoteThresh_ << std::endl;
+        }  
 
         // frames to froce dynamic
         if (not this->nh_.getParam(this->ns_ + "/frames_force_dynamic", this->forceDynaFrames_)){
@@ -459,7 +460,7 @@ namespace onboardDetector{
         }
 
         // constrain target object size
-        if (not this->nh_.getParam(this->ns_ + "/constrain_size", this->constrainSize_)){
+        if (not this->nh_.getParam(this->ns_ + "/target_constrain_size", this->constrainSize_)){
             this->constrainSize_ = false;
             std::cout << this->hint_ << ": No target object constrain size param found. Use default: false." << std::endl;
         }
@@ -467,7 +468,7 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Target object constrain is set to: " << this->constrainSize_ << std::endl;
         }  
 
-        // object target sizes
+        // target object  sizes
         std::vector<double> targetObjectSizeTemp;
         if (not this->nh_.getParam(this->ns_ + "/target_object_size", targetObjectSizeTemp)){
             std::cout << this->hint_ << ": No target object size found. Do not apply target object size." << std::endl;
@@ -476,39 +477,31 @@ namespace onboardDetector{
             for (size_t i=0; i<targetObjectSizeTemp.size(); i+=3){
                 Eigen::Vector3d targetSize (targetObjectSizeTemp[i+0], targetObjectSizeTemp[i+1], targetObjectSizeTemp[i+2]);
                 this->targetObjectSize_.push_back(targetSize);
-                std::cout << this->hint_ << ": target object size is set to: [" << targetObjectSizeTemp[i+0]  << ", " << targetObjectSizeTemp[i+1] << ", " <<  targetObjectSizeTemp[i+2] << "]." << std::endl;
+                std::cout << this->hint_ << ": target object size is set to: [" << targetObjectSizeTemp[i+0]  << ", " 
+                << targetObjectSizeTemp[i+1] << ", " <<  targetObjectSizeTemp[i+2] << "]." << std::endl;
             }
             
         }
 
-        // target object size threshold
-        if(not this->nh_.getParam(this->ns_ + "/target_object_size_threshold", this->targetObjectSizeThresh_)){
-            this->targetObjectSizeThresh_ = {2.0, 2.0, 2.0};
-            std::cout << this->hint_ << ": No target object size threshold parameter found. Use default: [2.0, 2.0, 2.0]." << endl;
+        // max object size
+        std::vector<double> maxObjectSizeTemp;
+        if(not this->nh_.getParam(this->ns_ + "/max_object_size", maxObjectSizeTemp)){
+            this->maxObjectSize_ = Eigen::Vector3d (2.0, 2.0, 2.0);
+            std::cout << this->hint_ << ": No max object size threshold parameter found. Use default: [2.0, 2.0, 2.0]." << endl;
         }
         else{
-            std::cout << "The target object size threshold is set to: [";
-            for (size_t i = 0; i < targetObjectSizeThresh_.size(); ++i) {
-                std::cout << targetObjectSizeThresh_[i];
-                if (i != targetObjectSizeThresh_.size() - 1) {
+            this->maxObjectSize_(0) = maxObjectSizeTemp[0];
+            this->maxObjectSize_(1) = maxObjectSizeTemp[1];
+            this->maxObjectSize_(2) = maxObjectSizeTemp[2];
+            std::cout <<  this->hint_ << ": Max object size threshold is set to: [";
+            for (size_t i = 0; i < maxObjectSizeTemp.size(); ++i) {
+                std::cout << maxObjectSizeTemp[i];
+                if (i != maxObjectSizeTemp.size()-1){
                     std::cout << ", ";
                 }
             }
             std::cout << "]." << std::endl;
         }
-
-        //feature weight
-        std::vector<double> tempWeights;
-        if (not nh_.getParam(ns_ + "/feature_weight", tempWeights)) {
-            this->featureWeights_ = Eigen::VectorXd(10);
-            this->featureWeights_ << 10, 10, 10, 1, 1, 1, 5, 0.5, 0.5, 0.5;
-            std::cout << this->hint_ << ": No 'feature_weight' parameter found. Using default feature weights: " 
-                      << this->featureWeights_.transpose() << std::endl;
-        }
-        else {
-            this->featureWeights_ = Eigen::Map<Eigen::VectorXd>(tempWeights.data(), tempWeights.size());
-            std::cout << this->hint_ << ": Feature weights are set to: " << this->featureWeights_.transpose() << std::endl;
-        } 
     }
 
     void dynamicDetector::registerPub(){
@@ -1137,7 +1130,7 @@ namespace onboardDetector{
             for (int i=0; i<int(lidarBBoxesRaw.size()); ++i){
                 onboardDetector::box3D lidarBBox = lidarBBoxesRaw[i];
                 // filter out lidar bounding boxes that are too large
-                if(lidarBBox.x_width > this->targetObjectSizeThresh_[0] || lidarBBox.y_width > this->targetObjectSizeThresh_[1] || lidarBBox.z_width > this->targetObjectSizeThresh_[2]){
+                if(lidarBBox.x_width > this->maxObjectSize_(0) || lidarBBox.y_width > this->maxObjectSize_(1) || lidarBBox.z_width > this->maxObjectSize_(2)){
                     continue;
                 }
                 lidarBBoxesFiltered.push_back(lidarBBox);
@@ -2461,7 +2454,7 @@ namespace onboardDetector{
             box.z_width = (zmax - zmin);
 
             // filter out bounding boxes that are too large
-            if(box.x_width > this->targetObjectSizeThresh_[0] || box.y_width > this->targetObjectSizeThresh_[1] || box.z_width > this->targetObjectSizeThresh_[2]){
+            if(box.x_width > this->maxObjectSize_(0) || box.y_width > this->maxObjectSize_(1) || box.z_width > this->maxObjectSize_(2)){
                 continue;
             }
             bboxes.push_back(box);

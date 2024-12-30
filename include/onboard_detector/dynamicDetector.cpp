@@ -2090,7 +2090,7 @@ namespace onboardDetector{
 
 
                     // iterate to assign all points
-                    int allowMargin = 2; // pixel TODO: hardcode removal
+                    int allowMargin = 0; // pixel TODO: hardcode removal
                     std::vector<int> assignment(cloudCluster.size(), -1);
                     for (size_t i = 0; i < cloudCluster.size(); ++i){
                         Eigen::Vector3d ptWorld = cloudCluster[i];
@@ -2122,28 +2122,36 @@ namespace onboardDetector{
                                 } else if (u > xMax) {
                                     horizontalDistance = u - xMax; // Outside on the right
                                 } else {
-                                    horizontalDistance = std::min(u - xMin, xMax - u); // Inside horizontally
+                                    horizontalDistance = std::max(xMin - u, u - xMax); // Inside horizontally
                                 }
 
                                 // Vertical signed distance
-                                int verticalDistance = 0;
-                                if (v < yMin) {
-                                    verticalDistance = yMin - v; // Outside on the top
-                                } else if (v > yMax) {
-                                    verticalDistance = v - yMax; // Outside on the bottom
-                                } else {
-                                    verticalDistance = std::min(v - yMin, yMax - v); // Inside vertically
-                                }
+                                // int verticalDistance = 0;
+                                // if (v < yMin) {
+                                //     verticalDistance = yMin - v; // Outside on the top
+                                // } else if (v > yMax) {
+                                //     verticalDistance = v - yMax; // Outside on the bottom
+                                // } else {
+                                //     verticalDistance = std::max(yMin - v, v - yMax); // Inside vertically
+                                // }
 
                                 // Compute signed distance to the closest edge
                                 int signedDistance;
                                 if (u < xMin || u > xMax || v < yMin || v > yMax) {
                                     // Outside: Take the larger of horizontal or vertical distance
-                                    signedDistance = std::max(horizontalDistance, verticalDistance);
+                                    signedDistance = horizontalDistance;
                                 } else {
                                     // Inside: Take the negative of the minimum distance to any edge
-                                    signedDistance = -std::min(horizontalDistance, verticalDistance);
+                                    signedDistance = horizontalDistance;
                                 }
+                                // int signedDistance;
+                                // if (u < xMin || u > xMax || v < yMin || v > yMax) {
+                                //     // Outside: Take the larger of horizontal or vertical distance
+                                //     signedDistance = std::max(horizontalDistance, verticalDistance);
+                                // } else {
+                                //     // Inside: Take the negative of the minimum distance to any edge
+                                //     signedDistance = -std::min(horizontalDistance, verticalDistance);
+                                // }
                                 int distance = signedDistance;
                                 if (distance < closestDist){
                                     assignment[i] = yidx;

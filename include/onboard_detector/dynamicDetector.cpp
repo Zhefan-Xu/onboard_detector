@@ -507,34 +507,28 @@ namespace onboardDetector{
     void dynamicDetector::registerPub(){
         image_transport::ImageTransport it(this->nh_);
         // uv detector depth map pub
-        this->uvDepthMapPub_ = it.advertise(this->ns_ + "/detected_depth_map", 1);
+        this->uvDepthMapPub_ = it.advertise(this->ns_ + "/detected_depth_map", 10);
 
         // uv detector u depth map pub
-        this->uDepthMapPub_ = it.advertise(this->ns_ + "/detected_u_depth_map", 1);
+        this->uDepthMapPub_ = it.advertise(this->ns_ + "/detected_u_depth_map", 10);
 
         // uv detector bird view pub
-        this->uvBirdViewPub_ = it.advertise(this->ns_ + "/bird_view", 1);
-
-        // Yolo 2D bounding box on depth map pub
-        this->detectedAlignedDepthImgPub_ = it.advertise(this->ns_ + "/detected_aligned_depth_map_yolo", 1);
+        this->uvBirdViewPub_ = it.advertise(this->ns_ + "/u_depth_bird_view", 10);
 
         // color 2D bounding boxes pub
-        this->detectedColorImgPub_ = it.advertise(this->ns_ + "/detected_color_image", 1);
+        this->detectedColorImgPub_ = it.advertise(this->ns_ + "/detected_color_image", 10);
 
         // uv detector bounding box pub
         this->uvBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/uv_bboxes", 10);
 
-        // dynamic pointcloud pub
-        this->dynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/dynamic_point_cloud", 10);
-
-        // filtered pointcloud pub
-        this->filteredPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_depth_cloud", 10);
-
         // DBSCAN bounding box pub
         this->dbBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/dbscan_bboxes", 10);
 
-        // yolo bounding box pub
-        this->yoloBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/yolo_3d_bboxes", 10);
+        // visual bboxes pub
+        this->visualBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/visual_bboxes", 10);
+
+        // lidar bbox pub
+        this->lidarBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/lidar_bboxes", 10);
 
         // filtered bounding box before YOLO pub
         this->filteredBBoxesBeforeYoloPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/filtered_before_yolo_bboxes", 10);
@@ -548,28 +542,23 @@ namespace onboardDetector{
         // dynamic bounding box pub
         this->dynamicBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/dynamic_bboxes", 10);
 
+        // filtered depth pointcloud pub
+        this->filteredDepthPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_depth_cloud", 10);
+
+        // lidar cluster pub 
+        this->lidarClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
+
+        // filtered pointcloud pub 
+        this->filteredPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_point_cloud", 10);
+
+        // dynamic pointcloud pub
+        this->dynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/dynamic_point_cloud", 10);
+
         // history trajectory pub
         this->historyTrajPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/history_trajectories", 10);
 
         // velocity visualization pub
         this->velVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/velocity_visualizaton", 10);
-
-        // visual bboxes pub (Zhefan)
-        this->visualBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/visual_bboxes", 10);
-
-        // lidar cluster pub 
-        this->lidarClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
-
-        // lidar cluster pub 
-        this->filteredClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_clusters", 10);
-
-        // lidar bbox pub
-        this->lidarBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/lidar_bboxes", 10);
-
-        // lidar cloud pub
-        this->lidarCloudPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_cloud", 10);
-
-        this->propedBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/proped_boxes", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -842,7 +831,6 @@ namespace onboardDetector{
         // detection thread
         this->dbscanDetect();
         this->uvDetect();
-        this->yoloDetectionTo3D();
         // this->filterBBoxes();
         ros::Time start = ros::Time::now();
         this->filterLVBBoxes();
@@ -1034,11 +1022,9 @@ namespace onboardDetector{
         std::vector<Eigen::Vector3d> dynamicPoints;
         this->getDynamicPc(dynamicPoints);
         this->publishPoints(dynamicPoints, this->dynamicPointsPub_);
-        this->publishPoints(this->filteredPoints_, this->filteredPointsPub_);
+        this->publishPoints(this->filteredDepthPoints_, this->filteredDepthPointsPub_);
         this->publish3dBox(this->dbBBoxes_, this->dbBBoxesPub_, 1, 0, 0);
-        this->publishYoloImages();
         this->publishColorImages();
-        this->publish3dBox(this->yoloBBoxes_, this->yoloBBoxesPub_, 1, 0, 1);
         this->publish3dBox(this->filteredBBoxesBeforeYolo_, this->filteredBBoxesBeforeYoloPub_, 0, 1, 0.5);
         this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
         // this->publish3dBoxWithID(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
@@ -1049,10 +1035,9 @@ namespace onboardDetector{
         this->publishHistoryTraj();
         this->publishVelVis();
         this->publishLidarClusters(); // colored clusters
-        this->publishFilteredClusters();
+        this->publishFilteredPoints();
         this->publish3dBox(this->visualBBoxes_, this->visualBBoxesPub_, 0.3, 0.8, 1.0);
         this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5); // raw lidar cluster bounding boxes
-        this->publish3dBox(this->propedBoxes_, this->propedBoxesPub_, 0, 1, 1);
     }
 
     void dynamicDetector::uvDetect(){
@@ -1092,23 +1077,12 @@ namespace onboardDetector{
         this->updatePoseHist();
 
         // 3. filter points
-        this->filterPoints(this->projPoints_, this->filteredPoints_);
+        this->filterPoints(this->projPoints_, this->filteredDepthPoints_);
 
         // 4. cluster points and get bounding boxes
-        this->clusterPointsAndBBoxes(this->filteredPoints_, this->dbBBoxes_, this->pcClusters_, this->pcClusterCenters_, this->pcClusterStds_);
+        this->clusterPointsAndBBoxes(this->filteredDepthPoints_, this->dbBBoxes_, this->pcClusters_, this->pcClusterCenters_, this->pcClusterStds_);
     }
 
-    void dynamicDetector::yoloDetectionTo3D(){
-        std::vector<onboardDetector::box3D> yoloBBoxesTemp;
-        for (size_t i=0; i<this->yoloDetectionResults_.detections.size(); ++i){
-            onboardDetector::box3D bbox3D;
-            cv::Rect bboxVis;
-            this->getYolo3DBBox(this->yoloDetectionResults_.detections[i], bbox3D, bboxVis);
-            cv::rectangle(this->detectedAlignedDepthImg_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
-            yoloBBoxesTemp.push_back(bbox3D);
-        }
-        this->yoloBBoxes_ = yoloBBoxesTemp;    
-    }
 
     void dynamicDetector::lidarDetect(){
         if (this->lidarDetector_ == NULL){
@@ -1196,10 +1170,6 @@ namespace onboardDetector{
             onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
             
 
-            // if(lidarBBox.x_width > this->targetObjectSizeThresh_[0] || lidarBBox.y_width > this->targetObjectSizeThresh_[1] || lidarBBox.z_width > this->targetObjectSizeThresh_[2]){
-            //     continue;
-            // }
-            
             filteredBBoxesTemp.push_back(lidarBBox);
 
             // get corresponding point cloud cluster
@@ -1475,10 +1445,6 @@ namespace onboardDetector{
         for (size_t i = 0; i < this->lidarBBoxes_.size(); ++i) {
             onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
             
-            // Zhefan - comment out
-            // if(lidarBBox.x_width > this->targetObjectSizeThresh_[0] || lidarBBox.y_width > this->targetObjectSizeThresh_[1] || lidarBBox.z_width > this->targetObjectSizeThresh_[2]){
-            //     continue;
-            // }
             
             
             // get corresponding point cloud cluster
@@ -2914,7 +2880,6 @@ namespace onboardDetector{
             propedPcCenter(1) += propedBox.Vy*this->dt_;
             propedPcCenters.push_back(propedPcCenter);
         }
-        this->propedBoxes_ = propedBoxes;
     }
 
     void dynamicDetector::findBestMatch(const std::vector<Eigen::VectorXd>& prevBoxesFeat, const std::vector<onboardDetector::box3D>& prevBBoxes,
@@ -3200,21 +3165,6 @@ namespace onboardDetector{
     }
  
     void dynamicDetector::getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc){
-        // Zhefan: Legacy code for getting dynamic obstacles (This only comes from visual)
-        // Eigen::Vector3d curPoint;
-        // for (size_t i=0 ; i<this->filteredPoints_.size() ; ++i){
-        //     curPoint = this->filteredPoints_[i];
-        //     for (size_t j=0; j<this->dynamicBBoxes_.size() ; ++j){
-        //         if (abs(curPoint(0)-this->dynamicBBoxes_[j].x)<=this->dynamicBBoxes_[j].x_width/2 and 
-        //             abs(curPoint(1)-this->dynamicBBoxes_[j].y)<=this->dynamicBBoxes_[j].y_width/2 and 
-        //             abs(curPoint(2)-this->dynamicBBoxes_[j].z)<=this->dynamicBBoxes_[j].z_width/2) {
-        //                 dynamicPc.push_back(curPoint);
-        //                 break;
-        //             }
-        //     }
-        // }
-
-        // new code:
         Eigen::Vector3d curPoint;
         for (size_t i=0; i<this->filteredPcClusters_.size(); ++i){
             for (size_t j=0; j<this->filteredPcClusters_[i].size(); ++j){
@@ -3240,10 +3190,6 @@ namespace onboardDetector{
         this->uvBirdViewPub_.publish(birdBoxMsg);     
     }
 
-    void dynamicDetector::publishYoloImages(){
-        sensor_msgs::ImagePtr detectedAlignedImgMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->detectedAlignedDepthImg_).toImageMsg();
-        this->detectedAlignedDepthImgPub_.publish(detectedAlignedImgMsg);
-    }
 
     void dynamicDetector::publishColorImages(){
         sensor_msgs::ImagePtr detectedColorImgMsg = cv_bridge::CvImage(std_msgs::Header(), "rgb8", this->detectedColorImage_).toImageMsg();
@@ -3623,12 +3569,11 @@ namespace onboardDetector{
         this->lidarClustersPub_.publish(lidarClustersMsg);
     }
 
-    void dynamicDetector::publishFilteredClusters(){
-        sensor_msgs::PointCloud2 filteredClustersMsg;
+    void dynamicDetector::publishFilteredPoints(){
+        sensor_msgs::PointCloud2 filteredPointsMsg;
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
         for (size_t i=0; i<this->filteredPcClusters_.size(); ++i){
             std_msgs::ColorRGBA color;
-            // srand(i);
             color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
             color.g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
             color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
@@ -3648,10 +3593,10 @@ namespace onboardDetector{
                 colored_cloud->push_back(point);
             }
         }
-        pcl::toROSMsg(*colored_cloud, filteredClustersMsg);
-        filteredClustersMsg.header.frame_id = "map";
-        filteredClustersMsg.header.stamp = ros::Time::now();
-        this->filteredClustersPub_.publish(filteredClustersMsg);
+        pcl::toROSMsg(*colored_cloud, filteredPointsMsg);
+        filteredPointsMsg.header.frame_id = "map";
+        filteredPointsMsg.header.stamp = ros::Time::now();
+        this->filteredPointsPub_.publish(filteredPointsMsg);
     }
 
     void dynamicDetector::transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,

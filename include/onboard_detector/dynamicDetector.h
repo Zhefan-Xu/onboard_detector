@@ -59,25 +59,21 @@ namespace onboardDetector{
         image_transport::Publisher uvDepthMapPub_;
         image_transport::Publisher uDepthMapPub_;
         image_transport::Publisher uvBirdViewPub_;
-        image_transport::Publisher detectedAlignedDepthImgPub_;
         image_transport::Publisher detectedColorImgPub_;
         ros::Publisher uvBBoxesPub_;
-        ros::Publisher dynamicPointsPub_;
-        ros::Publisher filteredPointsPub_;
         ros::Publisher dbBBoxesPub_;
-        ros::Publisher yoloBBoxesPub_;
-        ros::Publisher filteredBBoxesBeforeYoloPub_; // Zhefan
+        ros::Publisher visualBBoxesPub_;
+        ros::Publisher lidarBBoxesPub_;
+        ros::Publisher filteredBBoxesBeforeYoloPub_;
         ros::Publisher filteredBBoxesPub_;
         ros::Publisher trackedBBoxesPub_;
         ros::Publisher dynamicBBoxesPub_;
+        ros::Publisher filteredDepthPointsPub_;
+        ros::Publisher lidarClustersPub_;
+        ros::Publisher filteredPointsPub_;
+        ros::Publisher dynamicPointsPub_;
         ros::Publisher historyTrajPub_;
         ros::Publisher velVisPub_;
-        ros::Publisher visualBBoxesPub_; // Zhefan
-        ros::Publisher lidarClustersPub_;
-        ros::Publisher filteredClustersPub_; // Zhefan
-        ros::Publisher lidarBBoxesPub_;
-        ros::Publisher lidarCloudPub_;
-        ros::Publisher propedBoxesPub_;
         ros::ServiceServer getDynamicObstacleServer_;
     
 
@@ -143,8 +139,7 @@ namespace onboardDetector{
         int kfAvgFrames_;
         bool constrainSize_;
         std::vector<Eigen::Vector3d> targetObjectSize_; 
-        Eigen::Vector3d maxObjectSize_;
-        std::vector<double> targetObjectSizeThresh_;
+        Eigen::Vector3d maxObjectSize_; 
         std::vector<int> bestMatchHist_;
         Eigen::VectorXd featureWeights_;
 
@@ -171,7 +166,7 @@ namespace onboardDetector{
         int projPointsNum_ = 0;
         std::vector<Eigen::Vector3d> projPoints_; // projected points from depth image
         std::vector<double> pointsDepth_;
-        std::vector<Eigen::Vector3d> filteredPoints_; // filtered point cloud data
+        std::vector<Eigen::Vector3d> filteredDepthPoints_; // filtered point cloud data
         std::vector<onboardDetector::box3D> dbBBoxes_; // DBSCAN bounding boxes        
         std::vector<std::vector<Eigen::Vector3d>> pcClusters_; // pointcloud clusters
         std::vector<Eigen::Vector3d> pcClusterCenters_; // pointcloud cluster centers
@@ -186,7 +181,6 @@ namespace onboardDetector{
         // std::vector<int> recentDynaFrames_; // recent number of frames being detected as dynamic for each obstacle
         std::vector<onboardDetector::box3D> visualBBoxes_; // visual bobxes detected by camera (Zhefan)
         std::vector<onboardDetector::box3D> lidarBBoxes_; // bboxes detected by lidar (have static and dynamic)
-        std::vector<onboardDetector::box3D> propedBoxes_; // linear propagated bboxes
 
         // TRACKING AND ASSOCIATION DATA
         bool newDetectFlag_;
@@ -198,7 +192,6 @@ namespace onboardDetector{
         std::vector<onboardDetector::kalman_filter> filters_; // kalman filter for each objects
 
 
-        std::vector<onboardDetector::box3D> yoloBBoxes_; // yolo detected bounding boxes
         vision_msgs::Detection2DArray yoloDetectionResults_; // yolo detected 2D results
         cv::Mat detectedAlignedDepthImg_;
         cv::Mat detectedColorImage_;
@@ -234,7 +227,6 @@ namespace onboardDetector{
         void uvDetect();
         void dbscanDetect();
         void lidarDetect();
-        void yoloDetectionTo3D();
         void filterBBoxes();
         void filterLVBBoxes(); // filter lidar and vision bounding boxes
 
@@ -275,7 +267,6 @@ namespace onboardDetector{
         // visualization
         void getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc);
         void publishUVImages(); 
-        void publishYoloImages();
         void publishColorImages();
         void publishPoints(const std::vector<Eigen::Vector3d>& points, const ros::Publisher& publisher);
         void publish3dBox(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
@@ -283,7 +274,7 @@ namespace onboardDetector{
         void publishHistoryTraj();
         void publishVelVis();
         void publishLidarClusters();
-        void publishFilteredClusters();
+        void publishFilteredPoints();
 
         // helper function
         void transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,

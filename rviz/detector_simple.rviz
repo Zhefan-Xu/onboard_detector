@@ -113,8 +113,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 1.5208173990249634
-        Min Value: 0.7946774959564209
+        Max Value: 1.6064021587371826
+        Min Value: 0.3767359256744385
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -139,7 +139,7 @@ Visualization Manager:
       Use rainbow: true
       Value: true
     - Class: rviz/Image
-      Enabled: false
+      Enabled: true
       Image Topic: /onboard_detector/detected_color_image
       Max Value: 1
       Median window: 5
@@ -149,7 +149,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: false
+      Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -263,7 +263,7 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /onboard_detector/detected_color_image
       Max Value: 1
       Median window: 5
@@ -273,7 +273,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /onboard_detector/history_trajectories
@@ -284,7 +284,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /onboard_detector/bird_view
+      Image Topic: /onboard_detector/u_depth_bird_view
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -317,7 +317,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.10000000149011612
       Style: Flat Squares
-      Topic: /onboard_detector/filtered_clusters
+      Topic: /onboard_detector/filtered_point_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -406,7 +406,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 45.96642303466797
+      Distance: 51.48239517211914
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1

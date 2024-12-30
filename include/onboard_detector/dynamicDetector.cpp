@@ -859,14 +859,9 @@ namespace onboardDetector{
 
         // Iterate through all pointcloud/bounding boxes history (note that yolo's pointclouds are dummy pointcloud (empty))
         // NOTE: There are 3 cases which we don't need to perform dynamic obstacle identification.
-        // cout << "======================" << endl;
         for (size_t i=0; i<this->pcHist_.size() ; ++i){
             // ===================================================================================
-
-            // ===================================================================================
             // CASE I: yolo recognized as dynamic dynamic obstacle
-            // cout << "box: " << i <<  "x y z: " << this->boxHist_[i][0].x << " " << this->boxHist_[i][0].y << " " << this->boxHist_[i][0].z << endl;
-            // cout << "box is human: " << this->boxHist_[i][0].is_human << endl;
             if (this->boxHist_[i][0].is_human){
                 dynamicBBoxesTemp.push_back(this->boxHist_[i][0]);
                 continue;
@@ -919,15 +914,7 @@ namespace onboardDetector{
             Vkf(1) = this->boxHist_[i][0].Vy;
 
             // find nearest neighbor
-            int numSkip = 0;
             for (size_t j=0 ; j<currPc.size() ; ++j){
-                // don't perform classification for points unseen in previous frame
-                // if (!this->isInFov(this->positionHist_[curFrameGap], this->orientationHist_[curFrameGap], currPc[j])){
-                //     ++numSkip;
-                //     --numPoints;
-                //     continue;
-                // }
-
                 double minDist = 2;
                 Eigen::Vector3d nearestVect;
                 for (size_t k=0 ; k<prevPc.size() ; k++){ // find the nearest point in the previous pointcloud
@@ -941,7 +928,6 @@ namespace onboardDetector{
                 double velSim = Vcur.dot(Vbox)/(Vcur.norm()*Vbox.norm());
 
                 if (velSim < 0){
-                    ++numSkip;
                     --numPoints;
                 }
                 else{
@@ -959,10 +945,7 @@ namespace onboardDetector{
             // voting and velocity threshold
             // 1. point cloud voting ratio.
             // 2. velocity (from kalman filter) 
-            // 3. enough valid point correspondence 
-            // if (voteRatio>=this->dynaVoteThresh_ && velNorm>=this->dynaVelThresh_ && double(numSkip)/double(numPoints)<this->maxSkipRatio_){
             if (voteRatio>=this->dynaVoteThresh_ && velNorm>=this->dynaVelThresh_){
-            // if (velNorm>=this->dynaVelThresh_){
                 this->boxHist_[i][0].is_dynamic_candidate = true;
                 // dynamic-consistency check
                 int dynaConsistCount = 0;
@@ -1008,26 +991,26 @@ namespace onboardDetector{
 
     void dynamicDetector::visCB(const ros::TimerEvent&){
         this->publishUVImages();
+        this->publishColorImages();
+        
         this->publish3dBox(this->uvBBoxes_, this->uvBBoxesPub_, 0, 1, 0);
+        this->publish3dBox(this->dbBBoxes_, this->dbBBoxesPub_, 1, 0, 0);
+        this->publish3dBox(this->visualBBoxes_, this->visualBBoxesPub_, 0.3, 0.8, 1.0);
+        this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5); // raw lidar cluster bounding boxes
+        this->publish3dBox(this->filteredBBoxesBeforeYolo_, this->filteredBBoxesBeforeYoloPub_, 0, 1, 0.5);
+        this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
+        this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
+        this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
+
+        this->publishLidarClusters(); // colored clusters
+        this->publishFilteredPoints();
         std::vector<Eigen::Vector3d> dynamicPoints;
         this->getDynamicPc(dynamicPoints);
         this->publishPoints(dynamicPoints, this->dynamicPointsPub_);
         this->publishPoints(this->filteredDepthPoints_, this->filteredDepthPointsPub_);
-        this->publish3dBox(this->dbBBoxes_, this->dbBBoxesPub_, 1, 0, 0);
-        this->publishColorImages();
-        this->publish3dBox(this->filteredBBoxesBeforeYolo_, this->filteredBBoxesBeforeYoloPub_, 0, 1, 0.5);
-        this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
-        // this->publish3dBoxWithID(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
-        this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
-        this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
-        // this->publish3dBoxWithID(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
 
         this->publishHistoryTraj();
         this->publishVelVis();
-        this->publishLidarClusters(); // colored clusters
-        this->publishFilteredPoints();
-        this->publish3dBox(this->visualBBoxes_, this->visualBBoxesPub_, 0.3, 0.8, 1.0);
-        this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5); // raw lidar cluster bounding boxes
     }
 
     void dynamicDetector::uvDetect(){
@@ -2361,12 +2344,14 @@ namespace onboardDetector{
     } 
     
     void dynamicDetector::publishUVImages(){
-        sensor_msgs::ImagePtr depthBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->depth_show).toImageMsg();
-        sensor_msgs::ImagePtr UmapBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->U_map_show).toImageMsg();
-        sensor_msgs::ImagePtr birdBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->bird_view).toImageMsg();  
-        this->uvDepthMapPub_.publish(depthBoxMsg);
-        this->uDepthMapPub_.publish(UmapBoxMsg); 
-        this->uvBirdViewPub_.publish(birdBoxMsg);     
+        if (this->uvDetector_ != NULL){
+            sensor_msgs::ImagePtr depthBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->depth_show).toImageMsg();
+            sensor_msgs::ImagePtr UmapBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->U_map_show).toImageMsg();
+            sensor_msgs::ImagePtr birdBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->bird_view).toImageMsg();  
+            this->uvDepthMapPub_.publish(depthBoxMsg);
+            this->uDepthMapPub_.publish(UmapBoxMsg); 
+            this->uvBirdViewPub_.publish(birdBoxMsg);
+        }     
     }
 
 

@@ -11,11 +11,9 @@ namespace onboardDetector{
         this->cloud_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
     }
 
-    void lidarDetector::setParams(double eps, int minPts, double groundHeight, double roofHeight){
+    void lidarDetector::setParams(double eps, int minPts){
         this->eps_ = eps;
         this->minPts_ = minPts;
-        this->groundHeight_ = groundHeight;
-        this->roofHeight_ = roofHeight;
     }
 
     void lidarDetector::getPointcloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud){

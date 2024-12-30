@@ -167,7 +167,10 @@ namespace onboardDetector{
         std::vector<Eigen::Vector3d> projPoints_; // projected points from depth image
         std::vector<double> pointsDepth_;
         std::vector<Eigen::Vector3d> filteredDepthPoints_; // filtered point cloud data
-        std::vector<onboardDetector::box3D> dbBBoxes_; // DBSCAN bounding boxes        
+        std::vector<onboardDetector::box3D> dbBBoxes_; // DBSCAN bounding boxes
+        std::vector<std::vector<Eigen::Vector3d>> pcClustersVisual_; // pointcloud clusters
+        std::vector<Eigen::Vector3d> pcClusterCentersVisual_; // pointcloud cluster centers
+        std::vector<Eigen::Vector3d> pcClusterStdsVisual_; // pointcloud cluster standard deviation in each axis      
         std::vector<std::vector<Eigen::Vector3d>> pcClusters_; // pointcloud clusters
         std::vector<Eigen::Vector3d> pcClusterCenters_; // pointcloud cluster centers
         std::vector<Eigen::Vector3d> pcClusterStds_; // pointcloud cluster standard deviation in each axis
@@ -193,7 +196,6 @@ namespace onboardDetector{
 
 
         vision_msgs::Detection2DArray yoloDetectionResults_; // yolo detected 2D results
-        cv::Mat detectedAlignedDepthImg_;
         cv::Mat detectedColorImage_;
 
     public:
@@ -212,11 +214,10 @@ namespace onboardDetector{
 
         // callback
         void depthPoseCB(const sensor_msgs::ImageConstPtr& img, const geometry_msgs::PoseStampedConstPtr& pose);
-        void lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg);
         void depthOdomCB(const sensor_msgs::ImageConstPtr& img, const nav_msgs::OdometryConstPtr& odom);
-        void alignedDepthCB(const sensor_msgs::ImageConstPtr& img);
-        void yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections);
         void colorImgCB(const sensor_msgs::ImageConstPtr& img);
+        void yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections);
+        void lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg);
         void detectionCB(const ros::TimerEvent&);
         void lidarDetectionCB(const ros::TimerEvent&);
         void trackingCB(const ros::TimerEvent&);
@@ -227,7 +228,6 @@ namespace onboardDetector{
         void uvDetect();
         void dbscanDetect();
         void lidarDetect();
-        void filterBBoxes();
         void filterLVBBoxes(); // filter lidar and vision bounding boxes
 
         // uv Detector Functions

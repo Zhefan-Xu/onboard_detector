@@ -582,17 +582,17 @@ namespace onboardDetector{
         // color image subscriber
         this->colorImgSub_ = this->nh_.subscribe(this->colorImgTopicName_, 10, &dynamicDetector::colorImgCB, this);
 
-        // lidar point cloud subscriber
-        this->lidarCloudSub_ = this->nh_.subscribe(this->lidarTopicName_, 10, &dynamicDetector::lidarCloudCB, this);
-
         // yolo detection results subscriber
         this->yoloDetectionSub_ = this->nh_.subscribe("yolo_detector/detected_bounding_boxes", 10, &dynamicDetector::yoloDetectionCB, this);
 
-        // lidar detection timer
-        this->lidarDetectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::lidarDetectionCB, this);
+        // lidar point cloud subscriber
+        this->lidarCloudSub_ = this->nh_.subscribe(this->lidarTopicName_, 10, &dynamicDetector::lidarCloudCB, this);
 
         // detection timer
         this->detectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::detectionCB, this);
+
+        // lidar detection timer
+        this->lidarDetectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::lidarDetectionCB, this);
 
         // tracking timer
         this->trackingTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::trackingCB, this);
@@ -720,22 +720,6 @@ namespace onboardDetector{
         this->hasSensorPose_ = true;
     }
 
-    void dynamicDetector::alignedDepthCB(const sensor_msgs::ImageConstPtr& img){
-        cv_bridge::CvImagePtr imgPtr = cv_bridge::toCvCopy(img, img->encoding);
-        if (img->encoding == sensor_msgs::image_encodings::TYPE_32FC1){
-            (imgPtr->image).convertTo(imgPtr->image, CV_16UC1, this->depthScale_);
-        }
-        imgPtr->image.copyTo(this->alignedDepthImage_);
-
-        cv::Mat depthNormalized;
-        imgPtr->image.copyTo(depthNormalized);
-        double min, max;
-        cv::minMaxIdx(depthNormalized, &min, &max);
-        cv::convertScaleAbs(depthNormalized, depthNormalized, 255. / max);
-        depthNormalized.convertTo(depthNormalized, CV_8UC1);
-        cv::applyColorMap(depthNormalized, depthNormalized, cv::COLORMAP_BONE);
-        this->detectedAlignedDepthImg_ = depthNormalized;
-    }
 
     void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg){
         try {
@@ -743,7 +727,6 @@ namespace onboardDetector{
                 // local cloud
                 pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud (new pcl::PointCloud<pcl::PointXYZ>());
                 pcl::fromROSMsg(*cloudMsg, *tempCloud);
-                // ROS_INFO("Raw Input Pointcloud Number: %ld", tempCloud->size());
 
                 // filter and downsample pointcloud
                 // Create a filtered cloud pointer to store intermediate results
@@ -763,7 +746,6 @@ namespace onboardDetector{
                 pass.setFilterFieldName("y");
                 pass.setFilterLimits(-this->localLidarRange_.y(), this->localLidarRange_.y());
                 pass.filter(*filteredCloud);
-
 
                 // transform
                 Eigen::Affine3d transform = Eigen::Affine3d::Identity();
@@ -800,11 +782,7 @@ namespace onboardDetector{
                     sor.filter(*downsampledCloud);
                 }
 
-                // this->lidarCloud_ = transformedCloud;
-                // cout << "size of cloud: " << transformedCloud->size() << endl;
                 this->lidarCloud_ = downsampledCloud;
-                // cout << "size of cloud: " << downsampledCloud->size() << endl;
-                ROS_WARN("Size of downsampled cloud: %ld", downsampledCloud->size());
             }
         }
         catch (const pcl::PCLException& e) {
@@ -831,21 +809,15 @@ namespace onboardDetector{
         // detection thread
         this->dbscanDetect();
         this->uvDetect();
-        // this->filterBBoxes();
-        ros::Time start = ros::Time::now();
+        // ros::Time start = ros::Time::now();
         this->filterLVBBoxes();
-        ros::Time end = ros::Time::now();
-        ROS_INFO("filtering time: %f", (end - start).toSec());
+        // ros::Time end = ros::Time::now();
+        // ROS_INFO("filtering time: %f", (end - start).toSec());
         this->newDetectFlag_ = true; // get a new detection
     }
 
     void dynamicDetector::lidarDetectionCB(const ros::TimerEvent&){
-        // use class in lidarDetector to detect obstacles into bounding boxes. 
-        // this function should not be long
-        // ros::Time start = ros::Time::now();
         this->lidarDetect();
-        // ros::Time end = ros::Time::now();
-        // cout << "time: " << (end - start).toSec() << endl;
     }
 
     void dynamicDetector::trackingCB(const ros::TimerEvent&){
@@ -1080,27 +1052,25 @@ namespace onboardDetector{
         this->filterPoints(this->projPoints_, this->filteredDepthPoints_);
 
         // 4. cluster points and get bounding boxes
-        this->clusterPointsAndBBoxes(this->filteredDepthPoints_, this->dbBBoxes_, this->pcClusters_, this->pcClusterCenters_, this->pcClusterStds_);
+        this->clusterPointsAndBBoxes(this->filteredDepthPoints_, this->dbBBoxes_, this->pcClustersVisual_, 
+                                     this->pcClusterCentersVisual_, this->pcClusterStdsVisual_);
     }
 
 
     void dynamicDetector::lidarDetect(){
         if (this->lidarDetector_ == NULL){
             this->lidarDetector_.reset(new lidarDetector());
-            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_, this->groundHeight_, this->roofHeight_);
+            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_);
         }
 
         if (this->lidarCloud_ != NULL){
             this->lidarDetector_->getPointcloud(this->lidarCloud_);
             this->lidarDetector_->lidarDBSCAN();
-            // this->lidarClusters_ = this->lidarDetector_->getClusters();
-            
-            // Zhefan--
+
             std::vector<onboardDetector::Cluster> lidarClustersRaw = this->lidarDetector_->getClusters();
             std::vector<onboardDetector::Cluster> lidarClustersFiltered;
             std::vector<onboardDetector::box3D> lidarBBoxesRaw = this->lidarDetector_->getBBoxes();
             std::vector<onboardDetector::box3D> lidarBBoxesFiltered;
-            // for (onboardDetector::box3D& lidarBBox : lidarBBoxesRaw){
             for (int i=0; i<int(lidarBBoxesRaw.size()); ++i){
                 onboardDetector::box3D lidarBBox = lidarBBoxesRaw[i];
                 // filter out lidar bounding boxes that are too large
@@ -1112,269 +1082,8 @@ namespace onboardDetector{
             }
             this->lidarBBoxes_ = lidarBBoxesFiltered;
             this->lidarClusters_ = lidarClustersFiltered;
-            // --
-            
-            // this->lidarBBoxes_ = this->lidarDetector_->getBBoxes();
-            // std::cout << "Lidar box num: " << this->lidarBBoxes_.size() << std::endl;
-            // std::cout << "Lidar cluster num: " << this->lidarClusters_.size() << std::endl;
-
         }
     }
-
-    void dynamicDetector::filterBBoxes(){
-        std::vector<onboardDetector::box3D> filteredBBoxesTemp;
-        std::vector<std::vector<Eigen::Vector3d>> filteredPcClustersTemp;
-        std::vector<Eigen::Vector3d> filteredPcClusterCentersTemp;
-        std::vector<Eigen::Vector3d> filteredPcClusterStdsTemp; 
-        // find best IOU match for both uv and dbscan. If they are best for each other, then add to filtered bbox and fuse.
-        for (size_t i=0 ; i<this->uvBBoxes_.size(); ++i){
-            onboardDetector::box3D uvBBox = this->uvBBoxes_[i];
-            double bestIOUForUVBBox, bestIOUForDBBBox;
-            int bestMatchForUVBBox = this->getBestOverlapBBox(uvBBox, this->dbBBoxes_, bestIOUForUVBBox);
-            if (bestMatchForUVBBox == -1) continue; // no match at all
-            onboardDetector::box3D matchedDBBBox = this->dbBBoxes_[bestMatchForUVBBox]; 
-            std::vector<Eigen::Vector3d> matchedPcCluster = this->pcClusters_[bestMatchForUVBBox];
-            Eigen::Vector3d matchedPcClusterCenter = this->pcClusterCenters_[bestMatchForUVBBox];
-            Eigen::Vector3d matchedPcClusterStd = this->pcClusterStds_[bestMatchForUVBBox];
-            int bestMatchForDBBBox = this->getBestOverlapBBox(matchedDBBBox, this->uvBBoxes_, bestIOUForDBBBox);
-
-            // if best match is each other and both the IOU is greater than the threshold
-            if (bestMatchForDBBBox == int(i) and bestIOUForUVBBox > this->boxIOUThresh_ and bestIOUForDBBBox > this->boxIOUThresh_){
-                onboardDetector::box3D bbox;
-                
-                // take concervative strategy
-                double xmax = std::max(uvBBox.x+uvBBox.x_width/2, matchedDBBBox.x+matchedDBBBox.x_width/2);
-                double xmin = std::min(uvBBox.x-uvBBox.x_width/2, matchedDBBBox.x-matchedDBBBox.x_width/2);
-                double ymax = std::max(uvBBox.y+uvBBox.y_width/2, matchedDBBBox.y+matchedDBBBox.y_width/2);
-                double ymin = std::min(uvBBox.y-uvBBox.y_width/2, matchedDBBBox.y-matchedDBBBox.y_width/2);
-                double zmax = std::max(uvBBox.z+uvBBox.z_width/2, matchedDBBBox.z+matchedDBBBox.z_width/2);
-                double zmin = std::min(uvBBox.z-uvBBox.z_width/2, matchedDBBBox.z-matchedDBBBox.z_width/2);
-                bbox.x = (xmin+xmax)/2;
-                bbox.y = (ymin+ymax)/2;
-                bbox.z = (zmin+zmax)/2;
-                bbox.x_width = xmax-xmin;
-                bbox.y_width = ymax-ymin;
-                bbox.z_width = zmax-zmin;
-                bbox.Vx = 0;
-                bbox.Vy = 0;
-
-                filteredBBoxesTemp.push_back(bbox);
-                filteredPcClustersTemp.push_back(matchedPcCluster);      
-                filteredPcClusterCentersTemp.push_back(matchedPcClusterCenter);
-                filteredPcClusterStdsTemp.push_back(matchedPcClusterStd);
-            }
-        }
-
-        // lidar bbox filter
-        for (size_t i = 0; i < this->lidarBBoxes_.size(); ++i) {
-            onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
-            
-
-            filteredBBoxesTemp.push_back(lidarBBox);
-
-            // get corresponding point cloud cluster
-            onboardDetector::Cluster cluster = this->lidarClusters_[i];
-
-            std::vector<Eigen::Vector3d> pcCluster;
-            for (const auto& point : cluster.points->points) {
-                pcCluster.emplace_back(point.x, point.y, point.z);
-            }
-
-            // extract the cluster center
-            Eigen::Vector3d clusterCenter(cluster.centroid[0], cluster.centroid[1], cluster.centroid[2]);
-
-            // compute std
-            Eigen::Vector3d clusterStd = cluster.eigen_values.cwiseSqrt().cast<double>();
-
-            // Append to the filtered vectors
-            filteredPcClustersTemp.push_back(pcCluster);
-            filteredPcClusterCentersTemp.push_back(clusterCenter);
-            filteredPcClusterStdsTemp.push_back(clusterStd);
-        }
-
-        // Instead of using YOLO for ensembling, only use YOLO for dynamic object identification
-        // For each 2D YOLO detected bounding box, find the best match projected 2D bounding boxes
-        if (this->yoloDetectionResults_.detections.size() != 0){
-            // Project 2D bbox in color image plane from 3D
-            vision_msgs::Detection2DArray filteredDetectionResults;
-            for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
-                onboardDetector::box3D bbox = filteredBBoxesTemp[j];
-
-                // 1. transform the bounding boxes into the camera frame
-                Eigen::Vector3d centerWorld (bbox.x, bbox.y, bbox.z);
-                Eigen::Vector3d sizeWorld (bbox.x_width, bbox.y_width, bbox.z_width);
-                Eigen::Vector3d centerCam, sizeCam;
-                this->transformBBox(centerWorld, sizeWorld, -this->orientationColor_.inverse() * this->positionColor_, this->orientationColor_.inverse(), centerCam, sizeCam);
-
-
-                // 2. find the top left and bottom right corner 3D position of the transformed bbox
-                Eigen::Vector3d topleft (centerCam(0)-sizeCam(0)/2, centerCam(1)-sizeCam(1)/2, centerCam(2));
-                Eigen::Vector3d bottomright (centerCam(0)+sizeCam(0)/2, centerCam(1)+sizeCam(1)/2, centerCam(2));
-
-                // 3. project those two points into the camera image plane
-                int tlX = (this->fxC_ * topleft(0) + this->cxC_ * topleft(2)) / topleft(2);
-                int tlY = (this->fyC_ * topleft(1) + this->cyC_ * topleft(2)) / topleft(2);
-                int brX = (this->fxC_ * bottomright(0) + this->cxC_ * bottomright(2)) / bottomright(2);
-                int brY = (this->fyC_ * bottomright(1) + this->cyC_ * bottomright(2)) / bottomright(2);
-
-                vision_msgs::Detection2D result;
-                result.bbox.center.x = tlX;
-                result.bbox.center.y = tlY;
-                result.bbox.size_x = brX - tlX;
-                result.bbox.size_y = brY - tlY;
-                filteredDetectionResults.detections.push_back(result);
-
-                cv::Rect bboxVis;
-                bboxVis.x = tlX;
-                bboxVis.y = tlY;
-                bboxVis.height = brY - tlY;
-                bboxVis.width = brX - tlX;
-                cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
-            }
-
-
-            for (int i=0; i<int(this->yoloDetectionResults_.detections.size()); ++i){
-                int tlXTarget = int(this->yoloDetectionResults_.detections[i].bbox.center.x);
-                int tlYTarget = int(this->yoloDetectionResults_.detections[i].bbox.center.y);
-                int brXTarget = tlXTarget + int(this->yoloDetectionResults_.detections[i].bbox.size_x);
-                int brYTarget = tlYTarget + int(this->yoloDetectionResults_.detections[i].bbox.size_y);
-
-                cv::Rect bboxVis;
-                bboxVis.x = tlXTarget;
-                bboxVis.y = tlYTarget;
-                bboxVis.height = brYTarget - tlYTarget;
-                bboxVis.width = brXTarget - tlXTarget;
-                cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(255, 0, 0), 5, 8, 0);
-
-                // Define the text to be added
-                std::string text = "dynamic";
-
-                // Define the position for the text (above the bounding box)
-                int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-                double fontScale = 1.0;
-                int thickness = 2;
-                int baseline;
-                cv::getTextSize(text, fontFace, fontScale, thickness, &baseline);
-                cv::Point textOrg(bboxVis.x, bboxVis.y - 10);  // 10 pixels above the bounding box
-
-                // Add the text to the image
-                cv::putText(this->detectedColorImage_, text, textOrg, fontFace, fontScale, cv::Scalar(255, 0, 0), thickness, 8);
-
-                double bestIOU = 0.0;
-                int bestIdx = -1;
-                for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
-                    int tlX = int(filteredDetectionResults.detections[j].bbox.center.x);
-                    int tlY = int(filteredDetectionResults.detections[j].bbox.center.y);
-                    int brX = tlX + int(filteredDetectionResults.detections[j].bbox.size_x);
-                    int brY = tlY + int(filteredDetectionResults.detections[j].bbox.size_y);
-                    
-
-                    // check the IOU between yolo and projected bbox
-                    double xOverlap = double(std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget)));
-                    double yOverlap = double(std::max(0, std::min(brY, brYTarget) - std::max(tlY, tlYTarget)));
-                    double intersection = xOverlap * yOverlap;
-
-                    // Calculate union area
-                    double areaBox = double((brX - tlX) * (brY - tlY));
-                    double areaBoxTarget = double((brXTarget - tlXTarget) * (brYTarget - tlYTarget));
-                    double unionArea = areaBox + areaBoxTarget - intersection;
-                    // cout << "box " << j << " unionarea: " << unionArea << " intersection: " << intersection << endl;
-                    double IOU = (unionArea == 0) ? 0 : intersection / unionArea;
-
-                    if (IOU > bestIOU){
-                        bestIOU = IOU;
-                        bestIdx = j;
-                    }
-                }
-
-                if (bestIOU > 0.5){
-                    filteredBBoxesTemp[bestIdx].is_dynamic = true;
-                    filteredBBoxesTemp[bestIdx].is_human = true;
-                }
-                // cout << "i: " << i << " best IOU: " << bestIOU << endl;
-            }
-        }
-
-        
-
-        // for (int i=0; i<int(filteredBBoxesTemp.size()); ++i){
-        //     cout << "filterd box i: " << i << " x y z d: " << filteredBBoxesTemp[i].x << " " << filteredBBoxesTemp[i].y 
-        //     << " " <<filteredBBoxesTemp[i].z << " " << filteredBBoxesTemp[i].is_human << endl;
-        // }
-        // cout << "---------------------------------------" << endl;
-
-
-        // // yolo bounding box filter
-        // if (this->yoloBBoxes_.size() != 0){ // if no detected or not using yolo, this will not triggered
-        //     std::vector<onboardDetector::box3D> filteredBBoxesTempCopy = filteredBBoxesTemp;
-        //     std::vector<std::vector<Eigen::Vector3d>> filteredPcClustersTempCopy = filteredPcClustersTemp;
-        //     std::vector<Eigen::Vector3d> filteredPcClusterCentersTempCopy = filteredPcClusterCentersTemp;
-        //     std::vector<Eigen::Vector3d> filteredPcClusterStdsTempCopy = filteredPcClusterStdsTemp;
-        //     std::vector<Eigen::Vector3d> emptyPoints {};
-        //     Eigen::Vector3d emptyPcFeat {0,0,0};
-        //     for (size_t i=0; i<this->yoloBBoxes_.size(); ++i){
-        //         onboardDetector::box3D yoloBBox = this->yoloBBoxes_[i]; yoloBBox.is_dynamic = true; yoloBBox.is_human = true; // dynamic obstacle detected by yolo
-        //         Eigen::Vector3d bboxPos (this->yoloBBoxes_[i].x, this->yoloBBoxes_[i].y, this->yoloBBoxes_[i].z);
-        //         double distanceToCamera = (bboxPos - this->position_).norm();
-        //         if (distanceToCamera >= this->raycastMaxLength_){
-        //             continue; // do not use unreliable YOLO resutls which are distance too far from camera
-        //         }
-        //         double bestIOUForYoloBBox, bestIOUForFilteredBBox;
-        //         int bestMatchForYoloBBox = this->getBestOverlapBBox(yoloBBox, filteredBBoxesTemp, bestIOUForYoloBBox);
-        //         if (bestMatchForYoloBBox == -1){ // no match for yolo bounding boxes with any filtered bbox. 2 reasons: a) distance too far, filtered boxes no detection, b) distance not far but cannot match. Probably Yolo error
-        //             if (distanceToCamera >= this->yoloOverwriteDistance_){ // a) distance too far, filtered boxes no detection. directly add results
-        //                 filteredBBoxesTempCopy.push_back(yoloBBox); // add yolo bbox because filtered bbox is not able to get detection results at far distance
-        //                 filteredPcClustersTempCopy.push_back(emptyPoints); // no pc need for yolo 
-        //                 filteredPcClusterCentersTempCopy.push_back(emptyPcFeat);
-        //                 filteredPcClusterStdsTempCopy.push_back(emptyPcFeat);
-        //             }
-        //             else{ // b) distance not far but cannot match. Probably Yolo error, ignore results
-        //                 continue;
-        //             }
-        //         }
-        //         else{ // find best match for yolo bbox
-        //             onboardDetector::box3D matchedFilteredBBox = filteredBBoxesTemp[bestMatchForYoloBBox];
-        //             int bestMatchForFilteredBBox = this->getBestOverlapBBox(matchedFilteredBBox, this->yoloBBoxes_, bestIOUForFilteredBBox);
-        //             // if best match is each other and both the IOU is greater than the threshold
-        //             if (bestMatchForFilteredBBox == int(i) and bestIOUForYoloBBox > this->boxIOUThresh_ and bestIOUForFilteredBBox > this->boxIOUThresh_){
-        //                 onboardDetector::box3D bbox; bbox.is_dynamic = true; bbox.is_human = true;
-                        
-        //                 // take concervative strategy
-        //                 double xmax = std::max(yoloBBox.x+yoloBBox.x_width/2, matchedFilteredBBox.x+matchedFilteredBBox.x_width/2);
-        //                 double xmin = std::min(yoloBBox.x-yoloBBox.x_width/2, matchedFilteredBBox.x-matchedFilteredBBox.x_width/2);
-        //                 double ymax = std::max(yoloBBox.y+yoloBBox.y_width/2, matchedFilteredBBox.y+matchedFilteredBBox.y_width/2);
-        //                 double ymin = std::min(yoloBBox.y-yoloBBox.y_width/2, matchedFilteredBBox.y-matchedFilteredBBox.y_width/2);
-        //                 double zmax = std::max(yoloBBox.z+yoloBBox.z_width/2, matchedFilteredBBox.z+matchedFilteredBBox.z_width/2);
-        //                 double zmin = std::min(yoloBBox.z-yoloBBox.z_width/2, matchedFilteredBBox.z-matchedFilteredBBox.z_width/2);
-        //                 bbox.x = (xmin+xmax)/2;
-        //                 bbox.y = (ymin+ymax)/2;
-        //                 bbox.z = (zmin+zmax)/2;
-        //                 bbox.x_width = xmax-xmin;
-        //                 bbox.y_width = ymax-ymin;
-        //                 bbox.z_width = zmax-zmin;
-        //                 bbox.Vx = 0;
-        //                 bbox.Vy = 0;
-                        
-        //                 filteredBBoxesTempCopy[bestMatchForYoloBBox] = bbox; // replace the filtered bbox with the new fused bounding box
-        //                 filteredPcClustersTempCopy[bestMatchForYoloBBox] = emptyPoints;      // since it is yolo based, we dont need pointcloud for classification                     
-        //                 filteredPcClusterCentersTempCopy[bestMatchForYoloBBox] = emptyPcFeat;
-        //                 filteredPcClusterStdsTempCopy[bestMatchForYoloBBox] = emptyPcFeat;
-        //             }
-        //         }
-        //     }
-        //     filteredBBoxesTemp = filteredBBoxesTempCopy;
-        //     filteredPcClustersTemp = filteredPcClustersTempCopy;
-        //     filteredPcClusterCentersTemp = filteredPcClusterCentersTempCopy;
-        //     filteredPcClusterStdsTemp = filteredPcClusterStdsTempCopy;
-        // }
-
-        // std::cout << "FilteredBBoxes:" << filteredBBoxesTemp.size() << std::endl;
-        this->filteredBBoxes_ = filteredBBoxesTemp;
-        this->filteredPcClusters_ = filteredPcClustersTemp;
-        this->filteredPcClusterCenters_ = filteredPcClusterCentersTemp;
-        this->filteredPcClusterStds_ = filteredPcClusterStdsTemp;
-    }
-
 
     void dynamicDetector::filterLVBBoxes(){
         std::vector<onboardDetector::box3D> filteredBBoxesTemp;
@@ -1392,6 +1101,7 @@ namespace onboardDetector{
         std::vector<Eigen::Vector3d> lidarPcClusterCentersTemp;
         std::vector<Eigen::Vector3d> lidarPcClusterStdsTemp; // store lidar output
 
+        // STEP 1: Get visual bboxes by fusing visual bounding boxes
         // find best IOU match for both uv and dbscan. If they are best for each other, then add to filtered bbox and fuse.
         for (size_t i=0 ; i<this->uvBBoxes_.size(); ++i){
             onboardDetector::box3D uvBBox = this->uvBBoxes_[i];
@@ -1399,9 +1109,9 @@ namespace onboardDetector{
             int bestMatchForUVBBox = this->getBestOverlapBBox(uvBBox, this->dbBBoxes_, bestIOUForUVBBox);
             if (bestMatchForUVBBox == -1) continue; // no match at all
             onboardDetector::box3D matchedDBBBox = this->dbBBoxes_[bestMatchForUVBBox]; 
-            std::vector<Eigen::Vector3d> matchedPcCluster = this->pcClusters_[bestMatchForUVBBox];
-            Eigen::Vector3d matchedPcClusterCenter = this->pcClusterCenters_[bestMatchForUVBBox];
-            Eigen::Vector3d matchedPcClusterStd = this->pcClusterStds_[bestMatchForUVBBox];
+            std::vector<Eigen::Vector3d> matchedPcCluster = this->pcClustersVisual_[bestMatchForUVBBox];
+            Eigen::Vector3d matchedPcClusterCenter = this->pcClusterCentersVisual_[bestMatchForUVBBox];
+            Eigen::Vector3d matchedPcClusterStd = this->pcClusterStdsVisual_[bestMatchForUVBBox];
             int bestMatchForDBBBox = this->getBestOverlapBBox(matchedDBBBox, this->uvBBoxes_, bestIOUForDBBBox);
 
             // if best match is each other and both the IOU is greater than the threshold
@@ -1428,30 +1138,20 @@ namespace onboardDetector{
                 visualPcClustersTemp.push_back(matchedPcCluster);
                 visualPcClusterCentersTemp.push_back(matchedPcClusterCenter);
                 visualPcClusterStdsTemp.push_back(matchedPcClusterStd);
-
-                // cout << "================================================================" << endl;
-                // cout << "center: " << bbox.x << " " << bbox.y << " " << bbox.z << endl;
-                // cout << "cluster center: " << matchedPcClusterCenter.transpose() << endl; 
-                // cout << "cluster points 0: " << matchedPcCluster[0].transpose() << endl; 
             }
         }
-        // Zhefan --
-        this->visualBBoxes_ = visualBBoxesTemp;
+        this->visualBBoxes_ = visualBBoxesTemp; // for visualization
 
-        // --
-
-        
+        // STEP 2: Get lidar bboxes and its corresponding clusters and features
         // lidar bbox filter
         for (size_t i = 0; i < this->lidarBBoxes_.size(); ++i) {
             onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
-            
-            
             
             // get corresponding point cloud cluster
             onboardDetector::Cluster cluster = this->lidarClusters_[i];
 
             std::vector<Eigen::Vector3d> pcCluster;
-            for (const auto& point : cluster.points->points) {
+            for (const pcl::PointXYZ& point : cluster.points->points) {
                 pcCluster.emplace_back(point.x, point.y, point.z);
             }
 
@@ -1465,93 +1165,49 @@ namespace onboardDetector{
             lidarPcClustersTemp.push_back(pcCluster);
             lidarPcClusterCentersTemp.push_back(clusterCenter);
             lidarPcClusterStdsTemp.push_back(clusterStd);
-
-            // cout << "================================================================" << endl;
-            // cout << "center: " << lidarBBox.x << " " << lidarBBox.y << " " << lidarBBox.z << endl;
-            // cout << "cluster center: " << clusterCenter.transpose() << endl; 
-            // cout << "cluster points 0: " << pcCluster[0].transpose() << endl;
         }
 
-
+        // STEP 3: Fuse LiDAR and visual bounding boxes
         // init processed flags
-        std::vector<bool> processedLidarBoxes(lidarBBoxesTemp.size(), false);
-        std::vector<bool> processedVisualBoxes(visualBBoxesTemp.size(), false);
-
-        // set the threshold for box IOU
-        double boxIOUThresh = this->boxIOUThresh_; 
-
-        // **Case A: Multiple LiDAR boxes in one visual box
+        std::vector<bool> processedLidarBBoxes(lidarBBoxesTemp.size(), false);
+        std::vector<bool> processedVisualBBoxes(visualBBoxesTemp.size(), false);
         for (size_t i = 0; i < visualBBoxesTemp.size(); ++i) {
-            if (processedVisualBoxes[i]) continue; // skip processed visual boxes
+            if (processedVisualBBoxes[i]) continue; // skip processed visual boxes
             onboardDetector::box3D visualBBox = visualBBoxesTemp[i];
-            std::vector<int> overlappingLidarBoxes;
-            std::vector<int> overlappingVisualBoxes;
-
-            // get the bounding box of the visual box (commented out Zhefan)
-            // double visualXMin = visualBBox.x - visualBBox.x_width / 2.0;
-            // double visualXMax = visualBBox.x + visualBBox.x_width / 2.0;
-            // double visualYMin = visualBBox.y - visualBBox.y_width / 2.0;
-            // double visualYMax = visualBBox.y + visualBBox.y_width / 2.0;
-            // double visualZMin = visualBBox.z - visualBBox.z_width / 2.0;
-            // double visualZMax = visualBBox.z + visualBBox.z_width / 2.0;
-
-            // cout << "visual box: " <<  visualBBox.x << " " << visualBBox.y << " " << visualBBox.z <<  
-            // " size: " << visualBBox.x_width << " " << visualBBox.y_width << " " << visualBBox.z_width << endl;
+            std::vector<int> overlappingLidarBBoxes;
+            std::vector<int> overlappingVisualBBoxes;
 
             // loop through all LiDAR boxes
             for (size_t j = 0; j < lidarBBoxesTemp.size(); ++j) {
-                if (processedLidarBoxes[j]) continue; // skip processed LiDAR boxes
+                if (processedLidarBBoxes[j]) continue; // skip processed LiDAR boxes
                 onboardDetector::box3D lidarBBox = lidarBBoxesTemp[j];
 
-
-                // Zhefan: instead of using center, use IOU threshold
+                // find IOU between the visual bboxes and lidar bboxes
                 double lvIOU = this->calBoxIOU(visualBBox, lidarBBox, true);
-                // if (lvIOU > 0){
-                //     cout << "lidar box: " <<  lidarBBox.x << " " << lidarBBox.y << " " << lidarBBox.z <<  
-                //     " size: " << lidarBBox.x_width << " " << lidarBBox.y_width << " " << lidarBBox.z_width << endl;
-                //     cout << "box IOU: " << lvIOU << endl;
-                // }
-                if (lvIOU > boxIOUThresh){ // TODO: remove this hardcode
-                    overlappingLidarBoxes.push_back(j);
-                    // *key issue* Zhefan: the lidar bboxes can also match other visual bbox which should also be merged
+                if (lvIOU > this->boxIOUThresh_){
+                    overlappingLidarBBoxes.push_back(j);
                     for (size_t k=0; k<visualBBoxesTemp.size(); ++k){
-                        if (processedVisualBoxes[i] or i==k) continue;
+                        if (processedVisualBBoxes[i] or i==k) continue;
                         onboardDetector::box3D visualBBoxPotentialMatch = visualBBoxesTemp[k];
                         double lvIOUPotentialMatch = this->calBoxIOU(visualBBoxPotentialMatch, lidarBBox, true);
-                        if (lvIOUPotentialMatch > boxIOUThresh){
-                            overlappingVisualBoxes.push_back(k);
+                        if (lvIOUPotentialMatch > this->boxIOUThresh_){
+                            overlappingVisualBBoxes.push_back(k);
                         }
                     }
                 }
-
-                // --
-
-                // // get center of the LiDAR box
-                // double lidarCenterX = lidarBBox.x;
-                // double lidarCenterY = lidarBBox.y;
-                // double lidarCenterZ = lidarBBox.z;
-
-                // // check overlap 
-                // if (lidarCenterX >= visualXMin && lidarCenterX <= visualXMax &&
-                //     lidarCenterY >= visualYMin && lidarCenterY <= visualYMax &&
-                //     lidarCenterZ >= visualZMin && lidarCenterZ <= visualZMax) {
-                //     overlappingLidarBoxes.push_back(j);
-                // }
             }
-            // cout << "overlapping num: " << overlappingLidarBoxes.size() << endl;
+
             // **Case 1: no overlapping LiDAR boxes
-            if (overlappingLidarBoxes.empty()) {
+            if (overlappingLidarBBoxes.empty()) {
                 // no overlapping LiDAR boxes, keep the visual box
                 filteredBBoxesTemp.push_back(visualBBox);
                 filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
                 filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
                 filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
-                // mark the visual box as processed
-                processedVisualBoxes[i] = true;
-            // **Case 2: one LiDAR box overlaps with one visual box
-            } 
-            else{
-                std::vector<onboardDetector::box3D> overlappingBoxes {visualBBox};
+                processedVisualBBoxes[i] = true; // mark the visual box as processed
+            // **Case 2: multiple bounding boxes have overlapping
+            }else{
+                std::vector<onboardDetector::box3D> overlappingBBoxes {visualBBox};
                 std::vector<Eigen::Vector3d> overlappingPcCluster = visualPcClustersTemp[i];
                 // update size of fused bounding boxes
                 double xmax = visualBBox.x + visualBBox.x_width / 2;
@@ -1562,8 +1218,8 @@ namespace onboardDetector{
                 double zmin = visualBBox.z - visualBBox.z_width / 2;
 
                 // get all potential bounding boxes that can merge
-                for (int lidarIdx : overlappingLidarBoxes){
-                    overlappingBoxes.push_back(lidarBBoxesTemp[lidarIdx]);
+                for (int lidarIdx : overlappingLidarBBoxes){
+                    overlappingBBoxes.push_back(lidarBBoxesTemp[lidarIdx]);
                     xmax = std::max(xmax, lidarBBoxesTemp[lidarIdx].x + lidarBBoxesTemp[lidarIdx].x_width / 2);
                     xmin = std::min(xmin, lidarBBoxesTemp[lidarIdx].x - lidarBBoxesTemp[lidarIdx].x_width / 2);
                     ymax = std::max(ymax, lidarBBoxesTemp[lidarIdx].y + lidarBBoxesTemp[lidarIdx].y_width / 2);
@@ -1573,10 +1229,10 @@ namespace onboardDetector{
                     for (Eigen::Vector3d lidarPoints : lidarPcClustersTemp[lidarIdx]){
                         overlappingPcCluster.push_back(lidarPoints);
                     }
-                    processedLidarBoxes[lidarIdx] = true;
+                    processedLidarBBoxes[lidarIdx] = true;
                 }
-                for (int visualIdx : overlappingVisualBoxes){
-                    overlappingBoxes.push_back(visualBBoxesTemp[visualIdx]);
+                for (int visualIdx : overlappingVisualBBoxes){
+                    overlappingBBoxes.push_back(visualBBoxesTemp[visualIdx]);
                     xmax = std::max(xmax, visualBBoxesTemp[visualIdx].x + visualBBoxesTemp[visualIdx].x_width / 2);
                     xmin = std::min(xmin, visualBBoxesTemp[visualIdx].x - visualBBoxesTemp[visualIdx].x_width / 2);
                     ymax = std::max(ymax, visualBBoxesTemp[visualIdx].y + visualBBoxesTemp[visualIdx].y_width / 2);
@@ -1586,7 +1242,7 @@ namespace onboardDetector{
                     for (Eigen::Vector3d visualPoints : visualPcClustersTemp[visualIdx]){
                         overlappingPcCluster.push_back(visualPoints);
                     }
-                    processedVisualBoxes[visualIdx] = true;
+                    processedVisualBBoxes[visualIdx] = true;
                 }
 
                 std::vector<Eigen::Vector3d>& fusedPcCluster = overlappingPcCluster;
@@ -1607,172 +1263,13 @@ namespace onboardDetector{
                 filteredPcClustersTemp.push_back(fusedPcCluster); 
                 filteredPcClusterCentersTemp.push_back(fusedPcClusterCenter);
                 filteredPcClusterStdsTemp.push_back(fusedPcClusterStd);
-                processedVisualBoxes[i] = true;
-
-
-                // Zhefan: also need to update pcclusters
-                // std::vector<Eigen::Vector3d> fusedPcCluster = visualPcClustersTemp[i];
-                // for (Eigen::Vector3d lidarPoints : lidarPcClustersTemp[lidarIdx]){
-                //     fusedPcCluster.push_back(lidarPoints);
-                // }
-                // // ---------------------------------------------------------
-
-
-                // int lidarIdx = overlappingLidarBoxes[0];
-                // onboardDetector::box3D lidarBBox = lidarBBoxesTemp[lidarIdx];
-
-                // double xmax = std::max(visualBBox.x + visualBBox.x_width / 2, lidarBBox.x + lidarBBox.x_width / 2);
-                // double xmin = std::min(visualBBox.x - visualBBox.x_width / 2, lidarBBox.x - lidarBBox.x_width / 2);
-                // double ymax = std::max(visualBBox.y + visualBBox.y_width / 2, lidarBBox.y + lidarBBox.y_width / 2);
-                // double ymin = std::min(visualBBox.y - visualBBox.y_width / 2, lidarBBox.y - lidarBBox.y_width / 2);
-                // double zmax = std::max(visualBBox.z + visualBBox.z_width / 2, lidarBBox.z + lidarBBox.z_width / 2);
-                // double zmin = std::min(visualBBox.z - visualBBox.z_width / 2, lidarBBox.z - lidarBBox.z_width / 2);
-
-
-                // // Zhefan: also need to update pcclusters
-                // std::vector<Eigen::Vector3d> fusedPcCluster = visualPcClustersTemp[i];
-                // for (Eigen::Vector3d lidarPoints : lidarPcClustersTemp[lidarIdx]){
-                //     fusedPcCluster.push_back(lidarPoints);
-                // }
-
-                // // Zhefan: also consider the matches from LiDAR 
-                // for (int visualIdx : overlappingVisualBoxes){
-                //     onboardDetector::box3D visualBBoxFromLidarMatch = visualBBoxesTemp[visualIdx];
-                //     xmax = std::max(xmax, visualBBoxFromLidarMatch.x + visualBBoxFromLidarMatch.x_width / 2);
-                //     xmin = std::min(xmin, visualBBoxFromLidarMatch.x - visualBBoxFromLidarMatch.x_width / 2);
-                //     ymax = std::max(ymax, visualBBoxFromLidarMatch.y + visualBBoxFromLidarMatch.y_width / 2);
-                //     ymin = std::min(ymin, visualBBoxFromLidarMatch.y - visualBBoxFromLidarMatch.y_width / 2);
-                //     zmax = std::max(zmax, visualBBoxFromLidarMatch.z + visualBBoxFromLidarMatch.z_width / 2);
-                //     zmin = std::min(zmin, visualBBoxFromLidarMatch.z - visualBBoxFromLidarMatch.z_width / 2);
-
-                //     for (Eigen::Vector3d pt : visualPcClustersTemp[visualIdx]){
-                //         fusedPcCluster.push_back(pt);
-                //     }
-
-                //     processedVisualBoxes[visualIdx] = true;
-                // }
-
-                // Eigen::Vector3d fusedPcClusterCenter, fusedPcClusterStd;
-                // this->calcPcFeat(fusedPcCluster, fusedPcClusterCenter, fusedPcClusterStd);
-
-                // onboardDetector::box3D fusedBBox;
-                // fusedBBox.x = (xmin + xmax) / 2;
-                // fusedBBox.y = (ymin + ymax) / 2;
-                // fusedBBox.z = (zmin + zmax) / 2;
-                // fusedBBox.x_width = xmax - xmin;
-                // fusedBBox.y_width = ymax - ymin;
-                // fusedBBox.z_width = zmax - zmin;
-                // fusedBBox.Vx = 0;
-                // fusedBBox.Vy = 0;
-
-                // filteredBBoxesTemp.push_back(fusedBBox);
-                // filteredPcClustersTemp.push_back(fusedPcCluster); 
-                // filteredPcClusterCentersTemp.push_back(fusedPcClusterCenter);
-                // filteredPcClusterStdsTemp.push_back(fusedPcClusterStd);
-
-                // // mark the visual box and LiDAR box as processed
-                // processedVisualBoxes[i] = true;
-                // processedLidarBoxes[lidarIdx] = true;
-
-
-            // **Case 3: multiple LiDAR boxes overlap with one visual box
-            // } else { // overlappingLidarBoxes.size() > 1 // TODO: whether this is useful and how to incorporate overlappingVisualBoxes
-            //     // check if all LiDAR boxes are mutually overlapping
-            //     cout << "notice here is reached!!!!!!!!!!!!!!!!!!!!!!!" << endl;
-            //     bool allMutuallyOverlap = true;
-            //     for (size_t m = 0; m < overlappingLidarBoxes.size(); ++m) {
-            //         for (size_t n = m + 1; n < overlappingLidarBoxes.size(); ++n) {
-            //             int idx1 = overlappingLidarBoxes[m];
-            //             int idx2 = overlappingLidarBoxes[n];
-            //             double iouLidar = this->calBoxIOU(lidarBBoxesTemp[idx1], lidarBBoxesTemp[idx2]);
-            //             if (iouLidar <= boxIOUThresh) {
-            //                 allMutuallyOverlap = false;
-            //                 break;
-            //             }
-            //         }
-            //         if (!allMutuallyOverlap) break;
-            //     }
-            //     // **Case 3.1: all LiDAR boxes mutually overlap
-            //     if (allMutuallyOverlap) {
-            //         // fuse all LiDAR boxes with one visual box
-            //         double xVmin = visualBBox.x - visualBBox.x_width / 2;
-            //         double xVmax = visualBBox.x + visualBBox.x_width / 2;
-            //         double yVmin = visualBBox.y - visualBBox.y_width / 2;
-            //         double yVmax = visualBBox.y + visualBBox.y_width / 2;
-            //         double zVmin = visualBBox.z - visualBBox.z_width / 2;
-            //         double zVmax = visualBBox.z + visualBBox.z_width / 2;
-
-            //         double xFmin = xVmin;
-            //         double xFmax = xVmax;
-            //         double yFmin = yVmin;
-            //         double yFmax = yVmax;
-            //         double zFmin = zVmin;
-            //         double zFmax = zVmax;
-
-
-
-            //         for (int idx : overlappingLidarBoxes) {
-            //             onboardDetector::box3D lidarBBox = lidarBBoxesTemp[idx];
-            //             double xLmin = lidarBBox.x - lidarBBox.x_width / 2;
-            //             double xLmax = lidarBBox.x + lidarBBox.x_width / 2;
-            //             double yLmin = lidarBBox.y - lidarBBox.y_width / 2;
-            //             double yLmax = lidarBBox.y + lidarBBox.y_width / 2;
-            //             double zLmin = lidarBBox.z - lidarBBox.z_width / 2;
-            //             double zLmax = lidarBBox.z + lidarBBox.z_width / 2;
-
-            //             xFmin = std::min(xFmin, xLmin);
-            //             xFmax = std::max(xFmax, xLmax);
-            //             yFmin = std::min(yFmin, yLmin);
-            //             yFmax = std::max(yFmax, yLmax);
-            //             zFmin = std::min(zFmin, zLmin);
-            //             zFmax = std::max(zFmax, zLmax);
-
-            //             // mark the LiDAR box as processed
-            //             processedLidarBoxes[idx] = true;
-            //         }
-
-            //         onboardDetector::box3D fusedBBox;
-            //         fusedBBox.x = (xFmin + xFmax) / 2;
-            //         fusedBBox.y = (yFmin + yFmax) / 2;
-            //         fusedBBox.z = (zFmin + zFmax) / 2;
-            //         fusedBBox.x_width = xFmax - xFmin;
-            //         fusedBBox.y_width = yFmax - yFmin;
-            //         fusedBBox.z_width = zFmax - zFmin;
-            //         fusedBBox.Vx = 0;
-            //         fusedBBox.Vy = 0;
-
-
-                    
-
-            //         filteredBBoxesTemp.push_back(fusedBBox);
-            //         filteredPcClustersTemp.push_back(visualPcClustersTemp[i]); 
-            //         filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
-            //         filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
-
-            //         // mark the visual box as processed
-            //         processedVisualBoxes[i] = true;
-            //     // **Case 3.2: multiple LiDAR boxes do not mutually overlap
-            //     } else {
-            //         // exist multiple LiDAR boxes that do not mutually overlap
-            //         // keep only the LiDAR boxes
-            //         for (int idx : overlappingLidarBoxes) {
-            //             onboardDetector::box3D lidarBBox = lidarBBoxesTemp[idx];
-            //             filteredBBoxesTemp.push_back(lidarBBox);
-            //             filteredPcClustersTemp.push_back(lidarPcClustersTemp[idx]);
-            //             filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[idx]);
-            //             filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[idx]);
-            //             // mark the LiDAR box as processed
-            //             processedLidarBoxes[idx] = true;
-            //         }
-            //         // mark the visual box as processed
-            //         processedVisualBoxes[i] = true;
-            //     }
+                processedVisualBBoxes[i] = true;
             }
         }
 
-        // **Case B: Multiple visual boxes in one LiDAR box
+        // STEP 4: Add rest of LiDAR detection 
         for (size_t i = 0; i < lidarBBoxesTemp.size(); ++i) {
-            if (processedLidarBoxes[i]) continue; // skip processed LiDAR boxes
+            if (processedLidarBBoxes[i]) continue; // skip processed LiDAR boxes
             onboardDetector::box3D lidarBBox = lidarBBoxesTemp[i];
 
             // put the rest lidar bbox into the filtered bboxes
@@ -1780,23 +1277,15 @@ namespace onboardDetector{
             filteredPcClustersTemp.push_back(lidarPcClustersTemp[i]);
             filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[i]);
             filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
-            processedLidarBoxes[i] = true;
+            processedLidarBBoxes[i] = true;
         }
-        // for (onboardDetector::box3D box : filteredBBoxesTemp){
-        //     // if (box.x_width <= 0 or box.y_width <= 0){
-        //         cout << "before yolo box: " << box.x << " " << box.y << " " << box.x_width << " " << box.y_width << endl;
-        //     // }
-        // }
-
-        // Zhefan --
-        this->filteredBBoxesBeforeYolo_ = filteredBBoxesTemp;
-
-        // --
+        this->filteredBBoxesBeforeYolo_ = filteredBBoxesTemp; // for visualization
 
 
-        std::vector<int> best3DBBoxForYOLO(this->yoloDetectionResults_.detections.size(), -1);
-
+        // STEP 5: If YOLO detection results are available, improve the classification and splitting potential incorrect bboxes
         if (this->yoloDetectionResults_.detections.size() != 0){
+            std::vector<int> best3DBBoxForYOLO(this->yoloDetectionResults_.detections.size(), -1);
+
             // Project 2D bbox in color image plane from 3D
             vision_msgs::Detection2DArray filteredDetectionResults;
             for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
@@ -1807,7 +1296,6 @@ namespace onboardDetector{
                 Eigen::Vector3d sizeWorld (bbox.x_width, bbox.y_width, bbox.z_width);
                 Eigen::Vector3d centerCam, sizeCam;
                 this->transformBBox(centerWorld, sizeWorld, -this->orientationColor_.inverse() * this->positionColor_, this->orientationColor_.inverse(), centerCam, sizeCam);
-
 
                 // 2. find the top left and bottom right corner 3D position of the transformed bbox
                 Eigen::Vector3d topleft (centerCam(0)-sizeCam(0)/2, centerCam(1)-sizeCam(1)/2, centerCam(2));
@@ -1833,7 +1321,6 @@ namespace onboardDetector{
                 bboxVis.width = brX - tlX;
                 cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
             }
-
 
             for (int i=0; i<int(this->yoloDetectionResults_.detections.size()); ++i){
                 int tlXTarget = int(this->yoloDetectionResults_.detections[i].bbox.center.x);
@@ -1862,26 +1349,13 @@ namespace onboardDetector{
                 // Add the text to the image
                 cv::putText(this->detectedColorImage_, text, textOrg, fontFace, fontScale, cv::Scalar(255, 0, 0), thickness, 8);
 
-                // zhefan commented this out
-                // double yoloBoxArea = double((brXTarget - tlXTarget) * (brYTarget - tlYTarget));
-
                 double bestIOU = 0.0;
                 int bestIdx = -1;
-                // double bestCoverageRatio = 0.0; // the ratio of the area of the yolo bbox that is covered by the 3D bbox (Zhefan comment out)
-
-                // Zhefan comments out: Calculate the center of the YOLO 2D box
-                // double yoloCenterX = (tlXTarget + brXTarget) / 2.0;
-                // double yoloCenterY = (tlYTarget + brYTarget) / 2.0;
-
                 for (int j = 0; j < int(filteredBBoxesTemp.size()); ++j) {
                     int tlX = int(filteredDetectionResults.detections[j].bbox.center.x);
                     int tlY = int(filteredDetectionResults.detections[j].bbox.center.y);
                     int brX = tlX + int(filteredDetectionResults.detections[j].bbox.size_x);
                     int brY = tlY + int(filteredDetectionResults.detections[j].bbox.size_y);
-
-                    // Check if the YOLO center is inside the 3D bounding box (Zhefan commented out)
-                    // bool isCenterInside = (yoloCenterX >= tlX && yoloCenterX <= brX &&
-                    //                     yoloCenterY >= tlY && yoloCenterY <= brY);
 
                     // check the IOU between yolo and projected bbox
                     double xOverlap = double(std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget)));
@@ -1898,29 +1372,13 @@ namespace onboardDetector{
                         bestIOU = IOU;
                         bestIdx = j;
                     }
-                    // double coverageRatio = (yoloBoxArea > 0) ? (intersection / yoloBoxArea) : 0.0;
-
-
-
-                    // Update best match only if center is inside and criteria are met (Zhefan commented out)
-                    // if (isCenterInside &&
-                    //     (IOU > bestIOU || (fabs(IOU - bestIOU) < 1e-6 && coverageRatio > bestCoverageRatio))) {
-                    //     bestIOU = IOU;
-                    //     bestCoverageRatio = coverageRatio;
-                    //     bestIdx = j;
-                    // }
                 }
-                // TODO: find a better way to determine correspondence between 3D and YOLO boxes
-                // if (bestIOU > 0.4 || (bestIOU > 0.2 && bestCoverageRatio > 0.6)) {
-                //     best3DBBoxForYOLO[i] = bestIdx;
-                // }
 
                 if (bestIOU > 0.0){
                     best3DBBoxForYOLO[i] = bestIdx;
                 }
             }
 
-            
             std::map<int, std::vector<int>> box3DToYolo;
             for (int i = 0; i < int(best3DBBoxForYOLO.size()); ++i) {
                 int idx3D = best3DBBoxForYOLO[i];
@@ -1929,39 +1387,14 @@ namespace onboardDetector{
                 }
             }
 
-            // Zhefan: debug box3d to YOLO
-            // for (const auto& pair : box3DToYolo){
-            //     onboardDetector::box3D currBox = filteredBBoxesTemp[pair.first];
-            //     cout << "curr box: " << currBox.x << " " << currBox.y << " " << currBox.z << endl;
-            //     for (int yoloIdx : pair.second){
-            //         if (yoloIdx != -1){
-            //             int tlXTarget = int(this->yoloDetectionResults_.detections[yoloIdx].bbox.center.x);
-            //             int tlYTarget = int(this->yoloDetectionResults_.detections[yoloIdx].bbox.center.y);
-            //             int brXTarget = tlXTarget + int(this->yoloDetectionResults_.detections[yoloIdx].bbox.size_x);
-            //             int brYTarget = tlYTarget + int(this->yoloDetectionResults_.detections[yoloIdx].bbox.size_y);    
-            //             cout << "YOLO idx: " << yoloIdx << " data: " << tlXTarget << " " << tlYTarget << " " << brXTarget
-            //             << " " <<  brYTarget << endl;          
-            //         }
-            //     } 
-            // }
-
-            // Zhefan: check whether the bounding box center is consistent or not
-            // for (int ntest=0; ntest<int(filteredBBoxesTemp.size()); ++ntest){
-            //     onboardDetector::box3D testBBox = filteredBBoxesTemp[ntest];
-            //     Eigen::Vector3d testClusterCenter = filteredPcClusterCentersTemp[ntest];
-            //     std::vector<Eigen::Vector3d> testCluster = filteredPcClustersTemp[ntest];
-            //     cout << "center: " << testBBox.x << " " << testBBox.y << " " << testBBox.z << endl;
-            //     cout << "cluster center: " << testClusterCenter.transpose() << endl; 
-            //     cout << "cluster points 0: " << testCluster[0].transpose() << endl; 
-            // }
-
             std::vector<onboardDetector::box3D> newFilteredBBoxes;
             std::vector<std::vector<Eigen::Vector3d>> newFilteredPcClusters;
             std::vector<Eigen::Vector3d> newFilteredPcClusterCenters;
             std::vector<Eigen::Vector3d> newFilteredPcClusterStds;
-            // *Case 1: No corresponding yolo box
+            
             for (int idx3D = 0; idx3D < int(filteredBBoxesTemp.size()); ++idx3D) {
                 auto it = box3DToYolo.find(idx3D);
+                // *Case 1: No corresponding yolo box
                 if (it == box3DToYolo.end()) {
                     newFilteredBBoxes.push_back(filteredBBoxesTemp[idx3D]);
                     newFilteredPcClusters.push_back(filteredPcClustersTemp[idx3D]);
@@ -1979,15 +1412,12 @@ namespace onboardDetector{
                     newFilteredPcClusters.push_back(filteredPcClustersTemp[idx3D]);
                     newFilteredPcClusterCenters.push_back(filteredPcClusterCentersTemp[idx3D]);
                     newFilteredPcClusterStds.push_back(filteredPcClusterStdsTemp[idx3D]);
+                // *Case 3: multiple yolo boxes correspond to one 3D box
                 } else {
-                    cout << "try to split yolo." << endl;
-                    // cout << "cluster bbox center: " << filteredBBoxesTemp[idx3D].x << " " << filteredBBoxesTemp[idx3D].y << " " << filteredBBoxesTemp[idx3D].z << endl;
-                    // *Case 3: multiple yolo boxes correspond to one 3D box
                     std::vector<Eigen::Vector3d> cloudCluster = filteredPcClustersTemp[idx3D];
 
-
                     // iterate to assign all points
-                    int allowMargin = 2; // pixel TODO: hardcode removal
+                    int allowMargin = 0; // pixel 
                     std::vector<int> assignment(cloudCluster.size(), -1);
                     for (size_t i = 0; i < cloudCluster.size(); ++i){
                         Eigen::Vector3d ptWorld = cloudCluster[i];
@@ -2006,10 +1436,6 @@ namespace onboardDetector{
                             int xMax = XTarget + XTargetWid;
                             int yMin = YTarget;
                             int yMax = YTarget + YTargetWid;
-                            
-                            // int xCenter = (xMin + xMax) / 2;
-                            // int yCenter = (yMin + yMax) / 2;
-                            // int distance = std::abs(xCenter - u) + std::abs(yCenter - v); 
 
                             if (u >= xMin-allowMargin && u <= xMax+allowMargin && v >= yMin-allowMargin && v <= yMax+allowMargin) {
                                 // Horizontal signed distance
@@ -2022,16 +1448,6 @@ namespace onboardDetector{
                                     horizontalDistance = std::max(xMin - u, u - xMax); // Inside horizontally
                                 }
 
-                                // Vertical signed distance
-                                // int verticalDistance = 0;
-                                // if (v < yMin) {
-                                //     verticalDistance = yMin - v; // Outside on the top
-                                // } else if (v > yMax) {
-                                //     verticalDistance = v - yMax; // Outside on the bottom
-                                // } else {
-                                //     verticalDistance = std::max(yMin - v, v - yMax); // Inside vertically
-                                // }
-
                                 // Compute signed distance to the closest edge
                                 int signedDistance;
                                 if (u < xMin || u > xMax || v < yMin || v > yMax) {
@@ -2041,14 +1457,7 @@ namespace onboardDetector{
                                     // Inside: Take the negative of the minimum distance to any edge
                                     signedDistance = horizontalDistance;
                                 }
-                                // int signedDistance;
-                                // if (u < xMin || u > xMax || v < yMin || v > yMax) {
-                                //     // Outside: Take the larger of horizontal or vertical distance
-                                //     signedDistance = std::max(horizontalDistance, verticalDistance);
-                                // } else {
-                                //     // Inside: Take the negative of the minimum distance to any edge
-                                //     signedDistance = -std::min(horizontalDistance, verticalDistance);
-                                // }
+          
                                 int distance = signedDistance;
                                 if (distance < closestDist){
                                     assignment[i] = yidx;
@@ -2059,7 +1468,6 @@ namespace onboardDetector{
                     }
 
                     std::vector<bool> flag(cloudCluster.size(), false);
-                    // yoloIndices.push_back(-1); // to account for non-assigned points
                     for (int yidx : yoloIndices){
                         std::vector<Eigen::Vector3d> subCloud;
                         for (size_t i = 0; i < cloudCluster.size(); ++i){
@@ -2072,12 +1480,10 @@ namespace onboardDetector{
                                 flag[i] = true;
                             }
                         }
-                        cout << "subcloud size: " << subCloud.size() << endl;
                         if (subCloud.size() != 0){
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
                             center = computeCenter(subCloud);
-
 
                             double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
                             double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
@@ -2102,173 +1508,23 @@ namespace onboardDetector{
                                 continue;
                             }
 
-                            // if (yidx != -1){
                             newBox.is_dynamic = true;
                             newBox.is_human = true;
-                            // }
-                            stddev = computeStd(subCloud, center);
 
+                            stddev = computeStd(subCloud, center);
                             newFilteredBBoxes.push_back(newBox);
                             newFilteredPcClusters.push_back(subCloud);
                             newFilteredPcClusterCenters.push_back(center);
                             newFilteredPcClusterStds.push_back(stddev);
                         }
                     }
-                    // Initialize flag array for cloudCluster
-                    // std::vector<bool> flag(cloudCluster.size(), false);
-                    // // ROS_INFO("Looping through yolo indices");
-                    // for (int yidx : yoloIndices) {
-                    //     int XTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.x);
-                    //     int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
-                    //     int XTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_x);
-                    //     int YTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_y);
-
-
-                    //     // ZHefan: this might be the issue (don' need to divide 2)
-                    //     // int xMin = XTarget - XTargetWid / 2;
-                    //     // int xMax = XTarget + XTargetWid / 2;
-                    //     // int yMin = YTarget - YTargetWid / 2;
-                    //     // int yMax = YTarget + YTargetWid / 2;
-                    //     int xMin = XTarget - XTargetWid;
-                    //     int xMax = XTarget + XTargetWid;
-                    //     int yMin = YTarget - YTargetWid;
-                    //     int yMax = YTarget + YTargetWid;
-
-                    //     std::vector<Eigen::Vector3d> subCloud;
-
-                    //     for (size_t i = 0; i < cloudCluster.size(); ++i) {
-                    //         // Skip if the point has been assigned to a subcloud
-                    //         if (flag[i]) {
-                    //             continue; 
-                    //         }
-
-                    //         // auto &pt = cloudCluster[i];
-                    //         Eigen::Vector3d ptWorld = cloudCluster[i];
-                    //         Eigen::Vector3d ptCam = this->orientationColor_.inverse() * (ptWorld - this->positionColor_);
-
-                    //         int u = (this->fxC_ * ptCam(0) + this->cxC_ * ptCam(2)) / ptCam(2);
-                    //         int v = (this->fyC_ * ptCam(1) + this->cyC_ * ptCam(2)) / ptCam(2);
-                    //         // cout << "pt world: " << ptWorld.transpose() << "cluster bbox center: " << filteredBBoxesTemp[idx3D].x << " " << filteredBBoxesTemp[idx3D].y << " " << filteredBBoxesTemp[idx3D].z << endl;
-                    //         // cout << "pt cam: " << ptCam.transpose() << endl;
-                    //         // cout << "u: " << u << " v: " << v << endl;
-                    //         if (u >= xMin && u <= xMax && v >= yMin && v <= yMax) {
-                    //             subCloud.push_back(ptWorld);
-                    //             flag[i] = true;
-                    //         }
-                    //     }
-                    //     // cout << "cloud size: " << cloudCluster.size() << endl;
-                    //     // cout << "sub cloud size: " << subCloud.size() << " for YOLO idx: " << yidx << endl;
-                    //     // TODO: check 3D projection logic
-                    //     if (!subCloud.empty()) {
-                    //         onboardDetector::box3D newBox;
-                    //         Eigen::Vector3d center, stddev;
-                    //         center = computeCenter(subCloud);
-                    //         newBox.x = center(0);
-                    //         newBox.y = center(1);
-                    //         newBox.z = center(2);
-
-                    //         double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
-                    //         double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
-                    //         double zMin = std::numeric_limits<double>::max(), zMax = std::numeric_limits<double>::lowest();
-
-                    //         for (const auto &pt : subCloud) {
-                    //             xMin = std::min(xMin, pt.x());
-                    //             xMax = std::max(xMax, pt.x());
-                    //             yMin = std::min(yMin, pt.y());
-                    //             yMax = std::max(yMax, pt.y());
-                    //             zMin = std::min(zMin, pt.z());
-                    //             zMax = std::max(zMax, pt.z());
-                    //         }
-                    //         // create a new bounding box
-                    //         newBox.x_width = xMax - xMin;
-                    //         newBox.y_width = yMax - yMin;
-                    //         newBox.z_width = zMax - zMin;
-                    //         newBox.x = (xMin + xMax) / 2;
-                    //         newBox.y = (yMin + yMax) / 2;
-                    //         newBox.z = (zMin + zMax) / 2;
-                    //         newBox.is_dynamic = true;
-                    //         newBox.is_human = true;
-
-                    //         stddev = computeStd(subCloud, center);
-
-                    //         newFilteredBBoxes.push_back(newBox);
-                    //         newFilteredPcClusters.push_back(subCloud);
-                    //         newFilteredPcClusterCenters.push_back(center);
-                    //         newFilteredPcClusterStds.push_back(stddev);
-                    //     }
-                    // }
-                    // // Zhefan: create a cloud cluster and bbox for the rest of points, the
-                    // // only difference is that the rest of cloud will not be identified as dynamic directly
-                    // std::vector<Eigen::Vector3d> restCloud;
-                    // for (size_t i = 0; i < cloudCluster.size(); ++i){
-                    //     // Skip if the point has been assigned to a subcloud
-                    //     if (flag[i]) {
-                    //         continue; 
-                    //     }
-                    //     Eigen::Vector3d ptWorld = cloudCluster[i];
-                    //     restCloud.push_back(ptWorld);
-                    //     flag[i] = true;
-                    // }
-
-                    // if (!restCloud.empty()){
-                    //     onboardDetector::box3D newBox;
-                    //     Eigen::Vector3d center, stddev;
-                    //     center = computeCenter(restCloud);
-                    //     newBox.x = center(0);
-                    //     newBox.y = center(1);
-                    //     newBox.z = center(2);
-
-                    //     double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
-                    //     double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
-                    //     double zMin = std::numeric_limits<double>::max(), zMax = std::numeric_limits<double>::lowest();
-
-                    //     for (const auto &pt : restCloud) {
-                    //         xMin = std::min(xMin, pt.x());
-                    //         xMax = std::max(xMax, pt.x());
-                    //         yMin = std::min(yMin, pt.y());
-                    //         yMax = std::max(yMax, pt.y());
-                    //         zMin = std::min(zMin, pt.z());
-                    //         zMax = std::max(zMax, pt.z());
-                    //     }
-                    //     // create a new bounding box
-                    //     newBox.x_width = xMax - xMin;
-                    //     newBox.y_width = yMax - yMin;
-                    //     newBox.z_width = zMax - zMin;
-                    //     newBox.x = (xMin + xMax) / 2;
-                    //     newBox.y = (yMin + yMax) / 2;
-                    //     newBox.z = (zMin + zMax) / 2;
-
-                    //     stddev = computeStd(restCloud, center);
-
-                    //     newFilteredBBoxes.push_back(newBox);
-                    //     newFilteredPcClusters.push_back(restCloud);
-                    //     newFilteredPcClusterCenters.push_back(center);
-                    //     newFilteredPcClusterStds.push_back(stddev);
-                    // }
                 }
             }
-            filteredBBoxesTemp.clear();
-            filteredPcClustersTemp.clear();
-            filteredPcClusterCentersTemp.clear();
-            filteredPcClusterStdsTemp.clear();
-
             filteredBBoxesTemp = newFilteredBBoxes;
             filteredPcClustersTemp = newFilteredPcClusters;
             filteredPcClusterCentersTemp = newFilteredPcClusterCenters;
             filteredPcClusterStdsTemp = newFilteredPcClusterStds;
-
-            newFilteredBBoxes.clear();
-            newFilteredPcClusters.clear();
-            newFilteredPcClusterCenters.clear();
-            newFilteredPcClusterStds.clear();
         }
-        // for (onboardDetector::box3D box : filteredBBoxesTemp){
-        //     // if (box.x_width <= 0 or box.y_width <= 0){
-        //         cout << "box: " << box.x << " " << box.y << " " << box.x_width << " " << box.y_width << endl;
-        //     // }
-        // }
-
-
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
         this->filteredPcClusterCenters_ = filteredPcClusterCentersTemp;

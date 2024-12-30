@@ -2090,7 +2090,7 @@ namespace onboardDetector{
 
 
                     // iterate to assign all points
-                    int allowMargin = 0; // pixel TODO: hardcode removal
+                    int allowMargin = 2; // pixel TODO: hardcode removal
                     std::vector<int> assignment(cloudCluster.size(), -1);
                     for (size_t i = 0; i < cloudCluster.size(); ++i){
                         Eigen::Vector3d ptWorld = cloudCluster[i];
@@ -2105,9 +2105,9 @@ namespace onboardDetector{
                             int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
                             int XTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_x);
                             int YTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_y);
-                            int xMin = XTarget - XTargetWid;
+                            int xMin = XTarget;
                             int xMax = XTarget + XTargetWid;
-                            int yMin = YTarget - YTargetWid;
+                            int yMin = YTarget;
                             int yMax = YTarget + YTargetWid;
                             
                             // int xCenter = (xMin + xMax) / 2;

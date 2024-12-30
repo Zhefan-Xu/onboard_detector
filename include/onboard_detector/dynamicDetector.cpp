@@ -332,7 +332,7 @@ namespace onboardDetector{
             cout << this->hint_ << ": Max size difference range for matching is set to: " << this->maxMatchSizeRange_ << "m." << endl;
         }   
 
-        //feature weight
+        // feature weight
         std::vector<double> tempWeights;
         if (not nh_.getParam(ns_ + "/feature_weight", tempWeights)) {
             this->featureWeights_ = Eigen::VectorXd(10);
@@ -1645,7 +1645,6 @@ namespace onboardDetector{
             }            
         }
 
-
         // calculate the bounding boxes and clusters
         pcClusters.clear();
         bboxes.clear();
@@ -1750,12 +1749,6 @@ namespace onboardDetector{
         double box1Volume = box1.x_width * box1.y_width * box1.z_width;
         double box2Volume = box2.x_width * box2.y_width * box2.z_width;
 
-        // std::cout << "box1:" << box1.x << " "<< box1.y << " "<< box1.z << std::endl;
-        // std::cout << "box2:" << box2.x << " "<< box2.y << " "<< box2.z << std::endl;
-        // std::cout << "box1:" << box1.x_width/2 << " "<< box1.y_width/2 << " "<< box1.z_width/2 << std::endl;
-        // std::cout << "box2:" << box2.x_width/2 << " "<<box2.y_width/2 << " "<< box2.z_width/2 << std::endl;
-
-
         double l1Y = box1.y+box1.y_width/2.-(box2.y-box2.y_width/2.);
         double l2Y = box2.y+box2.y_width/2.-(box1.y-box1.y_width/2.);
         double l1X = box1.x+box1.x_width/2.-(box2.x-box2.x_width/2.);
@@ -1789,10 +1782,6 @@ namespace onboardDetector{
             overlapZ = std::min(box1.z_width, box2.z_width);
         }
 
-        // std::cout<< "overlapX:" << overlapX;
-        // std::cout << "overlapY:" << overlapY;
-        // std::cout << "overlapZ:" << overlapZ << std::endl;
-
 
         double overlapVolume = overlapX * overlapY *  overlapZ;
         double IOU = overlapVolume / (box1Volume+box2Volume-overlapVolume);
@@ -1803,181 +1792,6 @@ namespace onboardDetector{
         }
         return IOU;
     }
-
-    // double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2) {
-    //     // Volumes
-    //     double box1Volume = box1.x_width * box1.y_width * box1.z_width;
-    //     double box2Volume = box2.x_width * box2.y_width * box2.z_width;
-
-    //     // Box 1 min and max coordinates
-    //     double minX1 = box1.x - box1.x_width / 2.0;
-    //     double maxX1 = box1.x + box1.x_width / 2.0;
-    //     double minY1 = box1.y - box1.y_width / 2.0;
-    //     double maxY1 = box1.y + box1.y_width / 2.0;
-    //     double minZ1 = box1.z - box1.z_width / 2.0;
-    //     double maxZ1 = box1.z + box1.z_width / 2.0;
-
-    //     // Box 2 min and max coordinates
-    //     double minX2 = box2.x - box2.x_width / 2.0;
-    //     double maxX2 = box2.x + box2.x_width / 2.0;
-    //     double minY2 = box2.y - box2.y_width / 2.0;
-    //     double maxY2 = box2.y + box2.y_width / 2.0;
-    //     double minZ2 = box2.z - box2.z_width / 2.0;
-    //     double maxZ2 = box2.z + box2.z_width / 2.0;
-
-    //     // Overlaps
-    //     double overlapX = std::min(maxX1, maxX2) - std::max(minX1, minX2);
-    //     double overlapY = std::min(maxY1, maxY2) - std::max(minY1, minY2);
-    //     double overlapZ = std::min(maxZ1, maxZ2) - std::max(minZ1, minZ2);
-    //     double Xratio = overlapX / std::max(box1.x_width, box2.x_width);
-    //     double Yratio = overlapY / std::max(box1.y_width, box2.y_width);
-    //     double Zratio = overlapZ / std::max(box1.z_width, box2.z_width);
-
-    //     double IOU = Xratio + Yratio + Zratio;
-    //     std::cout << "Raw IOU:" << IOU << std::endl;
-    //     if(IOU > 0){
-    //         IOU = 1;
-    //     }
-    //     else {
-    //         IOU = 0;
-    //     }
-    //     return IOU;
-    // }
-
-
-    void dynamicDetector::getYolo3DBBox(const vision_msgs::Detection2D& detection, onboardDetector::box3D& bbox3D, cv::Rect& bboxVis){
-        if (this->alignedDepthImage_.empty()){
-            return;
-        }
-
-        const Eigen::Vector3d humanSize (0.5, 0.5, 1.8);
-
-        // 1. retrive 2D detection result
-        int topX = int(detection.bbox.center.x); 
-        int topY = int(detection.bbox.center.y); 
-        int xWidth = int(detection.bbox.size_x); 
-        int yWidth = int(detection.bbox.size_y); 
-        bboxVis.x = topX;
-        bboxVis.y = topY;
-        bboxVis.height = yWidth;
-        bboxVis.width = xWidth;
-
-        // 2. get thickness estimation (double MAD: double Median Absolute Deviation)
-        uint16_t* rowPtr;
-        double depth;
-        const double inv_factor = 1.0 / this->depthScale_;
-        int vMin = std::min(topY, this->depthFilterMargin_);
-        int uMin = std::min(topX, this->depthFilterMargin_);
-        int vMax = std::min(topY+yWidth, this->imgRows_-this->depthFilterMargin_);
-        int uMax = std::min(topX+xWidth, this->imgCols_-this->depthFilterMargin_);
-        std::vector<double> depthValues;
-
-
-        // record the depth values in the potential regions
-        for (int v=vMin; v<vMax; ++v){ // row
-            rowPtr = this->alignedDepthImage_.ptr<uint16_t>(v);
-            for (int u=uMin; u<uMax; ++u){ // column
-                depth = (*rowPtr) * inv_factor;
-                if (depth >= this->depthMinValue_ and depth <= this->depthMaxValue_){
-                    depthValues.push_back(depth);
-                }
-                ++rowPtr;
-            }
-        }
-        if (depthValues.size() == 0){ // in case of out of range
-            return;
-        }
-
-        // double MAD calculation
-        double depthMedian, MAD;
-        this->calculateMAD(depthValues, depthMedian, MAD);
-        // cout << "MAD: " << MAD << endl;
-
-        double depthMin = 10.0; double depthMax = -10.0;
-        // find min max depth value
-        for (int v=vMin; v<vMax; ++v){ // row
-            rowPtr = this->alignedDepthImage_.ptr<uint16_t>(v);
-            for (int u=uMin; u<uMax; ++u){ // column
-                depth = (*rowPtr) * inv_factor;
-                if (depth >= this->depthMinValue_ and depth <= this->depthMaxValue_){
-                    if ((depth < depthMin) and (depth >= depthMedian - 1.5 * MAD)){
-                        depthMin = depth;
-                    }
-
-                    if ((depth > depthMax) and (depth <= depthMedian + 1.5 * MAD)){
-                        depthMax = depth;
-                    }
-                }
-                ++rowPtr;
-            }
-        }
-        
-        if (depthMin == 10.0 or depthMax == -10.0){ // in case the depth value is not available
-            return;
-        }
-
-        // 3. project points into 3D in the camera frame
-        Eigen::Vector3d pUL, pBR, center;
-        pUL(0) = (topX - this->cxC_) * depthMedian / this->fxC_;
-        pUL(1) = (topY - this->cyC_) * depthMedian / this->fyC_;
-        pUL(2) = depthMedian;
-
-        pBR(0) = (topX + xWidth - this->cxC_) * depthMedian / this->fxC_;
-        pBR(1) = (topY + yWidth- this->cyC_) * depthMedian / this->fyC_;
-        pBR(2) = depthMedian;
-
-        center(0) = (pUL(0) + pBR(0))/2.0;
-        center(1) = (pUL(1) + pBR(1))/2.0;
-        center(2) = depthMedian;
-
-        double xWidth3D = std::abs(pBR(0) - pUL(0));
-        double yWidth3D = std::abs(pBR(1) - pUL(1));
-        double zWidth3D = depthMax - depthMin; 
-        if ((zWidth3D/humanSize(2)>=2.0) or (zWidth3D/humanSize(2) <= 0.5)){ // error is too large, then use the predefined size
-            zWidth3D = humanSize(2);
-        }       
-        Eigen::Vector3d size (xWidth3D, yWidth3D, zWidth3D);
-
-        // 4. transform 3D points into world frame
-        Eigen::Vector3d newCenter, newSize;
-        this->transformBBox(center, size, this->positionColor_, this->orientationColor_, newCenter, newSize);
-        bbox3D.x = newCenter(0);
-        bbox3D.y = newCenter(1);
-        bbox3D.z = newCenter(2);
-
-        bbox3D.x_width = newSize(0);
-        bbox3D.y_width = newSize(1);
-        bbox3D.z_width = newSize(2);
-
-        // 5. check the bounding box size. If the bounding box size is too different from the predefined size, overwrite the size
-        if ((bbox3D.x_width/humanSize(0)>=2.0) or (bbox3D.x_width/humanSize(0)<=0.5)){
-            bbox3D.x_width = humanSize(0);
-        }
-
-        if ((bbox3D.y_width/humanSize(1)>=2.0) or (bbox3D.y_width/humanSize(1)<=0.5)){
-            bbox3D.y_width = humanSize(1);
-        }
-
-        if ((bbox3D.z_width/humanSize(2)>=2.0) or (bbox3D.z_width/humanSize(2)<=0.5)){
-            bbox3D.z = humanSize(2)/2.;
-            bbox3D.z_width = humanSize(2);
-        }
-    }
-
-
-    void dynamicDetector::calculateMAD(std::vector<double>& depthValues, double& depthMedian, double& MAD){
-        std::sort(depthValues.begin(), depthValues.end());
-        int medianIdx = int(depthValues.size()/2);
-        depthMedian = depthValues[medianIdx]; // median of all data
-
-        std::vector<double> deviations;
-        for (size_t i=0; i<depthValues.size(); ++i){
-            deviations.push_back(std::abs(depthValues[i] - depthMedian));
-        }
-        std::sort(deviations.begin(), deviations.end());
-        MAD = deviations[int(deviations.size()/2)];
-    }
-
 
     void dynamicDetector::boxAssociation(std::vector<int>& bestMatch){
         int numObjs = int(this->filteredBBoxes_.size()); // current detected bboxes
@@ -2006,7 +1820,6 @@ namespace onboardDetector{
         }
 
         this->newDetectFlag_ = false; // the most recent detection has been associated
-        this->bestMatchHist_ = bestMatch;
     }
 
     void dynamicDetector::boxAssociationHelper(std::vector<int>& bestMatch){
@@ -2394,10 +2207,13 @@ namespace onboardDetector{
         line.color.b = b;
         line.color.a = 1.0;
         line.lifetime = ros::Duration(0.05);
+        line.pose.orientation.w = 1.0;
+        line.pose.orientation.w = 0.0;
+        line.pose.orientation.w = 0.0;
+        line.pose.orientation.w = 0.0;
         
         for(size_t i = 0; i < boxes.size(); i++){
             // visualization msgs
-            line.text = " Vx " + std::to_string(boxes[i].Vx) + " Vy " + std::to_string(boxes[i].Vy);
             double x = boxes[i].x; 
             double y = boxes[i].y; 
             double z = (boxes[i].z+boxes[i].z_width/2)/2; 
@@ -2472,197 +2288,41 @@ namespace onboardDetector{
         publisher.publish(lines);
     }
 
-    void dynamicDetector::publish3dBoxWithID(
-        const std::vector<box3D>& boxes,
-        const ros::Publisher& publisher,
-        double r, double g, double b) {
-        
-        // Initialize MarkerArray to hold all markers (lines and text)
-        visualization_msgs::MarkerArray marker_array;
-
-        // Define a base ID for line markers
-        int line_id_base = 0;
-
-        // Define a base ID for text markers (offset to avoid ID collision with line markers)
-        int text_id_base = boxes.size();
-
-        for(size_t i = 0; i < boxes.size(); i++) {
-            const box3D& box = boxes[i];
-
-            // Retrieve the match ID for the current box
-            int match_id = -1;
-            if (i < this->bestMatchHist_.size()) {
-                match_id = this->bestMatchHist_[i];
-            }
-
-            // Create a line marker for the current box
-            visualization_msgs::Marker line;
-            line.header.frame_id = "map";
-            line.header.stamp = ros::Time::now(); // Ensure the timestamp is current
-            line.type = visualization_msgs::Marker::LINE_LIST;
-            line.action = visualization_msgs::Marker::ADD;
-            line.ns = "box3D_lines";  
-            line.id = line_id_base++; // Unique ID for each line marker
-            line.scale.x = 0.06;
-
-            // Set color for the bounding box lines
-            if (match_id >= 0 && static_cast<int>(i) != match_id) {
-                // If box ID does not match match_id, set color to black
-                line.color.r = 0.0;
-                line.color.g = 0.0;
-                line.color.b = 0.0;
-                line.color.a = 1.0;
-            } else if (box.is_dynamic) {
-                // If the box is dynamic, set line color to blue
-                line.color.r = 0.0;
-                line.color.g = 0.0;
-                line.color.b = 1.0;
-                line.color.a = 1.0;
-            } else {
-                // Default color
-                line.color.r = r;
-                line.color.g = g;
-                line.color.b = b;
-                line.color.a = 1.0;
-            }
-            line.lifetime = ros::Duration(0.1);
-
-            // Prepare vertices for the bounding box
-            double x = box.x; 
-            double y = box.y; 
-            double z = (box.z + box.z_width / 2.0) / 2.0; 
-
-            double x_width = box.x_width;
-            double y_width = box.y_width;
-            double z_width = 2.0 * z;
-
-            std::vector<geometry_msgs::Point> verts(8);
-            // Define all 8 vertices of the box
-            verts[0].x = x - x_width / 2.0; verts[0].y = y - y_width / 2.0; verts[0].z = z - z_width / 2.0;
-            verts[1].x = x - x_width / 2.0; verts[1].y = y + y_width / 2.0; verts[1].z = z - z_width / 2.0;
-            verts[2].x = x + x_width / 2.0; verts[2].y = y + y_width / 2.0; verts[2].z = z - z_width / 2.0;
-            verts[3].x = x + x_width / 2.0; verts[3].y = y - y_width / 2.0; verts[3].z = z - z_width / 2.0;
-            verts[4].x = x - x_width / 2.0; verts[4].y = y - y_width / 2.0; verts[4].z = z + z_width / 2.0;
-            verts[5].x = x - x_width / 2.0; verts[5].y = y + y_width / 2.0; verts[5].z = z + z_width / 2.0;
-            verts[6].x = x + x_width / 2.0; verts[6].y = y + y_width / 2.0; verts[6].z = z + z_width / 2.0;
-            verts[7].x = x + x_width / 2.0; verts[7].y = y - y_width / 2.0; verts[7].z = z + z_width / 2.0;
-
-            // Define the 12 edges of the box by connecting vertices
-            int vert_idx[12][2] = {
-                {0,1}, {1,2}, {2,3}, {3,0}, // Bottom edges
-                {4,5}, {5,6}, {6,7}, {7,4}, // Top edges
-                {0,4}, {1,5}, {2,6}, {3,7}  // Side edges
-            };
-
-            // Add the edges to the line marker
-            for (int j = 0; j < 12; j++) {
-                line.points.push_back(verts[vert_idx[j][0]]);
-                line.points.push_back(verts[vert_idx[j][1]]);
-            }
-
-            // Add the line marker to the MarkerArray
-            marker_array.markers.push_back(line);
-
-            // Create a text marker for the box ID and bestMatch ID
-            visualization_msgs::Marker text_marker;
-            text_marker.header.frame_id = "map";
-            text_marker.header.stamp = ros::Time::now(); // Ensure the timestamp is current
-            text_marker.ns = "box3D_text";  
-            text_marker.id = text_id_base++; // Unique ID for each text marker
-            text_marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
-            text_marker.action = visualization_msgs::Marker::ADD;
-            
-            // Prepare the text to display
-            std::string text;
-            text = "ID: " + std::to_string(i);
-            
-
-            // Include bestMatch information if available
-            if (match_id >= 0) {
-                text += ", Match: " + std::to_string(match_id);
-            } else {
-                text += ", Match: None";
-            }
-            text_marker.text = text;
-
-            // Position the text marker
-            text_marker.pose.position.x = x;
-            text_marker.pose.position.y = y;
-
-            // Place text above the box for other boxes
-            text_marker.pose.position.z = z + z_width / 2.0 + 0.5; // Slightly above the box
-            
-
-            // Orientation (no rotation needed for text)
-            text_marker.pose.orientation.x = 0.0;
-            text_marker.pose.orientation.y = 0.0;
-            text_marker.pose.orientation.z = 0.0;
-            text_marker.pose.orientation.w = 1.0;
-
-            // Set the scale of the text (only z is used for size)
-            text_marker.scale.z = 0.5;
-
-            // Set text color based on box properties
-            if (match_id >= 0 && static_cast<int>(i) != match_id) {
-                // If box ID does not match match_id, set text color to black
-                text_marker.color.r = 0.0;
-                text_marker.color.g = 0.0;
-                text_marker.color.b = 0.0;
-                text_marker.color.a = 1.0;
-            } else if (box.is_dynamic) {
-                // If the box is dynamic, set text color to blue
-                text_marker.color.r = 0.0;
-                text_marker.color.g = 0.0;
-                text_marker.color.b = 1.0;
-                text_marker.color.a = 0.0;
-            } else {
-                // Default text color (white)
-                text_marker.color.r = 1.0;
-                text_marker.color.g = 1.0;
-                text_marker.color.b = 1.0;
-                text_marker.color.a = 0.0;
-            }
-
-            text_marker.lifetime = ros::Duration(0.1); // Same lifetime as lines
-
-            // Add the text marker to the MarkerArray
-            marker_array.markers.push_back(text_marker);
-        }
-
-        // Publish all markers at once
-        publisher.publish(marker_array);
-    }
-
-
     void dynamicDetector::publishHistoryTraj(){
         visualization_msgs::MarkerArray trajMsg;
         int countMarker = 0;
         for (size_t i=0; i<this->boxHist_.size(); ++i){
-            visualization_msgs::Marker traj;
-            traj.header.frame_id = "map";
-            traj.header.stamp = ros::Time::now();
-            traj.ns = "dynamic_detector";
-            traj.id = countMarker;
-            traj.type = visualization_msgs::Marker::LINE_LIST;
-            traj.scale.x = 0.03;
-            traj.scale.y = 0.03;
-            traj.scale.z = 0.03;
-            traj.color.a = 1.0; // Don't forget to set the alpha!
-            traj.color.r = 0.0;
-            traj.color.g = 1.0;
-            traj.color.b = 0.0;
-            for (size_t j=0; j<this->boxHist_[i].size()-1; ++j){
-                geometry_msgs::Point p1, p2;
-                onboardDetector::box3D box1 = this->boxHist_[i][j];
-                onboardDetector::box3D box2 = this->boxHist_[i][j+1];
-                p1.x = box1.x; p1.y = box1.y; p1.z = box1.z;
-                p2.x = box2.x; p2.y = box2.y; p2.z = box2.z;
-                traj.points.push_back(p1);
-                traj.points.push_back(p2);
-            }
+            if (this->boxHist_[i].size() > 1){
+                visualization_msgs::Marker traj;
+                traj.header.frame_id = "map";
+                traj.header.stamp = ros::Time::now();
+                traj.ns = "dynamic_detector";
+                traj.id = countMarker;
+                traj.type = visualization_msgs::Marker::LINE_LIST;
+                traj.scale.x = 0.03;
+                traj.scale.y = 0.03;
+                traj.scale.z = 0.03;
+                traj.color.a = 1.0; // Don't forget to set the alpha!
+                traj.color.r = 0.0;
+                traj.color.g = 1.0;
+                traj.color.b = 0.0;
+                traj.pose.orientation.w = 1.0;
+                traj.pose.orientation.x = 0.0;
+                traj.pose.orientation.y = 0.0;
+                traj.pose.orientation.z = 0.0;
+                for (size_t j=0; j<this->boxHist_[i].size()-1; ++j){
+                    geometry_msgs::Point p1, p2;
+                    onboardDetector::box3D box1 = this->boxHist_[i][j];
+                    onboardDetector::box3D box2 = this->boxHist_[i][j+1];
+                    p1.x = box1.x; p1.y = box1.y; p1.z = box1.z;
+                    p2.x = box2.x; p2.y = box2.y; p2.z = box2.z;
+                    traj.points.push_back(p1);
+                    traj.points.push_back(p2);
+                }
 
-            ++countMarker;
-            trajMsg.markers.push_back(traj);
+                ++countMarker;
+                trajMsg.markers.push_back(traj);
+            }
         }
         this->historyTrajPub_.publish(trajMsg);
     }

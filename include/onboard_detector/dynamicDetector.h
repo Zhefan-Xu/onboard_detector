@@ -47,9 +47,8 @@ namespace onboardDetector{
         std::shared_ptr<message_filters::Subscriber<nav_msgs::Odometry>> odomSub_;
         typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, nav_msgs::Odometry> depthOdomSync;
         std::shared_ptr<message_filters::Synchronizer<depthOdomSync>> depthOdomSync_;
-        ros::Subscriber alignedDepthSub_; 
-        ros::Subscriber yoloDetectionSub_;
         ros::Subscriber colorImgSub_;
+        ros::Subscriber yoloDetectionSub_;
         ros::Subscriber lidarCloudSub_;
         ros::Timer detectionTimer_;
         ros::Timer lidarDetectionTimer_;
@@ -76,56 +75,62 @@ namespace onboardDetector{
         ros::Publisher velVisPub_;
         ros::ServiceServer getDynamicObstacleServer_;
     
-
         // DETECTOR
         std::shared_ptr<onboardDetector::UVdetector> uvDetector_;
         std::shared_ptr<onboardDetector::DBSCAN> dbCluster_;
         std::shared_ptr<onboardDetector::lidarDetector> lidarDetector_;
 
-        // CAMERA
+        // SENSOR INFO
+        // CAMERA DEPTH
         double fx_, fy_, cx_, cy_; // depth camera intrinsics
         double depthScale_; // value / depthScale
         double depthMinValue_, depthMaxValue_;
+        double raycastMaxLength_;
         int depthFilterMargin_, skipPixel_; // depth filter margin
         int imgCols_, imgRows_;
         Eigen::Matrix4d body2CamDepth_; // from body frame to camera frame
 
-        // CAMERA ALIGNED DEPTH TO COLOR
+        // CAMERA COLOR
         double fxC_, fyC_, cxC_, cyC_;
         Eigen::Matrix4d body2CamColor_;
+
+        // LIDAR
         Eigen::Matrix4d body2Lidar_;
 
-
-        // DETECTOR PARAMETETER
+        // PARAMETETER
+        // Topics
         int localizationMode_;
         std::string depthTopicName_;
-        std::string alignedDepthTopicName_;
         std::string colorImgTopicName_;
         std::string lidarTopicName_;
         std::string poseTopicName_;
         std::string odomTopicName_;
-        double raycastMaxLength_;
+
+        // System
+        double dt_;
+
+        // DBSCAN Common
         double groundHeight_;
         double roofHeight_;
-        int downSampleThresh_;
+        
+        // DBSCAN visual param
+        double voxelOccThresh_;
         int dbMinPointsCluster_;
         double dbEpsilon_;
+        
+        // DBSCAN LiDAR param
         int lidarDBMinPoints_;
         double lidarDBEpsilon_;
+        int downSampleThresh_;
+
+        // LiDAR Visual Filtering
         double boxIOUThresh_;
+
+        // Tracking and data association
         double maxMatchRange_;
         double maxMatchSizeRange_;
-        double yoloOverwriteDistance_; // distance that yolo can overwrite the detection results
+        Eigen::VectorXd featureWeights_;
         int histSize_;
-        int predSize_;
-        double dt_;
-        double simThresh_;
-        double simThreshRetrack_;
-        int skipFrame_;
-        double dynaVelThresh_;
-        double dynaVoteThresh_;
-        double maxSkipRatio_;
-        double voxelOccThresh_;
         int fixSizeHistThresh_;
         double fixSizeDimThresh_;
         double eP_; // kalman filter initial uncertainty matrix
@@ -135,20 +140,23 @@ namespace onboardDetector{
         double eRPos_; // observation uncertainty matrix for position
         double eRVel_; // observation uncertainty matrix for velocity
         double eRAcc_; // observation uncertainty matrix for acceleration
+        int kfAvgFrames_;
+
+        // Classification
+        int skipFrame_;
+        double dynaVelThresh_;
+        double dynaVoteThresh_;
         int forceDynaFrames_;
         int forceDynaCheckRange_;
         int dynamicConsistThresh_;
-        int kfAvgFrames_;
+
+        // Constrain size
         bool constrainSize_;
         std::vector<Eigen::Vector3d> targetObjectSize_; 
         Eigen::Vector3d maxObjectSize_; 
-        std::vector<int> bestMatchHist_;
-        Eigen::VectorXd featureWeights_;
-
 
         // SENSOR DATA
         cv::Mat depthImage_;
-        cv::Mat alignedDepthImage_;
         Eigen::Vector3d position_; // depth camera position
         Eigen::Matrix3d orientation_; // depth camera orientation
         Eigen::Vector3d positionColor_; // color camera position
@@ -173,19 +181,15 @@ namespace onboardDetector{
         std::vector<std::vector<Eigen::Vector3d>> pcClustersVisual_; // pointcloud clusters
         std::vector<Eigen::Vector3d> pcClusterCentersVisual_; // pointcloud cluster centers
         std::vector<Eigen::Vector3d> pcClusterStdsVisual_; // pointcloud cluster standard deviation in each axis      
-        std::vector<std::vector<Eigen::Vector3d>> pcClusters_; // pointcloud clusters
-        std::vector<Eigen::Vector3d> pcClusterCenters_; // pointcloud cluster centers
-        std::vector<Eigen::Vector3d> pcClusterStds_; // pointcloud cluster standard deviation in each axis
         std::vector<onboardDetector::box3D> filteredBBoxesBeforeYolo_; // filtered bboxes before yolo
         std::vector<onboardDetector::box3D> filteredBBoxes_; // filtered bboxes
         std::vector<std::vector<Eigen::Vector3d>> filteredPcClusters_; // pointcloud clusters after filtering by UV and DBSCAN fusion
         std::vector<Eigen::Vector3d> filteredPcClusterCenters_; // filtered pointcloud cluster centers
         std::vector<Eigen::Vector3d> filteredPcClusterStds_; // filtered pointcloud cluster standard deviation in each axis
+        std::vector<onboardDetector::box3D> visualBBoxes_; // visual bobxes detected by camera
+        std::vector<onboardDetector::box3D> lidarBBoxes_; // bboxes detected by lidar (have static and dynamic)
         std::vector<onboardDetector::box3D> trackedBBoxes_; // bboxes tracked from kalman filtering
         std::vector<onboardDetector::box3D> dynamicBBoxes_; // boxes classified as dynamic
-        // std::vector<int> recentDynaFrames_; // recent number of frames being detected as dynamic for each obstacle
-        std::vector<onboardDetector::box3D> visualBBoxes_; // visual bobxes detected by camera (Zhefan)
-        std::vector<onboardDetector::box3D> lidarBBoxes_; // bboxes detected by lidar (have static and dynamic)
 
         // TRACKING AND ASSOCIATION DATA
         bool newDetectFlag_;
@@ -196,7 +200,7 @@ namespace onboardDetector{
 		std::deque<Eigen::Matrix3d> orientationHist_; // current orientation
         std::vector<onboardDetector::kalman_filter> filters_; // kalman filter for each objects
 
-
+        // YOLO RESULTS
         vision_msgs::Detection2DArray yoloDetectionResults_; // yolo detected 2D results
         cv::Mat detectedColorImage_;
 
@@ -244,10 +248,6 @@ namespace onboardDetector{
         
         // detection helper functions
         double calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2, bool ignoreZmin=false);
-        
-        // yolo helper functions
-        void getYolo3DBBox(const vision_msgs::Detection2D& detection, onboardDetector::box3D& bbox3D, cv::Rect& bboxVis); 
-        void calculateMAD(std::vector<double>& depthValues, double& depthMedian, double& MAD);
 
         // Data association and tracking functions
         void boxAssociation(std::vector<int>& bestMatch);
@@ -270,7 +270,6 @@ namespace onboardDetector{
         void publishColorImages();
         void publishPoints(const std::vector<Eigen::Vector3d>& points, const ros::Publisher& publisher);
         void publish3dBox(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
-        void publish3dBoxWithID(const std::vector<onboardDetector::box3D>& bboxes, const ros::Publisher& publisher, double r, double g, double b);
         void publishHistoryTraj();
         void publishVelVis();
         void publishLidarClusters();

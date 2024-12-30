@@ -2206,8 +2206,8 @@ namespace onboardDetector{
                             }
 
                             // if (yidx != -1){
-                            //     newBox.is_dynamic = true;
-                            //     newBox.is_human = true;
+                            newBox.is_dynamic = true;
+                            newBox.is_human = true;
                             // }
                             stddev = computeStd(subCloud, center);
 
@@ -3021,7 +3021,7 @@ namespace onboardDetector{
                         double simPrev = prevBoxesFeat[j].dot(currBoxesFeat[i])/(prevBoxesFeat[j].norm()*currBoxesFeat[i].norm());
                         double simProped = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
                         double sim = simPrev + simProped;
-                        if (sim >= bestSim){
+                        if (sim > bestSim){
                             bestSim = sim;
                             bestMatchInd = j;
                         }
@@ -3040,10 +3040,16 @@ namespace onboardDetector{
             }
             bestSims[i] = bestSim;
             bestMatch[i] = bestMatchInd;
+            // if (bestMatchInd == -1){
+            //     continue;
+            // }
+            
             // if (idToSimScore.find(bestMatchInd) == idToSimScore.end()){
+            //     // cout << "current bbox: " << currBBox.x << " " << currBBox.y << " ID: " << bestMatchInd << endl;
             //     idToSimScore[bestMatchInd] = bestSim;
             // }
             // else{
+            //     // cout << "change current bbox: " << currBBox.x << " " << currBBox.y << " ID: " << bestMatchInd << endl;
             //     if (bestSim > idToSimScore[bestMatchInd]){
             //         idToSimScore[bestMatchInd] = bestSim;
             //     }
@@ -3056,9 +3062,7 @@ namespace onboardDetector{
         //     if (bestMatch[i] == -1){
         //         continue;
         //     }
-        //     if (bestSims[i] < idToSimScore[bestMatch[i]]-5e-2){
-        //         cout << "best sim: " << bestSims[i] << endl;
-        //         cout << "idTOsimScore: " << idToSimScore[bestMatch[i]] << endl;
+        //     if (bestSims[i] < idToSimScore[bestMatch[i]]){
         //         bestMatch[i] = -1;
         //     }
         // }

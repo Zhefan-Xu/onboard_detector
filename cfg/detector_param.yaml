@@ -56,8 +56,8 @@ dbscan_min_points_cluster: 50 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
 dbscan_search_range_epsilon: 0.1 # searching range radius
 
 # lidar dbscan
-lidar_DBSCAN_min_points: 10
-lidar_DBSCAN_epsilon: 0.1
+lidar_DBSCAN_min_points: 8
+lidar_DBSCAN_epsilon: 0.05
 downsample_threshold: 3000 # threshold for downsampling
 
 

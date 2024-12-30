@@ -2162,7 +2162,7 @@ namespace onboardDetector{
                     }
 
                     std::vector<bool> flag(cloudCluster.size(), false);
-                    yoloIndices.push_back(-1); // to account for non-assigned points
+                    // yoloIndices.push_back(-1); // to account for non-assigned points
                     for (int yidx : yoloIndices){
                         std::vector<Eigen::Vector3d> subCloud;
                         for (size_t i = 0; i < cloudCluster.size(); ++i){
@@ -2205,10 +2205,10 @@ namespace onboardDetector{
                                 continue;
                             }
 
-                            if (yidx != -1){
-                                newBox.is_dynamic = true;
-                                newBox.is_human = true;
-                            }
+                            // if (yidx != -1){
+                            //     newBox.is_dynamic = true;
+                            //     newBox.is_human = true;
+                            // }
                             stddev = computeStd(subCloud, center);
 
                             newFilteredBBoxes.push_back(newBox);
@@ -2993,6 +2993,7 @@ namespace onboardDetector{
         int numObjs = this->filteredBBoxes_.size();
         std::vector<double> bestSims; // best similarity
         bestSims.resize(numObjs, 0);
+        // std::unordered_map<int, double> idToSimScore;
 
         double matchRange = 0.5; // maximum match range. TODO: consider make this a parameter
         double sizeRange = 0.5; // maximum width difference
@@ -3010,7 +3011,7 @@ namespace onboardDetector{
             // }
             for (size_t j=0 ; j<propedBoxes.size() ; j++){
                 onboardDetector::box3D propedBox = propedBoxes[j];
-                onboardDetector::box3D prevBox = prevBBoxes[j];
+                // onboardDetector::box3D prevBox = prevBBoxes[j];
                 double propedWidth = std::max(propedBox.x_width, propedBox.y_width);
                 double currWidth = std::max(currBBox.x_width, currBBox.y_width);
                 if (std::abs(propedWidth - currWidth) < sizeRange){
@@ -3022,7 +3023,6 @@ namespace onboardDetector{
                         double sim = simPrev + simProped;
                         if (sim >= bestSim){
                             bestSim = sim;
-                            bestSims[i] = sim;
                             bestMatchInd = j;
                         }
                         // Zhefan debug:
@@ -3038,25 +3038,30 @@ namespace onboardDetector{
 
                 }
             }
-
+            bestSims[i] = bestSim;
             bestMatch[i] = bestMatchInd;
-            // double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
-            // // ZHefan debug:
-            // if (currBBox.x > 1.0 and currBBox.x < 3.0 and currBBox.y > -1.5 and currBBox.y < 1){
-            //     cout << "IOU: " << iou << endl;
-            //     cout << "best match ID: " << bestMatchInd << endl;
+            // if (idToSimScore.find(bestMatchInd) == idToSimScore.end()){
+            //     idToSimScore[bestMatchInd] = bestSim;
             // }
-
-
-            // if(!(bestSims[i]>this->simThresh_ && iou)){
-            //     bestSims[i] = 0;
-            //     bestMatch[i] = -1;
-            // }
-            // else {
-            //     bestSims[i] = bestSim;
-            //     bestMatch[i] = bestMatchInd;
+            // else{
+            //     if (bestSim > idToSimScore[bestMatchInd]){
+            //         idToSimScore[bestMatchInd] = bestSim;
+            //     }
             // }
         }
+
+        // only allow one by one match
+        // cout <<  "---------------------------" << endl;
+        // for (int i=0; i<int(bestMatch.size()); ++i){
+        //     if (bestMatch[i] == -1){
+        //         continue;
+        //     }
+        //     if (bestSims[i] < idToSimScore[bestMatch[i]]-5e-2){
+        //         cout << "best sim: " << bestSims[i] << endl;
+        //         cout << "idTOsimScore: " << idToSimScore[bestMatch[i]] << endl;
+        //         bestMatch[i] = -1;
+        //     }
+        // }
     }
 
     void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch){

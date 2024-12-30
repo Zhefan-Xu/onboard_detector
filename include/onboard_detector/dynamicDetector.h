@@ -92,7 +92,7 @@ namespace onboardDetector{
         double depthMinValue_, depthMaxValue_;
         int depthFilterMargin_, skipPixel_; // depth filter margin
         int imgCols_, imgRows_;
-        Eigen::Matrix4d body2Cam_; // from body frame to camera frame
+        Eigen::Matrix4d body2CamDepth_; // from body frame to camera frame
 
         // CAMERA ALIGNED DEPTH TO COLOR
         double fxC_, fyC_, cxC_, cyC_;
@@ -298,8 +298,8 @@ namespace onboardDetector{
         int indexToAddress(const Eigen::Vector3i& idx, double res);
         int posToAddress(const Eigen::Vector3d& pos, double res);
         void indexToPos(const Eigen::Vector3i& idx, Eigen::Vector3d& pos, double res);
-        void getCameraPose(const geometry_msgs::PoseStampedConstPtr& pose, Eigen::Matrix4d& camPoseMatrix, Eigen::Matrix4d& camPoseColorMatrix);
-        void getCameraPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& camPoseMatrix, Eigen::Matrix4d& camPoseColorMatrix);
+        void getCameraPose(const geometry_msgs::PoseStampedConstPtr& pose, Eigen::Matrix4d& camPoseDepthMatrix, Eigen::Matrix4d& camPoseColorMatrix);
+        void getCameraPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& camPoseDepthMatrix, Eigen::Matrix4d& camPoseColorMatrix);
         void getLidarPose(const geometry_msgs::PoseStampedConstPtr& pose, Eigen::Matrix4d& lidarPoseMatrix);
         void getLidarPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& lidarPoseMatrix);
         onboardDetector::Point eigenToDBPoint(const Eigen::Vector3d& p);
@@ -350,7 +350,7 @@ namespace onboardDetector{
 		pos(2) = (idx(2) + 0.5) * res - localSensorRange_(2) + this->position_(2);
 	}
     
-    inline void dynamicDetector::getCameraPose(const geometry_msgs::PoseStampedConstPtr& pose, Eigen::Matrix4d& camPoseMatrix, Eigen::Matrix4d& camPoseColorMatrix){
+    inline void dynamicDetector::getCameraPose(const geometry_msgs::PoseStampedConstPtr& pose, Eigen::Matrix4d& camPoseDepthMatrix, Eigen::Matrix4d& camPoseColorMatrix){
         Eigen::Quaterniond quat;
         quat = Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x, pose->pose.orientation.y, pose->pose.orientation.z);
         Eigen::Matrix3d rot = quat.toRotationMatrix();
@@ -363,11 +363,11 @@ namespace onboardDetector{
         map2body(2, 3) = pose->pose.position.z;
         map2body(3, 3) = 1.0;
 
-        camPoseMatrix = map2body * this->body2Cam_;
+        camPoseDepthMatrix = map2body * this->body2CamDepth_;
         camPoseColorMatrix = map2body * this->body2CamColor_;
     }
 
-    inline void dynamicDetector::getCameraPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& camPoseMatrix, Eigen::Matrix4d& camPoseColorMatrix){
+    inline void dynamicDetector::getCameraPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& camPoseDepthMatrix, Eigen::Matrix4d& camPoseColorMatrix){
         Eigen::Quaterniond quat;
         quat = Eigen::Quaterniond(odom->pose.pose.orientation.w, odom->pose.pose.orientation.x, odom->pose.pose.orientation.y, odom->pose.pose.orientation.z);
         Eigen::Matrix3d rot = quat.toRotationMatrix();
@@ -380,7 +380,7 @@ namespace onboardDetector{
         map2body(2, 3) = odom->pose.pose.position.z;
         map2body(3, 3) = 1.0;
 
-        camPoseMatrix = map2body * this->body2Cam_;
+        camPoseDepthMatrix = map2body * this->body2CamDepth_;
         camPoseColorMatrix = map2body * this->body2CamColor_;
     }
 

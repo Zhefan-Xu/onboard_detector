@@ -50,7 +50,7 @@ namespace onboardDetector{
         // color topic name
         if (not this->nh_.getParam(this->ns_ + "/color_image_topic", this->colorImgTopicName_)){
             this->colorImgTopicName_ = "/camera/color/image_raw";
-            cout << this->hint_ << ": No aligned depth image topic name. Use default: /camera/color/image_raw" << endl;
+            cout << this->hint_ << ": No color image topic name. Use default: /camera/color/image_raw" << endl;
         }
         else{
             cout << this->hint_ << ": Color image topic: " << this->colorImgTopicName_ << endl;
@@ -87,6 +87,7 @@ namespace onboardDetector{
             }
         }
 
+        // depth intrinsics
         std::vector<double> depthIntrinsics (4);
         if (not this->nh_.getParam(this->ns_ + "/depth_intrinsics", depthIntrinsics)){
             cout << this->hint_ << ": Please check camera intrinsics!" << endl;
@@ -98,6 +99,20 @@ namespace onboardDetector{
             this->cx_ = depthIntrinsics[2];
             this->cy_ = depthIntrinsics[3];
             cout << this->hint_ << ": fx, fy, cx, cy: " << "["  << this->fx_ << ", " << this->fy_  << ", " << this->cx_ << ", "<< this->cy_ << "]" << endl;
+        }
+
+        // color intrinsics
+        std::vector<double> colorIntrinsics (4);
+        if (not this->nh_.getParam(this->ns_ + "/color_intrinsics", colorIntrinsics)){
+            cout << this->hint_ << ": Please check camera intrinsics!" << endl;
+            exit(0);
+        }
+        else{
+            this->fxC_ = colorIntrinsics[0];
+            this->fyC_ = colorIntrinsics[1];
+            this->cxC_ = colorIntrinsics[2];
+            this->cyC_ = colorIntrinsics[3];
+            cout << this->hint_ << ": fxC, fyC, cxC, cyC: " << "["  << this->fxC_ << ", " << this->fyC_  << ", " << this->cxC_ << ", "<< this->cyC_ << "]" << endl;
         }
 
         // depth scale factor
@@ -121,9 +136,11 @@ namespace onboardDetector{
         // depth max value
         if (not this->nh_.getParam(this->ns_ + "/depth_max_value", this->depthMaxValue_)){
             this->depthMaxValue_ = 5.0;
+            this->raycastMaxLength_ = 5.0;
             cout << this->hint_ << ": No depth max value. Use default: 5.0 m." << endl;
         }
         else{
+            this->raycastMaxLength_ = this->depthMaxValue_;
             cout << this->hint_ << ": Depth depth max value: " << this->depthMaxValue_ << endl;
         }
 
@@ -168,32 +185,19 @@ namespace onboardDetector{
         // ------------------------------------------------------------------------------------
 
 
-        // transform matrix: body to camera
-        std::vector<double> body2CamVec (16);
-        if (not this->nh_.getParam(this->ns_ + "/body_to_camera", body2CamVec)){
+        // transform matrix: body to camera depth
+        std::vector<double> body2CamDepthVec (16);
+        if (not this->nh_.getParam(this->ns_ + "/body_to_camera_depth", body2CamDepthVec)){
             ROS_ERROR("[dynamicDetector]: Please check body to camera matrix!");
         }
         else{
             for (int i=0; i<4; ++i){
                 for (int j=0; j<4; ++j){
-                    this->body2Cam_(i, j) = body2CamVec[i * 4 + j];
+                    this->body2CamDepth_(i, j) = body2CamDepthVec[i * 4 + j];
                 }
             }
         }
         
-        std::vector<double> colorIntrinsics (4);
-        if (not this->nh_.getParam(this->ns_ + "/color_intrinsics", colorIntrinsics)){
-            cout << this->hint_ << ": Please check camera intrinsics!" << endl;
-            exit(0);
-        }
-        else{
-            this->fxC_ = colorIntrinsics[0];
-            this->fyC_ = colorIntrinsics[1];
-            this->cxC_ = colorIntrinsics[2];
-            this->cyC_ = colorIntrinsics[3];
-            cout << this->hint_ << ": fxC, fyC, cxC, cyC: " << "["  << this->fxC_ << ", " << this->fyC_  << ", " << this->cxC_ << ", "<< this->cyC_ << "]" << endl;
-        }
-
         // transform matrix: body to camera color
         std::vector<double> body2CamColorVec (16);
         if (not this->nh_.getParam(this->ns_ + "/body_to_camera_color", body2CamColorVec)){
@@ -206,7 +210,6 @@ namespace onboardDetector{
                 }
             }
         }
-
 
         // transform matrix: body to lidar
         std::vector<double> body2LidarVec (16);
@@ -221,14 +224,15 @@ namespace onboardDetector{
             }
         }
 
-        // Raycast max length
-        if (not this->nh_.getParam(this->ns_ + "/raycast_max_length", this->raycastMaxLength_)){
-            this->raycastMaxLength_ = 5.0;
-            cout << this->hint_ << ": No raycast max length. Use default: 5.0." << endl;
+        // time difference
+        if (not this->nh_.getParam(this->ns_ + "/time_step", this->dt_)){
+            this->dt_ = 0.033;
+            std::cout << this->hint_ << ": No time difference parameter found. Use default: 0.033." << std::endl;
         }
         else{
-            cout << this->hint_ << ": Raycast max length: " << this->raycastMaxLength_ << endl;
-        }
+            std::cout << this->hint_ << ": The time difference for the system is set to: " << this->dt_ << std::endl;
+        }  
+
 
         // min num of points for a voxel to be occupied in voxel filter
         if (not this->nh_.getParam(this->ns_ + "/voxel_occupied_thresh", this->voxelOccThresh_)){
@@ -328,42 +332,6 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": The history for tracking is set to: " << this->histSize_ << std::endl;
         }  
 
-        // prediction size
-        if (not this->nh_.getParam(this->ns_ + "/prediction_size", this->predSize_)){
-            this->predSize_ = 5;
-            std::cout << this->hint_ << ": No prediction size parameter found. Use default: 5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The prediction size is set to: " << this->predSize_ << std::endl;
-        }  
-
-        // time difference
-        if (not this->nh_.getParam(this->ns_ + "/time_difference", this->dt_)){
-            this->dt_ = 0.033;
-            std::cout << this->hint_ << ": No time difference parameter found. Use default: 0.033." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The time difference for the system is set to: " << this->dt_ << std::endl;
-        }  
-
-        // similarity threshold for data association 
-        if (not this->nh_.getParam(this->ns_ + "/similarity_threshold", this->simThresh_)){
-            this->simThresh_ = 0.9;
-            std::cout << this->hint_ << ": No similarity threshold parameter found. Use default: 0.9." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The similarity threshold for data association is set to: " << this->simThresh_ << std::endl;
-        }  
-
-        // retrack similarity threshold
-        if (not this->nh_.getParam(this->ns_ + "/retrack_similarity_threshold", this->simThreshRetrack_)){
-            this->simThreshRetrack_ = 0.5;
-            std::cout << this->hint_ << ": No similarity threshold parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The similarity threshold for data association is set to: " << this->simThreshRetrack_ << std::endl;
-        }  
-
         // similarity threshold for data association 
         if (not this->nh_.getParam(this->ns_ + "/frame_skip", this->skipFrame_)){
             this->skipFrame_ = 5;
@@ -418,68 +386,38 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Dimension threshold for fixing size parameter is set to: " << this->fixSizeDimThresh_ << std::endl;
         } 
 
-        // covariance for Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_p", this->eP_)){
+        std::vector<double> kalmanFilterParams;
+        if (not this->nh_.getParam(this->ns_ + "/kalman_filter_param", kalmanFilterParams)){
             this->eP_ = 0.5;
-            std::cout << this->hint_ << ": No covariance parameter found. Use default: 0.5." << std::endl;
+            this->eQPos_ = 0.5; // pos prediction noise
+            this->eQVel_ = 0.5; // vel prediction noise
+            this->eQAcc_ = 0.5; // acc prediction noise
+            this->eRPos_ = 0.5; // pos measurement noise
+            this->eRVel_ = 0.5; // vel measurement noise
+            this->eRAcc_ = 0.5; // acc measurement noise
+            std::cout << this->hint_ << ": No kalman filter parameter found. Use default: 0.5." << std::endl;
         }
         else{
-            std::cout << this->hint_ << ": The covariance for kalman filter is set to: " << this->eP_ << std::endl;
+            this->eP_ = kalmanFilterParams[0];
+            this->eQPos_ = kalmanFilterParams[1]; // pos prediction noise
+            this->eQVel_ = kalmanFilterParams[2]; // vel prediction noise
+            this->eQAcc_ = kalmanFilterParams[3]; // acc prediction noise
+            this->eRPos_ = kalmanFilterParams[4]; // pos measurement noise
+            this->eRVel_ = kalmanFilterParams[5]; // vel measurement noise
+            this->eRAcc_ = kalmanFilterParams[6]; // acc measurement noise
+            std::cout << this->hint_ << ": The covariance for kalman filter is set to: [";
+            for (int i=0; i<int(kalmanFilterParams.size()); ++i){
+                double param = kalmanFilterParams[i];
+                if (i != int(kalmanFilterParams.size())-1){
+                    std::cout << param << ", ";
+                }
+                else{
+                    std::cout << param;
+                }
+            }
+            std::cout << "]." << std::endl;
         }  
 
-        // noise for prediction for position in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_q_pos", this->eQPos_)){
-            this->eQPos_ = 0.5;
-            std::cout << this->hint_ << ": No motion model uncertainty matrix for position parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for prediction for position in Kalman Filter is set to: " << this->eQPos_ << std::endl;
-        }  
-
-        // noise for prediction for velocity in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_q_vel", this->eQVel_)){
-            this->eQVel_ = 0.5;
-            std::cout << this->hint_ << ": No motion model uncertainty matrix for velocity parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for prediction for velocity in Kalman Filter is set to: " << this->eQVel_ << std::endl;
-        } 
-
-        // noise for prediction in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_q_acc", this->eQAcc_)){
-            this->eQAcc_ = 0.5;
-            std::cout << this->hint_ << ": No motion model uncertainty matrix for acceleration parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for prediction for acceleration in Kalman Filter is set to: " << this->eQAcc_ << std::endl;
-        } 
-
-        // noise for measurement for position in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_r_pos", this->eRPos_)){
-            this->eRPos_ = 0.5;
-            std::cout << this->hint_ << ": No measuremnt uncertainty matrix for position parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for measurement for position in Kalman Filter is set to: " << this->eRPos_ << std::endl;
-        }  
-
-        // noise for prediction for velocity in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_r_vel", this->eRVel_)){
-            this->eRVel_ = 0.5;
-            std::cout << this->hint_ << ": No measuremnt uncertainty matrix for velocity parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for measurement for velocity in Kalman Filter is set to: " << this->eRVel_ << std::endl;
-        } 
-
-        // noise for prediction in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_r_acc", this->eRAcc_)){
-            this->eRAcc_ = 0.5;
-            std::cout << this->hint_ << ": No measurement uncertainty matrix for acceleration parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for measuremnt for acceleration in Kalman Filter is set to: " << this->eRAcc_ << std::endl;
-        } 
 
         // num of frames used in KF for observation
         if (not this->nh_.getParam(this->ns_ + "/kalman_filter_averaging_frames", this->kfAvgFrames_)){
@@ -749,14 +687,14 @@ namespace onboardDetector{
         imgPtr->image.copyTo(this->depthImage_);
 
         // store current position and orientation (camera)
-        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix, lidarPoseMatrix;
-        this->getCameraPose(pose, camPoseMatrix, camPoseColorMatrix);
+        Eigen::Matrix4d camPoseDepthMatrix, camPoseColorMatrix, lidarPoseMatrix;
+        this->getCameraPose(pose, camPoseDepthMatrix, camPoseColorMatrix);
         this->getLidarPose(pose, lidarPoseMatrix);
 
-        this->position_(0) = camPoseMatrix(0, 3);
-        this->position_(1) = camPoseMatrix(1, 3);
-        this->position_(2) = camPoseMatrix(2, 3);
-        this->orientation_ = camPoseMatrix.block<3, 3>(0, 0);
+        this->position_(0) = camPoseDepthMatrix(0, 3);
+        this->position_(1) = camPoseDepthMatrix(1, 3);
+        this->position_(2) = camPoseDepthMatrix(2, 3);
+        this->orientation_ = camPoseDepthMatrix.block<3, 3>(0, 0);
 
         this->positionColor_(0) = camPoseColorMatrix(0, 3);
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
@@ -779,14 +717,14 @@ namespace onboardDetector{
         imgPtr->image.copyTo(this->depthImage_);
 
         // store current position and orientation (camera)
-        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix, lidarPoseMatrix;
-        this->getCameraPose(odom, camPoseMatrix, camPoseColorMatrix);
+        Eigen::Matrix4d camPoseDepthMatrix, camPoseColorMatrix, lidarPoseMatrix;
+        this->getCameraPose(odom, camPoseDepthMatrix, camPoseColorMatrix);
         this->getLidarPose(odom, lidarPoseMatrix);
 
-        this->position_(0) = camPoseMatrix(0, 3);
-        this->position_(1) = camPoseMatrix(1, 3);
-        this->position_(2) = camPoseMatrix(2, 3);
-        this->orientation_ = camPoseMatrix.block<3, 3>(0, 0);
+        this->position_(0) = camPoseDepthMatrix(0, 3);
+        this->position_(1) = camPoseDepthMatrix(1, 3);
+        this->position_(2) = camPoseDepthMatrix(2, 3);
+        this->orientation_ = camPoseDepthMatrix.block<3, 3>(0, 0);
 
         this->positionColor_(0) = camPoseColorMatrix(0, 3);
         this->positionColor_(1) = camPoseColorMatrix(1, 3);

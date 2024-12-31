@@ -677,7 +677,6 @@ namespace onboardDetector{
 
         return true;
     }
-
     void dynamicDetector::depthPoseCB(const sensor_msgs::ImageConstPtr& img, const geometry_msgs::PoseStampedConstPtr& pose){
         // store current depth image
         cv_bridge::CvImagePtr imgPtr = cv_bridge::toCvCopy(img, img->encoding);
@@ -691,10 +690,18 @@ namespace onboardDetector{
         this->getCameraPose(pose, camPoseDepthMatrix, camPoseColorMatrix);
         this->getLidarPose(pose, lidarPoseMatrix);
 
-        this->position_(0) = camPoseDepthMatrix(0, 3);
-        this->position_(1) = camPoseDepthMatrix(1, 3);
-        this->position_(2) = camPoseDepthMatrix(2, 3);
-        this->orientation_ = camPoseDepthMatrix.block<3, 3>(0, 0);
+        this->position_(0) = pose->pose.position.x;
+        this->position_(1) = pose->pose.position.y;
+        this->position_(2) = pose->pose.position.z;
+        Eigen::Quaterniond quat;
+        quat = Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x, pose->pose.orientation.y, pose->pose.orientation.z);
+        Eigen::Matrix3d rot = quat.toRotationMatrix();
+        this->orientation_ = rot;
+
+        this->positionDepth_(0) = camPoseDepthMatrix(0, 3);
+        this->positionDepth_(1) = camPoseDepthMatrix(1, 3);
+        this->positionDepth_(2) = camPoseDepthMatrix(2, 3);
+        this->orientationDepth_ = camPoseDepthMatrix.block<3, 3>(0, 0);
 
         this->positionColor_(0) = camPoseColorMatrix(0, 3);
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
@@ -721,10 +728,18 @@ namespace onboardDetector{
         this->getCameraPose(odom, camPoseDepthMatrix, camPoseColorMatrix);
         this->getLidarPose(odom, lidarPoseMatrix);
 
-        this->position_(0) = camPoseDepthMatrix(0, 3);
-        this->position_(1) = camPoseDepthMatrix(1, 3);
-        this->position_(2) = camPoseDepthMatrix(2, 3);
-        this->orientation_ = camPoseDepthMatrix.block<3, 3>(0, 0);
+        this->position_(0) = odom->pose.pose.position.x;
+        this->position_(1) = odom->pose.pose.position.y;
+        this->position_(2) = odom->pose.pose.position.z;
+        Eigen::Quaterniond quat;
+        quat = Eigen::Quaterniond(odom->pose.pose.orientation.w, odom->pose.pose.orientation.x, odom->pose.pose.orientation.y, odom->pose.pose.orientation.z);
+        Eigen::Matrix3d rot = quat.toRotationMatrix();
+        this->orientation_ = rot;
+
+        this->positionDepth_(0) = camPoseDepthMatrix(0, 3);
+        this->positionDepth_(1) = camPoseDepthMatrix(1, 3);
+        this->positionDepth_(2) = camPoseDepthMatrix(2, 3);
+        this->orientationDepth_ = camPoseDepthMatrix.block<3, 3>(0, 0);
 
         this->positionColor_(0) = camPoseColorMatrix(0, 3);
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
@@ -738,6 +753,14 @@ namespace onboardDetector{
         this->hasSensorPose_ = true;
     }
 
+    void dynamicDetector::colorImgCB(const sensor_msgs::ImageConstPtr& img){
+        cv_bridge::CvImagePtr imgPtr = cv_bridge::toCvCopy(img, img->encoding);
+        imgPtr->image.copyTo(this->detectedColorImage_);
+    }
+
+    void dynamicDetector::yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections){
+        this->yoloDetectionResults_ = *detections;
+    }
 
     void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg){
         try {
@@ -814,13 +837,8 @@ namespace onboardDetector{
         }
     }
 
-    void dynamicDetector::yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections){
-        this->yoloDetectionResults_ = *detections;
-    }
-
-    void dynamicDetector::colorImgCB(const sensor_msgs::ImageConstPtr& img){
-        cv_bridge::CvImagePtr imgPtr = cv_bridge::toCvCopy(img, img->encoding);
-        imgPtr->image.copyTo(this->detectedColorImage_);
+    void dynamicDetector::lidarDetectionCB(const ros::TimerEvent&){
+        this->lidarDetect();
     }
 
     void dynamicDetector::detectionCB(const ros::TimerEvent&){
@@ -832,10 +850,6 @@ namespace onboardDetector{
         // ros::Time end = ros::Time::now();
         // ROS_INFO("filtering time: %f", (end - start).toSec());
         this->newDetectFlag_ = true; // get a new detection
-    }
-
-    void dynamicDetector::lidarDetectionCB(const ros::TimerEvent&){
-        this->lidarDetect();
     }
 
     void dynamicDetector::trackingCB(const ros::TimerEvent&){
@@ -1046,13 +1060,10 @@ namespace onboardDetector{
         // 1. get pointcloud
         this->projectDepthImage();
 
-        // 2. update pose history
-        this->updatePoseHist();
-
-        // 3. filter points
+        // 2. filter points
         this->filterPoints(this->projPoints_, this->filteredDepthPoints_);
 
-        // 4. cluster points and get bounding boxes
+        // 3. cluster points and get bounding boxes
         this->clusterPointsAndBBoxes(this->filteredDepthPoints_, this->dbBBoxes_, this->pcClustersVisual_, 
                                      this->pcClusterCentersVisual_, this->pcClusterStdsVisual_);
     }
@@ -1547,7 +1558,7 @@ namespace onboardDetector{
             Eigen::Vector3d size (xWidth, yWidth, zWidth);
             Eigen::Vector3d newCenter, newSize;
 
-            this->transformBBox(center, size, this->position_, this->orientation_, newCenter, newSize);
+            this->transformBBox(center, size, this->positionDepth_, this->orientationDepth_, newCenter, newSize);
 
             // assign values to bounding boxes in the map frame
             bbox.x = newCenter(0);
@@ -1592,7 +1603,7 @@ namespace onboardDetector{
                 currPointCam(0) = (u - this->cx_) * depth * inv_fx;
                 currPointCam(1) = (v - this->cy_) * depth * inv_fy;
                 currPointCam(2) = depth;
-                currPointMap = this->orientation_ * currPointCam + this->position_; // transform to map coordinate
+                currPointMap = this->orientationDepth_ * currPointCam + this->positionDepth_; // transform to map coordinate
 
                 this->projPoints_[this->projPointsNum_] = currPointMap;
                 this->pointsDepth_[this->projPointsNum_] = depth;
@@ -1858,9 +1869,9 @@ namespace onboardDetector{
         features.resize(boxes.size());
         for (size_t i = 0; i < boxes.size(); ++i) {
             Eigen::VectorXd feature = Eigen::VectorXd::Zero(10);
-            feature(0) = (boxes[i].x - position_(0)) * featureWeights(0);
-            feature(1) = (boxes[i].y - position_(1)) * featureWeights(1);
-            feature(2) = (boxes[i].z - position_(2)) * featureWeights(2);
+            feature(0) = (boxes[i].x - this->position_(0)) * featureWeights(0);
+            feature(1) = (boxes[i].y - this->position_(1)) * featureWeights(1);
+            feature(2) = (boxes[i].z - this->position_(2)) * featureWeights(2);
             feature(3) = boxes[i].x_width * featureWeights(3);
             feature(4) = boxes[i].y_width * featureWeights(4);
             feature(5) = boxes[i].z_width * featureWeights(5);
@@ -2367,13 +2378,13 @@ namespace onboardDetector{
 
             std_msgs::ColorRGBA color;
             srand(cluster.cluster_id);
-            // color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-            // color.g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-            // color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-            color.r = 0.5;
-            color.g = 0.5;
-            color.b = 0.5;
-            color.a = 1.0;
+            color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            // color.r = 0.5;
+            // color.g = 0.5;
+            // color.b = 0.5;
+            // color.a = 1.0;
 
             for (size_t j=0; j<cluster.points->size(); ++j){
                 pcl::PointXYZRGB point;
@@ -2398,9 +2409,6 @@ namespace onboardDetector{
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
         for (size_t i=0; i<this->filteredPcClusters_.size(); ++i){
             std_msgs::ColorRGBA color;
-            color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-            color.g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-            color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
             color.r = 0.5;
             color.g = 0.5;
             color.b = 0.5;
@@ -2473,27 +2481,6 @@ namespace onboardDetector{
         newSize(2) = zmax - zmin;
     }
 
-    bool dynamicDetector::isInFov(const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation, Eigen::Vector3d& point){
-        Eigen::Vector3d worldRay = point - position;
-        Eigen::Vector3d camUnitX(1,0,0);
-        Eigen::Vector3d camUnitY(0,1,0);
-        Eigen::Vector3d camUnitZ(0,0,1);
-        Eigen::Vector3d camRay;
-        Eigen::Vector3d displacement; 
-    
-        // z is in depth direction in camera coord
-        camRay = orientation.inverse()*worldRay;
-        double camRayX = abs(camRay.dot(camUnitX));
-        double camRayY = abs(camRay.dot(camUnitY));
-        double camRayZ = abs(camRay.dot(camUnitZ));
-
-        double htan = camRayX/camRayZ;
-        double vtan = camRayY/camRayZ;
-        
-        double pi = 3.1415926;
-        return htan<tan(42*pi/180) && vtan<tan(28*pi/180) && camRayZ<this->depthMaxValue_;
-    }
-    
     int dynamicDetector::getBestOverlapBBox(const onboardDetector::box3D& currBBox, const std::vector<onboardDetector::box3D>& targetBBoxes, double& bestIOU){
         bestIOU = 0.0;
         int bestIOUIdx = -1; // no match
@@ -2561,19 +2548,4 @@ namespace onboardDetector{
             }
         }
 	}
-
-    void dynamicDetector::updatePoseHist(){
-        if (int(this->positionHist_.size()) == this->skipFrame_){
-            this->positionHist_.pop_back();
-        }
-        else{
-            this->positionHist_.push_front(this->position_);
-        }
-        if (int(this->orientationHist_.size()) == this->skipFrame_){
-            this->orientationHist_.pop_back();
-        }
-        else{
-            this->orientationHist_.push_front(this->orientation_);
-        }
-    }
 }

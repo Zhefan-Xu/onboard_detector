@@ -157,8 +157,10 @@ namespace onboardDetector{
 
         // SENSOR DATA
         cv::Mat depthImage_;
-        Eigen::Vector3d position_; // depth camera position
-        Eigen::Matrix3d orientation_; // depth camera orientation
+        Eigen::Vector3d position_; // robot position
+        Eigen::Matrix3d orientation_; // robot orientation
+        Eigen::Vector3d positionDepth_; // depth camera position
+        Eigen::Matrix3d orientationDepth_; // depth camera orientation
         Eigen::Vector3d positionColor_; // color camera position
         Eigen::Matrix3d orientationColor_; // color camera orientation
         Eigen::Vector3d positionLidar_; // color camera position
@@ -196,8 +198,6 @@ namespace onboardDetector{
         std::vector<std::deque<onboardDetector::box3D>> boxHist_; // data association result: history of filtered bounding boxes for each box in current frame
         std::vector<std::deque<std::vector<Eigen::Vector3d>>> pcHist_; // data association result: history of filtered pc clusteres for each pc cluster in current frame
         std::vector<std::deque<Eigen::Vector3d>> pcCenterHist_; 
-        std::deque<Eigen::Vector3d> positionHist_; // current position
-		std::deque<Eigen::Matrix3d> orientationHist_; // current orientation
         std::vector<onboardDetector::kalman_filter> filters_; // kalman filter for each objects
 
         // YOLO RESULTS
@@ -208,7 +208,6 @@ namespace onboardDetector{
         dynamicDetector();
         dynamicDetector(const ros::NodeHandle& nh);
         void initDetector(const ros::NodeHandle& nh);
-
 
         void initParam();
         void registerPub();
@@ -235,18 +234,16 @@ namespace onboardDetector{
         void dbscanDetect();
         void lidarDetect();
         void filterLVBBoxes(); // filter lidar and vision bounding boxes
-
-        // uv Detector Functions
         void transformUVBBoxes(std::vector<onboardDetector::box3D>& bboxes);
         
-        // DBSCAN Detector Functions
+        // Visual DBSCAN Detector Functions
         void projectDepthImage();
         void filterPoints(const std::vector<Eigen::Vector3d>& points, std::vector<Eigen::Vector3d>& filteredPoints);
         void clusterPointsAndBBoxes(const std::vector<Eigen::Vector3d>& points, std::vector<onboardDetector::box3D>& bboxes, std::vector<std::vector<Eigen::Vector3d>>& pcClusters, std::vector<Eigen::Vector3d>& pcClusterCenters, std::vector<Eigen::Vector3d>& pcClusterStds);
         void voxelFilter(const std::vector<Eigen::Vector3d>& points, std::vector<Eigen::Vector3d>& filteredPoints);
-        void calcPcFeat(const std::vector<Eigen::Vector3d>& pcCluster, Eigen::Vector3d& pcClusterCenter, Eigen::Vector3d& pcClusterStd);
         
         // detection helper functions
+        void calcPcFeat(const std::vector<Eigen::Vector3d>& pcCluster, Eigen::Vector3d& pcClusterCenter, Eigen::Vector3d& pcClusterStd);
         double calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2, bool ignoreZmin=false);
 
         // Data association and tracking functions
@@ -256,7 +253,6 @@ namespace onboardDetector{
         void getPrevBBoxes(std::vector<onboardDetector::box3D>& prevBoxes, std::vector<Eigen::Vector3d>& prevPcCenters);
         void linearProp(std::vector<onboardDetector::box3D>& propedBoxes, std::vector<Eigen::Vector3d>& propedPcCenters);
         void findBestMatch(const std::vector<onboardDetector::box3D>& prevBBoxes, const std::vector<Eigen::VectorXd>& prevBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, std::vector<int>& bestMatch);
-        void getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch); 
         void kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch);
         void kalmanFilterMatrixVel(const onboardDetector::box3D& currDetectedBBox, MatrixXd& states, MatrixXd& A, MatrixXd& B, MatrixXd& H, MatrixXd& P, MatrixXd& Q, MatrixXd& R);
         void kalmanFilterMatrixAcc(const onboardDetector::box3D& currDetectedBBox, MatrixXd& states, MatrixXd& A, MatrixXd& B, MatrixXd& H, MatrixXd& P, MatrixXd& Q, MatrixXd& R);
@@ -278,10 +274,13 @@ namespace onboardDetector{
         // helper function
         void transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,
                                   Eigen::Vector3d& newCenter, Eigen::Vector3d& newSize);
-        bool isInFov(const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation, Eigen::Vector3d& point);
         int getBestOverlapBBox(const onboardDetector::box3D& currBBox, const std::vector<onboardDetector::box3D>& targetBBoxes, double& bestIOU);
-        void updatePoseHist();
 
+        // user functions
+        void getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes, const Eigen::Vector3d &robotSize = Eigen::Vector3d(0.0,0.0,0.0));
+        void getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, 
+									 std::vector<std::vector<Eigen::Vector3d>>& velHist, 
+									 std::vector<std::vector<Eigen::Vector3d>>& sizeHist, const Eigen::Vector3d &robotSize = Eigen::Vector3d(0.0,0.0,0.0));
 
         // inline helper functions
         bool isInFilterRange(const Eigen::Vector3d& pos);
@@ -295,13 +294,7 @@ namespace onboardDetector{
         void getLidarPose(const nav_msgs::OdometryConstPtr& odom, Eigen::Matrix4d& lidarPoseMatrix);
         onboardDetector::Point eigenToDBPoint(const Eigen::Vector3d& p);
         Eigen::Vector3d dbPointToEigen(const onboardDetector::Point& pDB);
-        void eigenToDBPointVec(const std::vector<Eigen::Vector3d>& points, std::vector<onboardDetector::Point>& pointsDB, int size);
-
-        // user functions
-        void getDynamicObstacles(std::vector<onboardDetector::box3D>& incomeDynamicBBoxes, const Eigen::Vector3d &robotSize = Eigen::Vector3d(0.0,0.0,0.0));
-        void getDynamicObstaclesHist(std::vector<std::vector<Eigen::Vector3d>>& posHist, 
-									 std::vector<std::vector<Eigen::Vector3d>>& velHist, 
-									 std::vector<std::vector<Eigen::Vector3d>>& sizeHist, const Eigen::Vector3d &robotSize = Eigen::Vector3d(0.0,0.0,0.0));
+        void eigenToDBPointVec(const std::vector<Eigen::Vector3d>& points, std::vector<onboardDetector::Point>& pointsDB, int size);       
     };
 
 
@@ -330,8 +323,6 @@ namespace onboardDetector{
     inline int dynamicDetector::posToAddress(const Eigen::Vector3d& pos, double res){
         Eigen::Vector3i idx;
         this->posToIndex(pos, idx, res);
-        // ROS_INFO("passed posToIndex, idx: %i", idx);
-        // cout << "PASSED posToIndex, idx: " << idx <<endl;
         return this->indexToAddress(idx, res);
     }
 

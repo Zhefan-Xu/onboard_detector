@@ -22,7 +22,6 @@ namespace onboardDetector{
 
     void lidarDetector::lidarDBSCAN(){
         if(!cloud_ || cloud_->empty()){
-            ROS_WARN("Empty pointcloud");
             return;
         }
         

@@ -50,7 +50,7 @@ namespace onboardDetector{
         // color topic name
         if (not this->nh_.getParam(this->ns_ + "/color_image_topic", this->colorImgTopicName_)){
             this->colorImgTopicName_ = "/camera/color/image_raw";
-            cout << this->hint_ << ": No aligned depth image topic name. Use default: /camera/color/image_raw" << endl;
+            cout << this->hint_ << ": No color image topic name. Use default: /camera/color/image_raw" << endl;
         }
         else{
             cout << this->hint_ << ": Color image topic: " << this->colorImgTopicName_ << endl;
@@ -87,6 +87,7 @@ namespace onboardDetector{
             }
         }
 
+        // depth intrinsics
         std::vector<double> depthIntrinsics (4);
         if (not this->nh_.getParam(this->ns_ + "/depth_intrinsics", depthIntrinsics)){
             cout << this->hint_ << ": Please check camera intrinsics!" << endl;
@@ -98,6 +99,20 @@ namespace onboardDetector{
             this->cx_ = depthIntrinsics[2];
             this->cy_ = depthIntrinsics[3];
             cout << this->hint_ << ": fx, fy, cx, cy: " << "["  << this->fx_ << ", " << this->fy_  << ", " << this->cx_ << ", "<< this->cy_ << "]" << endl;
+        }
+
+        // color intrinsics
+        std::vector<double> colorIntrinsics (4);
+        if (not this->nh_.getParam(this->ns_ + "/color_intrinsics", colorIntrinsics)){
+            cout << this->hint_ << ": Please check camera intrinsics!" << endl;
+            exit(0);
+        }
+        else{
+            this->fxC_ = colorIntrinsics[0];
+            this->fyC_ = colorIntrinsics[1];
+            this->cxC_ = colorIntrinsics[2];
+            this->cyC_ = colorIntrinsics[3];
+            cout << this->hint_ << ": fxC, fyC, cxC, cyC: " << "["  << this->fxC_ << ", " << this->fyC_  << ", " << this->cxC_ << ", "<< this->cyC_ << "]" << endl;
         }
 
         // depth scale factor
@@ -121,9 +136,11 @@ namespace onboardDetector{
         // depth max value
         if (not this->nh_.getParam(this->ns_ + "/depth_max_value", this->depthMaxValue_)){
             this->depthMaxValue_ = 5.0;
+            this->raycastMaxLength_ = 5.0;
             cout << this->hint_ << ": No depth max value. Use default: 5.0 m." << endl;
         }
         else{
+            this->raycastMaxLength_ = this->depthMaxValue_;
             cout << this->hint_ << ": Depth depth max value: " << this->depthMaxValue_ << endl;
         }
 
@@ -168,32 +185,19 @@ namespace onboardDetector{
         // ------------------------------------------------------------------------------------
 
 
-        // transform matrix: body to camera
-        std::vector<double> body2CamVec (16);
-        if (not this->nh_.getParam(this->ns_ + "/body_to_camera", body2CamVec)){
+        // transform matrix: body to camera depth
+        std::vector<double> body2CamDepthVec (16);
+        if (not this->nh_.getParam(this->ns_ + "/body_to_camera_depth", body2CamDepthVec)){
             ROS_ERROR("[dynamicDetector]: Please check body to camera matrix!");
         }
         else{
             for (int i=0; i<4; ++i){
                 for (int j=0; j<4; ++j){
-                    this->body2Cam_(i, j) = body2CamVec[i * 4 + j];
+                    this->body2CamDepth_(i, j) = body2CamDepthVec[i * 4 + j];
                 }
             }
         }
         
-        std::vector<double> colorIntrinsics (4);
-        if (not this->nh_.getParam(this->ns_ + "/color_intrinsics", colorIntrinsics)){
-            cout << this->hint_ << ": Please check camera intrinsics!" << endl;
-            exit(0);
-        }
-        else{
-            this->fxC_ = colorIntrinsics[0];
-            this->fyC_ = colorIntrinsics[1];
-            this->cxC_ = colorIntrinsics[2];
-            this->cyC_ = colorIntrinsics[3];
-            cout << this->hint_ << ": fxC, fyC, cxC, cyC: " << "["  << this->fxC_ << ", " << this->fyC_  << ", " << this->cxC_ << ", "<< this->cyC_ << "]" << endl;
-        }
-
         // transform matrix: body to camera color
         std::vector<double> body2CamColorVec (16);
         if (not this->nh_.getParam(this->ns_ + "/body_to_camera_color", body2CamColorVec)){
@@ -206,7 +210,6 @@ namespace onboardDetector{
                 }
             }
         }
-
 
         // transform matrix: body to lidar
         std::vector<double> body2LidarVec (16);
@@ -221,23 +224,14 @@ namespace onboardDetector{
             }
         }
 
-        // Raycast max length
-        if (not this->nh_.getParam(this->ns_ + "/raycast_max_length", this->raycastMaxLength_)){
-            this->raycastMaxLength_ = 5.0;
-            cout << this->hint_ << ": No raycast max length. Use default: 5.0." << endl;
+        // time step
+        if (not this->nh_.getParam(this->ns_ + "/time_step", this->dt_)){
+            this->dt_ = 0.033;
+            std::cout << this->hint_ << ": No time step parameter found. Use default: 0.033." << std::endl;
         }
         else{
-            cout << this->hint_ << ": Raycast max length: " << this->raycastMaxLength_ << endl;
-        }
-
-        // min num of points for a voxel to be occupied in voxel filter
-        if (not this->nh_.getParam(this->ns_ + "/voxel_occupied_thresh", this->voxelOccThresh_)){
-            this->voxelOccThresh_ = 10;
-            cout << this->hint_ << ": No voxel_occupied_threshold. Use default: 10." << endl;
-        }
-        else{
-            cout << this->hint_ << ": min num of points for a voxel to be occupied in voxel filter is set to be: " << this->voxelOccThresh_ << endl;
-        }
+            std::cout << this->hint_ << ": Time step for the system is set to: " << this->dt_ << std::endl;
+        }  
 
         // ground height
         if (not this->nh_.getParam(this->ns_ + "/ground_height", this->groundHeight_)){
@@ -255,6 +249,15 @@ namespace onboardDetector{
         }
         else{
             std::cout << this->hint_ << ": Roof height is set to: " << this->roofHeight_ << std::endl;
+        }
+
+        // min num of points for a voxel to be occupied in voxel filter
+        if (not this->nh_.getParam(this->ns_ + "/voxel_occupied_thresh", this->voxelOccThresh_)){
+            this->voxelOccThresh_ = 10;
+            cout << this->hint_ << ": No voxel_occupied_threshold. Use default: 10." << endl;
+        }
+        else{
+            cout << this->hint_ << ": min num of points for a voxel to be occupied in voxel filter is set to be: " << this->voxelOccThresh_ << endl;
         }
 
         // minimum number of points in each cluster
@@ -292,13 +295,14 @@ namespace onboardDetector{
         else{
             cout << this->hint_ << ": Lidar DBSCAN epsilon is set to: " << this->lidarDBEpsilon_ << endl;
         }
-
+        
+        // lidar points downsample threshold
         if(not this->nh_.getParam(this->ns_ + "/downsample_threshold", this->downSampleThresh_)){
             this->downSampleThresh_ = 4000;
             cout << this->hint_ << ": No downsample threshold parameter found. Use default: 4000." << endl;
         }
         else{
-            cout << this->hint_ << ": The downsample threshold is set to: " << this->downSampleThresh_ << endl;
+            cout << this->hint_ << ": Downsample threshold is set to: " << this->downSampleThresh_ << endl;
         }
 
         // IOU threshold
@@ -307,17 +311,45 @@ namespace onboardDetector{
             cout << this->hint_ << ": No threshold for boununding box IOU filtering parameter found. Use default: 0.5." << endl;
         }
         else{
-            cout << this->hint_ << ": The threshold for boununding box IOU filtering is set to: " << this->boxIOUThresh_ << endl;
-        }  
+            cout << this->hint_ << ": Threshold for boununding box IOU filtering is set to: " << this->boxIOUThresh_ << endl;
+        }
 
-        // YOLO overwrite distance
-        if (not this->nh_.getParam(this->ns_ + "/yolo_overwrite_distance", this->yoloOverwriteDistance_)){
-            this->yoloOverwriteDistance_ = 3.5;
-            cout << this->hint_ << ": No threshold for YOLO overwrite distance. Use default: 3.5m." << endl;
+        // maximum match range
+        if (not this->nh_.getParam(this->ns_ + "/max_match_range", this->maxMatchRange_)){
+            this->maxMatchRange_ = 0.5;
+            cout << this->hint_ << ": No max match range parameter found. Use default: 0.5m." << endl;
         }
         else{
-            cout << this->hint_ << ": The YOLO overwrite distance is set to: " << this->yoloOverwriteDistance_ << endl;
-        }  
+            cout << this->hint_ << ": Max match range is set to: " << this->maxMatchRange_  << "m." << endl;
+        }   
+
+        // maximum size difference for matching
+        if (not this->nh_.getParam(this->ns_ + "/max_size_diff_range", this->maxMatchSizeRange_)){
+            this->maxMatchSizeRange_ = 0.5;
+            cout << this->hint_ << ": No max size difference range for matching parameter found. Use default: 0.5m." << endl;
+        }
+        else{
+            cout << this->hint_ << ": Max size difference range for matching is set to: " << this->maxMatchSizeRange_ << "m." << endl;
+        }   
+
+        // feature weight
+        std::vector<double> tempWeights;
+        if (not nh_.getParam(ns_ + "/feature_weight", tempWeights)) {
+            this->featureWeights_ = Eigen::VectorXd(10);
+            this->featureWeights_ << 3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0;
+            std::cout << this->hint_ << ": No feature weights parameter found. Using default feature weights: [3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0]." << std::endl;
+        }
+        else {
+            this->featureWeights_ = Eigen::Map<Eigen::VectorXd>(tempWeights.data(), tempWeights.size());
+            std::cout <<  this->hint_ << ": Feature weights are set to: [";
+            for (size_t i = 0; i < tempWeights.size(); ++i) {
+                std::cout << tempWeights[i];
+                if (i != tempWeights.size()-1){
+                    std::cout << ", ";
+                }
+            }
+            std::cout << "]." << std::endl;
+        } 
 
         // tracking history size
         if (not this->nh_.getParam(this->ns_ + "/history_size", this->histSize_)){
@@ -325,82 +357,10 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": No tracking history size parameter found. Use default: 5." << std::endl;
         }
         else{
-            std::cout << this->hint_ << ": The history for tracking is set to: " << this->histSize_ << std::endl;
+            std::cout << this->hint_ << ": History for tracking is set to: " << this->histSize_ << std::endl;
         }  
 
-        // prediction size
-        if (not this->nh_.getParam(this->ns_ + "/prediction_size", this->predSize_)){
-            this->predSize_ = 5;
-            std::cout << this->hint_ << ": No prediction size parameter found. Use default: 5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The prediction size is set to: " << this->predSize_ << std::endl;
-        }  
-
-        // time difference
-        if (not this->nh_.getParam(this->ns_ + "/time_difference", this->dt_)){
-            this->dt_ = 0.033;
-            std::cout << this->hint_ << ": No time difference parameter found. Use default: 0.033." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The time difference for the system is set to: " << this->dt_ << std::endl;
-        }  
-
-        // similarity threshold for data association 
-        if (not this->nh_.getParam(this->ns_ + "/similarity_threshold", this->simThresh_)){
-            this->simThresh_ = 0.9;
-            std::cout << this->hint_ << ": No similarity threshold parameter found. Use default: 0.9." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The similarity threshold for data association is set to: " << this->simThresh_ << std::endl;
-        }  
-
-        // retrack similarity threshold
-        if (not this->nh_.getParam(this->ns_ + "/retrack_similarity_threshold", this->simThreshRetrack_)){
-            this->simThreshRetrack_ = 0.5;
-            std::cout << this->hint_ << ": No similarity threshold parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The similarity threshold for data association is set to: " << this->simThreshRetrack_ << std::endl;
-        }  
-
-        // similarity threshold for data association 
-        if (not this->nh_.getParam(this->ns_ + "/frame_skip", this->skipFrame_)){
-            this->skipFrame_ = 5;
-            std::cout << this->hint_ << ": No skip frame parameter found. Use default: 5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The frames skiped in classification when comparing two point cloud is set to: " << this->skipFrame_ << std::endl;
-        }  
-
-        // velocity threshold for dynamic classification
-        if (not this->nh_.getParam(this->ns_ + "/dynamic_velocity_threshold", this->dynaVelThresh_)){
-            this->dynaVelThresh_ = 0.35;
-            std::cout << this->hint_ << ": No dynamic velocity threshold parameter found. Use default: 0.35." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The velocity threshold for dynamic classification is set to: " << this->dynaVelThresh_ << std::endl;
-        }  
-
-        // voting threshold for dynamic classification
-        if (not this->nh_.getParam(this->ns_ + "/dynamic_voting_threshold", this->dynaVoteThresh_)){
-            this->dynaVoteThresh_ = 0.8;
-            std::cout << this->hint_ << ": No dynamic velocity threshold parameter found. Use default: 0.8." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The voting threshold for dynamic classification is set to: " << this->dynaVoteThresh_ << std::endl;
-        }  
-
-        // if the percentage of skipped points(because of being out of previous FOV) are higher than this, it will not be voted as dynamic
-        if (not this->nh_.getParam(this->ns_ + "/maximum_skip_ratio", this->maxSkipRatio_)){
-            this->maxSkipRatio_ = 0.5;
-            std::cout << this->hint_ << ": No maximum_skip_ratio parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The the upper limit of points skipping in classification is set to: " << this->maxSkipRatio_ << std::endl;
-        }  
-
-        // History threshold for fixing box size
+        // history threshold for fixing box size
         if (not this->nh_.getParam(this->ns_ + "/fix_size_history_threshold", this->fixSizeHistThresh_)){
             this->fixSizeHistThresh_ = 10;
             std::cout << this->hint_ << ": No history threshold for fixing size parameter found. Use default: 10." << std::endl;
@@ -409,7 +369,7 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": History threshold for fixing size parameter is set to: " << this->fixSizeHistThresh_ << std::endl;
         }  
 
-        // Dimension threshold for fixing box size
+        // dimension threshold for fixing box size
         if (not this->nh_.getParam(this->ns_ + "/fix_size_dimension_threshold", this->fixSizeDimThresh_)){
             this->fixSizeDimThresh_ = 0.4;
             std::cout << this->hint_ << ": No dimension threshold for fixing size parameter found. Use default: 0.4." << std::endl;
@@ -418,68 +378,38 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Dimension threshold for fixing size parameter is set to: " << this->fixSizeDimThresh_ << std::endl;
         } 
 
-        // covariance for Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_p", this->eP_)){
+        // kalman filter parameters
+        std::vector<double> kalmanFilterParams;
+        if (not this->nh_.getParam(this->ns_ + "/kalman_filter_param", kalmanFilterParams)){
             this->eP_ = 0.5;
-            std::cout << this->hint_ << ": No covariance parameter found. Use default: 0.5." << std::endl;
+            this->eQPos_ = 0.5; // pos prediction noise
+            this->eQVel_ = 0.5; // vel prediction noise
+            this->eQAcc_ = 0.5; // acc prediction noise
+            this->eRPos_ = 0.5; // pos measurement noise
+            this->eRVel_ = 0.5; // vel measurement noise
+            this->eRAcc_ = 0.5; // acc measurement noise
+            std::cout << this->hint_ << ": No kalman filter parameter found. Use default: 0.5." << std::endl;
         }
         else{
-            std::cout << this->hint_ << ": The covariance for kalman filter is set to: " << this->eP_ << std::endl;
+            this->eP_ = kalmanFilterParams[0];
+            this->eQPos_ = kalmanFilterParams[1]; // pos prediction noise
+            this->eQVel_ = kalmanFilterParams[2]; // vel prediction noise
+            this->eQAcc_ = kalmanFilterParams[3]; // acc prediction noise
+            this->eRPos_ = kalmanFilterParams[4]; // pos measurement noise
+            this->eRVel_ = kalmanFilterParams[5]; // vel measurement noise
+            this->eRAcc_ = kalmanFilterParams[6]; // acc measurement noise
+            std::cout << this->hint_ << ": Kalman filter parameter is set to: [";
+            for (int i=0; i<int(kalmanFilterParams.size()); ++i){
+                double param = kalmanFilterParams[i];
+                if (i != int(kalmanFilterParams.size())-1){
+                    std::cout << param << ", ";
+                }
+                else{
+                    std::cout << param;
+                }
+            }
+            std::cout << "]." << std::endl;
         }  
-
-        // noise for prediction for position in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_q_pos", this->eQPos_)){
-            this->eQPos_ = 0.5;
-            std::cout << this->hint_ << ": No motion model uncertainty matrix for position parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for prediction for position in Kalman Filter is set to: " << this->eQPos_ << std::endl;
-        }  
-
-        // noise for prediction for velocity in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_q_vel", this->eQVel_)){
-            this->eQVel_ = 0.5;
-            std::cout << this->hint_ << ": No motion model uncertainty matrix for velocity parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for prediction for velocity in Kalman Filter is set to: " << this->eQVel_ << std::endl;
-        } 
-
-        // noise for prediction in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_q_acc", this->eQAcc_)){
-            this->eQAcc_ = 0.5;
-            std::cout << this->hint_ << ": No motion model uncertainty matrix for acceleration parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for prediction for acceleration in Kalman Filter is set to: " << this->eQAcc_ << std::endl;
-        } 
-
-        // noise for measurement for position in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_r_pos", this->eRPos_)){
-            this->eRPos_ = 0.5;
-            std::cout << this->hint_ << ": No measuremnt uncertainty matrix for position parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for measurement for position in Kalman Filter is set to: " << this->eRPos_ << std::endl;
-        }  
-
-        // noise for prediction for velocity in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_r_vel", this->eRVel_)){
-            this->eRVel_ = 0.5;
-            std::cout << this->hint_ << ": No measuremnt uncertainty matrix for velocity parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for measurement for velocity in Kalman Filter is set to: " << this->eRVel_ << std::endl;
-        } 
-
-        // noise for prediction in Kalman Filter
-        if (not this->nh_.getParam(this->ns_ + "/e_r_acc", this->eRAcc_)){
-            this->eRAcc_ = 0.5;
-            std::cout << this->hint_ << ": No measurement uncertainty matrix for acceleration parameter found. Use default: 0.5." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": The noise for measuremnt for acceleration in Kalman Filter is set to: " << this->eRAcc_ << std::endl;
-        } 
 
         // num of frames used in KF for observation
         if (not this->nh_.getParam(this->ns_ + "/kalman_filter_averaging_frames", this->kfAvgFrames_)){
@@ -490,7 +420,34 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Number of frames used in KF for observation is set to: " << this->kfAvgFrames_ << std::endl;
         } 
 
-        // frames to froce dynamic
+        // skip frame for classification
+        if (not this->nh_.getParam(this->ns_ + "/frame_skip", this->skipFrame_)){
+            this->skipFrame_ = 5;
+            std::cout << this->hint_ << ": No skip frame parameter found. Use default: 5." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Frames skiped in classification when comparing two point cloud is set to: " << this->skipFrame_ << std::endl;
+        }  
+
+        // velocity threshold for dynamic classification
+        if (not this->nh_.getParam(this->ns_ + "/dynamic_velocity_threshold", this->dynaVelThresh_)){
+            this->dynaVelThresh_ = 0.35;
+            std::cout << this->hint_ << ": No dynamic velocity threshold parameter found. Use default: 0.35." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Velocity threshold for dynamic classification is set to: " << this->dynaVelThresh_ << std::endl;
+        }  
+
+        // voting threshold for dynamic classification
+        if (not this->nh_.getParam(this->ns_ + "/dynamic_voting_threshold", this->dynaVoteThresh_)){
+            this->dynaVoteThresh_ = 0.8;
+            std::cout << this->hint_ << ": No dynamic velocity threshold parameter found. Use default: 0.8." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Voting threshold for dynamic classification is set to: " << this->dynaVoteThresh_ << std::endl;
+        }  
+
+        // frames to force dynamic
         if (not this->nh_.getParam(this->ns_ + "/frames_force_dynamic", this->forceDynaFrames_)){
             this->forceDynaFrames_ = 20;
             std::cout << this->hint_ << ": No range of searching dynamic obstacles in box history found. Use default: 20." << std::endl;
@@ -521,7 +478,7 @@ namespace onboardDetector{
         }
 
         // constrain target object size
-        if (not this->nh_.getParam(this->ns_ + "/constrain_size", this->constrainSize_)){
+        if (not this->nh_.getParam(this->ns_ + "/target_constrain_size", this->constrainSize_)){
             this->constrainSize_ = false;
             std::cout << this->hint_ << ": No target object constrain size param found. Use default: false." << std::endl;
         }
@@ -529,7 +486,7 @@ namespace onboardDetector{
             std::cout << this->hint_ << ": Target object constrain is set to: " << this->constrainSize_ << std::endl;
         }  
 
-        // object target sizes
+        // target object  sizes
         std::vector<double> targetObjectSizeTemp;
         if (not this->nh_.getParam(this->ns_ + "/target_object_size", targetObjectSizeTemp)){
             std::cout << this->hint_ << ": No target object size found. Do not apply target object size." << std::endl;
@@ -538,72 +495,61 @@ namespace onboardDetector{
             for (size_t i=0; i<targetObjectSizeTemp.size(); i+=3){
                 Eigen::Vector3d targetSize (targetObjectSizeTemp[i+0], targetObjectSizeTemp[i+1], targetObjectSizeTemp[i+2]);
                 this->targetObjectSize_.push_back(targetSize);
-                std::cout << this->hint_ << ": target object size is set to: [" << targetObjectSizeTemp[i+0]  << ", " << targetObjectSizeTemp[i+1] << ", " <<  targetObjectSizeTemp[i+2] << "]." << std::endl;
+                std::cout << this->hint_ << ": target object size is set to: [" << targetObjectSizeTemp[i+0]  << ", " 
+                << targetObjectSizeTemp[i+1] << ", " <<  targetObjectSizeTemp[i+2] << "]." << std::endl;
             }
             
         }
 
-        // target object size threshold
-        if(not this->nh_.getParam(this->ns_ + "/target_object_size_threshold", this->targetObjectSizeThresh_)){
-            this->targetObjectSizeThresh_ = {2.0, 2.0, 2.0};
-            std::cout << this->hint_ << ": No target object size threshold parameter found. Use default: [2.0, 2.0, 2.0]." << endl;
+        // max object size
+        std::vector<double> maxObjectSizeTemp;
+        if(not this->nh_.getParam(this->ns_ + "/max_object_size", maxObjectSizeTemp)){
+            this->maxObjectSize_ = Eigen::Vector3d (2.0, 2.0, 2.0);
+            std::cout << this->hint_ << ": No max object size threshold parameter found. Use default: [2.0, 2.0, 2.0]." << endl;
         }
         else{
-            std::cout << "The target object size threshold is set to: [";
-            for (size_t i = 0; i < targetObjectSizeThresh_.size(); ++i) {
-                std::cout << targetObjectSizeThresh_[i];
-                if (i != targetObjectSizeThresh_.size() - 1) {
+            this->maxObjectSize_(0) = maxObjectSizeTemp[0];
+            this->maxObjectSize_(1) = maxObjectSizeTemp[1];
+            this->maxObjectSize_(2) = maxObjectSizeTemp[2];
+            std::cout <<  this->hint_ << ": Max object size threshold is set to: [";
+            for (size_t i = 0; i < maxObjectSizeTemp.size(); ++i) {
+                std::cout << maxObjectSizeTemp[i];
+                if (i != maxObjectSizeTemp.size()-1){
                     std::cout << ", ";
                 }
             }
             std::cout << "]." << std::endl;
         }
-
-        //feature weight
-        std::vector<double> tempWeights;
-        if (not nh_.getParam(ns_ + "/feature_weight", tempWeights)) {
-            this->featureWeights_ = Eigen::VectorXd(10);
-            this->featureWeights_ << 10, 10, 10, 1, 1, 1, 5, 0.5, 0.5, 0.5;
-            std::cout << this->hint_ << ": No 'feature_weight' parameter found. Using default feature weights: " 
-                      << this->featureWeights_.transpose() << std::endl;
-        }
-        else {
-            this->featureWeights_ = Eigen::Map<Eigen::VectorXd>(tempWeights.data(), tempWeights.size());
-            std::cout << this->hint_ << ": Feature weights are set to: " << this->featureWeights_.transpose() << std::endl;
-        } 
     }
 
     void dynamicDetector::registerPub(){
         image_transport::ImageTransport it(this->nh_);
         // uv detector depth map pub
-        this->uvDepthMapPub_ = it.advertise(this->ns_ + "/detected_depth_map", 1);
+        this->uvDepthMapPub_ = it.advertise(this->ns_ + "/detected_depth_map", 10);
 
         // uv detector u depth map pub
-        this->uDepthMapPub_ = it.advertise(this->ns_ + "/detected_u_depth_map", 1);
+        this->uDepthMapPub_ = it.advertise(this->ns_ + "/detected_u_depth_map", 10);
 
         // uv detector bird view pub
-        this->uvBirdViewPub_ = it.advertise(this->ns_ + "/bird_view", 1);
-
-        // Yolo 2D bounding box on depth map pub
-        this->detectedAlignedDepthImgPub_ = it.advertise(this->ns_ + "/detected_aligned_depth_map_yolo", 1);
+        this->uvBirdViewPub_ = it.advertise(this->ns_ + "/u_depth_bird_view", 10);
 
         // color 2D bounding boxes pub
-        this->detectedColorImgPub_ = it.advertise(this->ns_ + "/detected_color_image", 1);
+        this->detectedColorImgPub_ = it.advertise(this->ns_ + "/detected_color_image", 10);
 
         // uv detector bounding box pub
         this->uvBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/uv_bboxes", 10);
 
-        // dynamic pointcloud pub
-        this->dynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/dynamic_point_cloud", 10);
-
-        // filtered pointcloud pub
-        this->filteredPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_depth_cloud", 10);
-
         // DBSCAN bounding box pub
         this->dbBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/dbscan_bboxes", 10);
 
-        // yolo bounding box pub
-        this->yoloBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/yolo_3d_bboxes", 10);
+        // visual bboxes pub
+        this->visualBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/visual_bboxes", 10);
+
+        // lidar bbox pub
+        this->lidarBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/lidar_bboxes", 10);
+
+        // filtered bounding box before YOLO pub
+        this->filteredBBoxesBeforeYoloPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/filtered_before_yolo_bboxes", 10);
 
         // filtered bounding box pub
         this->filteredBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/filtered_bboxes", 10);
@@ -614,22 +560,23 @@ namespace onboardDetector{
         // dynamic bounding box pub
         this->dynamicBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/dynamic_bboxes", 10);
 
+        // filtered depth pointcloud pub
+        this->filteredDepthPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_depth_cloud", 10);
+
+        // lidar cluster pub 
+        this->lidarClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
+
+        // filtered pointcloud pub 
+        this->filteredPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/filtered_point_cloud", 10);
+
+        // dynamic pointcloud pub
+        this->dynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/dynamic_point_cloud", 10);
+
         // history trajectory pub
         this->historyTrajPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/history_trajectories", 10);
 
         // velocity visualization pub
         this->velVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/velocity_visualizaton", 10);
-
-        // lidar cluster pub 
-        this->lidarClustersPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_clusters", 10);
-
-        // lidar bbox pub
-        this->lidarBBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/lidar_bboxes", 10);
-
-        // lidar cloud pub
-        this->lidarCloudPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/lidar_cloud", 10);
-
-        this->propedBoxesPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/proped_boxes", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -653,17 +600,17 @@ namespace onboardDetector{
         // color image subscriber
         this->colorImgSub_ = this->nh_.subscribe(this->colorImgTopicName_, 10, &dynamicDetector::colorImgCB, this);
 
-        // lidar point cloud subscriber
-        this->lidarCloudSub_ = this->nh_.subscribe(this->lidarTopicName_, 10, &dynamicDetector::lidarCloudCB, this);
-
         // yolo detection results subscriber
         this->yoloDetectionSub_ = this->nh_.subscribe("yolo_detector/detected_bounding_boxes", 10, &dynamicDetector::yoloDetectionCB, this);
 
-        // lidar detection timer
-        this->lidarDetectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::lidarDetectionCB, this);
+        // lidar point cloud subscriber
+        this->lidarCloudSub_ = this->nh_.subscribe(this->lidarTopicName_, 10, &dynamicDetector::lidarCloudCB, this);
 
         // detection timer
         this->detectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::detectionCB, this);
+
+        // lidar detection timer
+        this->lidarDetectionTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::lidarDetectionCB, this);
 
         // tracking timer
         this->trackingTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::trackingCB, this);
@@ -730,7 +677,6 @@ namespace onboardDetector{
 
         return true;
     }
-
     void dynamicDetector::depthPoseCB(const sensor_msgs::ImageConstPtr& img, const geometry_msgs::PoseStampedConstPtr& pose){
         // store current depth image
         cv_bridge::CvImagePtr imgPtr = cv_bridge::toCvCopy(img, img->encoding);
@@ -740,14 +686,22 @@ namespace onboardDetector{
         imgPtr->image.copyTo(this->depthImage_);
 
         // store current position and orientation (camera)
-        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix, lidarPoseMatrix;
-        this->getCameraPose(pose, camPoseMatrix, camPoseColorMatrix);
+        Eigen::Matrix4d camPoseDepthMatrix, camPoseColorMatrix, lidarPoseMatrix;
+        this->getCameraPose(pose, camPoseDepthMatrix, camPoseColorMatrix);
         this->getLidarPose(pose, lidarPoseMatrix);
 
-        this->position_(0) = camPoseMatrix(0, 3);
-        this->position_(1) = camPoseMatrix(1, 3);
-        this->position_(2) = camPoseMatrix(2, 3);
-        this->orientation_ = camPoseMatrix.block<3, 3>(0, 0);
+        this->position_(0) = pose->pose.position.x;
+        this->position_(1) = pose->pose.position.y;
+        this->position_(2) = pose->pose.position.z;
+        Eigen::Quaterniond quat;
+        quat = Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x, pose->pose.orientation.y, pose->pose.orientation.z);
+        Eigen::Matrix3d rot = quat.toRotationMatrix();
+        this->orientation_ = rot;
+
+        this->positionDepth_(0) = camPoseDepthMatrix(0, 3);
+        this->positionDepth_(1) = camPoseDepthMatrix(1, 3);
+        this->positionDepth_(2) = camPoseDepthMatrix(2, 3);
+        this->orientationDepth_ = camPoseDepthMatrix.block<3, 3>(0, 0);
 
         this->positionColor_(0) = camPoseColorMatrix(0, 3);
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
@@ -770,14 +724,22 @@ namespace onboardDetector{
         imgPtr->image.copyTo(this->depthImage_);
 
         // store current position and orientation (camera)
-        Eigen::Matrix4d camPoseMatrix, camPoseColorMatrix, lidarPoseMatrix;
-        this->getCameraPose(odom, camPoseMatrix, camPoseColorMatrix);
+        Eigen::Matrix4d camPoseDepthMatrix, camPoseColorMatrix, lidarPoseMatrix;
+        this->getCameraPose(odom, camPoseDepthMatrix, camPoseColorMatrix);
         this->getLidarPose(odom, lidarPoseMatrix);
 
-        this->position_(0) = camPoseMatrix(0, 3);
-        this->position_(1) = camPoseMatrix(1, 3);
-        this->position_(2) = camPoseMatrix(2, 3);
-        this->orientation_ = camPoseMatrix.block<3, 3>(0, 0);
+        this->position_(0) = odom->pose.pose.position.x;
+        this->position_(1) = odom->pose.pose.position.y;
+        this->position_(2) = odom->pose.pose.position.z;
+        Eigen::Quaterniond quat;
+        quat = Eigen::Quaterniond(odom->pose.pose.orientation.w, odom->pose.pose.orientation.x, odom->pose.pose.orientation.y, odom->pose.pose.orientation.z);
+        Eigen::Matrix3d rot = quat.toRotationMatrix();
+        this->orientation_ = rot;
+
+        this->positionDepth_(0) = camPoseDepthMatrix(0, 3);
+        this->positionDepth_(1) = camPoseDepthMatrix(1, 3);
+        this->positionDepth_(2) = camPoseDepthMatrix(2, 3);
+        this->orientationDepth_ = camPoseDepthMatrix.block<3, 3>(0, 0);
 
         this->positionColor_(0) = camPoseColorMatrix(0, 3);
         this->positionColor_(1) = camPoseColorMatrix(1, 3);
@@ -791,21 +753,13 @@ namespace onboardDetector{
         this->hasSensorPose_ = true;
     }
 
-    void dynamicDetector::alignedDepthCB(const sensor_msgs::ImageConstPtr& img){
+    void dynamicDetector::colorImgCB(const sensor_msgs::ImageConstPtr& img){
         cv_bridge::CvImagePtr imgPtr = cv_bridge::toCvCopy(img, img->encoding);
-        if (img->encoding == sensor_msgs::image_encodings::TYPE_32FC1){
-            (imgPtr->image).convertTo(imgPtr->image, CV_16UC1, this->depthScale_);
-        }
-        imgPtr->image.copyTo(this->alignedDepthImage_);
+        imgPtr->image.copyTo(this->detectedColorImage_);
+    }
 
-        cv::Mat depthNormalized;
-        imgPtr->image.copyTo(depthNormalized);
-        double min, max;
-        cv::minMaxIdx(depthNormalized, &min, &max);
-        cv::convertScaleAbs(depthNormalized, depthNormalized, 255. / max);
-        depthNormalized.convertTo(depthNormalized, CV_8UC1);
-        cv::applyColorMap(depthNormalized, depthNormalized, cv::COLORMAP_BONE);
-        this->detectedAlignedDepthImg_ = depthNormalized;
+    void dynamicDetector::yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections){
+        this->yoloDetectionResults_ = *detections;
     }
 
     void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg){
@@ -833,7 +787,6 @@ namespace onboardDetector{
                 pass.setFilterFieldName("y");
                 pass.setFilterLimits(-this->localLidarRange_.y(), this->localLidarRange_.y());
                 pass.filter(*filteredCloud);
-
 
                 // transform
                 Eigen::Affine3d transform = Eigen::Affine3d::Identity();
@@ -870,18 +823,7 @@ namespace onboardDetector{
                     sor.filter(*downsampledCloud);
                 }
 
-                // this->lidarCloud_ = transformedCloud;
-                // cout << "size of cloud: " << transformedCloud->size() << endl;
                 this->lidarCloud_ = downsampledCloud;
-                // cout << "size of cloud: " << downsampledCloud->size() << endl;
-                ROS_WARN("Size of downsampled cloud: %ld", downsampledCloud->size());
-
-
-                // // republish the transformed and downsampled cloud
-                // sensor_msgs::PointCloud2 lidarCloudMsg;
-                // pcl::toROSMsg(*transformedCloud, lidarCloudMsg);
-                // lidarCloudMsg.header.frame_id = "map";
-                // this->lidarCloudPub_.publish(lidarCloudMsg);
             }
         }
         catch (const pcl::PCLException& e) {
@@ -895,48 +837,33 @@ namespace onboardDetector{
         }
     }
 
-    void dynamicDetector::yoloDetectionCB(const vision_msgs::Detection2DArrayConstPtr& detections){
-        this->yoloDetectionResults_ = *detections;
-    }
-
-    void dynamicDetector::colorImgCB(const sensor_msgs::ImageConstPtr& img){
-        cv_bridge::CvImagePtr imgPtr = cv_bridge::toCvCopy(img, img->encoding);
-        imgPtr->image.copyTo(this->detectedColorImage_);
+    void dynamicDetector::lidarDetectionCB(const ros::TimerEvent&){
+        this->lidarDetect();
     }
 
     void dynamicDetector::detectionCB(const ros::TimerEvent&){
         // detection thread
         this->dbscanDetect();
         this->uvDetect();
-        this->yoloDetectionTo3D();
-        // this->filterBBoxes();
-        this->filterLVBBoxes();
-        this->newDetectFlag_ = true; // get a new detection
-    }
-
-    void dynamicDetector::lidarDetectionCB(const ros::TimerEvent&){
-        // use class in lidarDetector to detect obstacles into bounding boxes. 
-        // this function should not be long
         // ros::Time start = ros::Time::now();
-        this->lidarDetect();
+        this->filterLVBBoxes();
         // ros::Time end = ros::Time::now();
-        // cout << "time: " << (end - start).toSec() << endl;
+        // ROS_INFO("filtering time: %f", (end - start).toSec());
+        this->newDetectFlag_ = true; // get a new detection
     }
 
     void dynamicDetector::trackingCB(const ros::TimerEvent&){
         // data association thread
         std::vector<int> bestMatch; // for each current detection, which index of previous obstacle match
-        std::vector<int> boxOOR; // whether the box in hist is detected in this time step
-        this->boxAssociation(bestMatch, boxOOR);
-        boxOOR.clear();
+        this->boxAssociation(bestMatch);
         // kalman filter tracking
-        if (bestMatch.size() or boxOOR.size()){
-            this->kalmanFilterAndUpdateHist(bestMatch, boxOOR);
-            boxOOR.clear();
+        if (bestMatch.size()){
+            this->kalmanFilterAndUpdateHist(bestMatch);
         }
         else {
             this->boxHist_.clear();
             this->pcHist_.clear();
+            this->pcCenterHist_.clear();
         }
     }
 
@@ -946,38 +873,9 @@ namespace onboardDetector{
 
         // Iterate through all pointcloud/bounding boxes history (note that yolo's pointclouds are dummy pointcloud (empty))
         // NOTE: There are 3 cases which we don't need to perform dynamic obstacle identification.
-        // cout << "======================" << endl;
         for (size_t i=0; i<this->pcHist_.size() ; ++i){
             // ===================================================================================
-            // CASE 0: predicted dynamic obstacle
-            if (this->boxHist_[i][0].is_estimated){
-                onboardDetector::box3D estimatedBBox;
-                this->getEstimateBox(this->boxHist_[i], estimatedBBox);
-                if (this->constrainSize_){
-                    bool findMatch = false;
-                    for (Eigen::Vector3d targetSize : this->targetObjectSize_){
-                        double xdiff = std::abs(this->boxHist_[i][0].x_width - targetSize(0));
-                        double ydiff = std::abs(this->boxHist_[i][0].y_width - targetSize(1));
-                        double zdiff = std::abs(this->boxHist_[i][0].z_width - targetSize(2)); 
-                        if (xdiff < 0.8 and ydiff < 0.8 and zdiff < 1.0){
-                            findMatch = true;
-                        }
-                    }
-                    if (findMatch){
-                        dynamicBBoxesTemp.push_back(estimatedBBox);
-                    }
-                }
-                else{
-                    dynamicBBoxesTemp.push_back(estimatedBBox);
-                }
-                
-                continue; 
-            }
-
-            // ===================================================================================
             // CASE I: yolo recognized as dynamic dynamic obstacle
-            // cout << "box: " << i <<  "x y z: " << this->boxHist_[i][0].x << " " << this->boxHist_[i][0].y << " " << this->boxHist_[i][0].z << endl;
-            // cout << "box is human: " << this->boxHist_[i][0].is_human << endl;
             if (this->boxHist_[i][0].is_human){
                 dynamicBBoxesTemp.push_back(this->boxHist_[i][0]);
                 continue;
@@ -1030,15 +928,7 @@ namespace onboardDetector{
             Vkf(1) = this->boxHist_[i][0].Vy;
 
             // find nearest neighbor
-            int numSkip = 0;
             for (size_t j=0 ; j<currPc.size() ; ++j){
-                // don't perform classification for points unseen in previous frame
-                // if (!this->isInFov(this->positionHist_[curFrameGap], this->orientationHist_[curFrameGap], currPc[j])){
-                //     ++numSkip;
-                //     --numPoints;
-                //     continue;
-                // }
-
                 double minDist = 2;
                 Eigen::Vector3d nearestVect;
                 for (size_t k=0 ; k<prevPc.size() ; k++){ // find the nearest point in the previous pointcloud
@@ -1052,7 +942,6 @@ namespace onboardDetector{
                 double velSim = Vcur.dot(Vbox)/(Vcur.norm()*Vbox.norm());
 
                 if (velSim < 0){
-                    ++numSkip;
                     --numPoints;
                 }
                 else{
@@ -1070,14 +959,13 @@ namespace onboardDetector{
             // voting and velocity threshold
             // 1. point cloud voting ratio.
             // 2. velocity (from kalman filter) 
-            // 3. enough valid point correspondence 
-            if (voteRatio>=this->dynaVoteThresh_ && velNorm>=this->dynaVelThresh_ && double(numSkip)/double(numPoints)<this->maxSkipRatio_){
+            if (voteRatio>=this->dynaVoteThresh_ && velNorm>=this->dynaVelThresh_){
                 this->boxHist_[i][0].is_dynamic_candidate = true;
                 // dynamic-consistency check
                 int dynaConsistCount = 0;
                 if (int(this->boxHist_[i].size()) >= this->dynamicConsistThresh_){
                     for (int j=0 ; j<this->dynamicConsistThresh_; ++j){
-                        if (this->boxHist_[i][j].is_dynamic_candidate){
+                        if (this->boxHist_[i][j].is_dynamic_candidate or this->boxHist_[i][j].is_human or this->boxHist_[i][j].is_dynamic){
                             ++dynaConsistCount;
                         }
                     }
@@ -1096,22 +984,17 @@ namespace onboardDetector{
             dynamicBBoxesTemp.clear();
 
             for (onboardDetector::box3D ob : dynamicBBoxesBeforeConstrain){
-                if (not ob.is_estimated){
-                    bool findMatch = false;
-                    for (Eigen::Vector3d targetSize : this->targetObjectSize_){
-                        double xdiff = std::abs(ob.x_width - targetSize(0));
-                        double ydiff = std::abs(ob.y_width - targetSize(1));
-                        double zdiff = std::abs(ob.z_width - targetSize(2)); 
-                        if (xdiff < 0.8 and ydiff < 0.8 and zdiff < 1.0){
-                            findMatch = true;
-                        }
-                    }
-
-                    if (findMatch){
-                        dynamicBBoxesTemp.push_back(ob);
+                bool findMatch = false;
+                for (Eigen::Vector3d targetSize : this->targetObjectSize_){
+                    double xdiff = std::abs(ob.x_width - targetSize(0));
+                    double ydiff = std::abs(ob.y_width - targetSize(1));
+                    double zdiff = std::abs(ob.z_width - targetSize(2)); 
+                    if (xdiff < 0.8 and ydiff < 0.8 and zdiff < 1.0){
+                        findMatch = true;
                     }
                 }
-                else{
+
+                if (findMatch){
                     dynamicBBoxesTemp.push_back(ob);
                 }
             }
@@ -1122,26 +1005,26 @@ namespace onboardDetector{
 
     void dynamicDetector::visCB(const ros::TimerEvent&){
         this->publishUVImages();
+        this->publishColorImages();
+        
         this->publish3dBox(this->uvBBoxes_, this->uvBBoxesPub_, 0, 1, 0);
+        this->publish3dBox(this->dbBBoxes_, this->dbBBoxesPub_, 1, 0, 0);
+        this->publish3dBox(this->visualBBoxes_, this->visualBBoxesPub_, 0.3, 0.8, 1.0);
+        this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5); // raw lidar cluster bounding boxes
+        this->publish3dBox(this->filteredBBoxesBeforeYolo_, this->filteredBBoxesBeforeYoloPub_, 0, 1, 0.5);
+        this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
+        this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
+        this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
+
+        this->publishLidarClusters(); // colored clusters
+        this->publishFilteredPoints();
         std::vector<Eigen::Vector3d> dynamicPoints;
         this->getDynamicPc(dynamicPoints);
         this->publishPoints(dynamicPoints, this->dynamicPointsPub_);
-        this->publishPoints(this->filteredPoints_, this->filteredPointsPub_);
-        this->publish3dBox(this->dbBBoxes_, this->dbBBoxesPub_, 1, 0, 0);
-        this->publishYoloImages();
-        this->publishColorImages();
-        this->publish3dBox(this->yoloBBoxes_, this->yoloBBoxesPub_, 1, 0, 1);
-        this->publish3dBox(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
-        // this->publish3dBoxWithID(this->filteredBBoxes_, this->filteredBBoxesPub_, 0, 1, 1);
-        this->publish3dBox(this->trackedBBoxes_, this->trackedBBoxesPub_, 1, 1, 0);
-        this->publish3dBox(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
-        // this->publish3dBoxWithID(this->dynamicBBoxes_, this->dynamicBBoxesPub_, 0, 0, 1);
+        this->publishPoints(this->filteredDepthPoints_, this->filteredDepthPointsPub_);
 
         this->publishHistoryTraj();
         this->publishVelVis();
-        this->publishLidarClusters(); // colored clusters
-        this->publish3dBox(this->lidarBBoxes_, this->lidarBBoxesPub_, 0.5, 0.5, 0.5); // raw lidar cluster bounding boxes
-        this->publish3dBox(this->propedBoxes_, this->propedBoxesPub_, 0, 1, 1);
     }
 
     void dynamicDetector::uvDetect(){
@@ -1177,303 +1060,42 @@ namespace onboardDetector{
         // 1. get pointcloud
         this->projectDepthImage();
 
-        // 2. update pose history
-        this->updatePoseHist();
+        // 2. filter points
+        this->filterPoints(this->projPoints_, this->filteredDepthPoints_);
 
-        // 3. filter points
-        this->filterPoints(this->projPoints_, this->filteredPoints_);
-
-        // 4. cluster points and get bounding boxes
-        this->clusterPointsAndBBoxes(this->filteredPoints_, this->dbBBoxes_, this->pcClusters_, this->pcClusterCenters_, this->pcClusterStds_);
+        // 3. cluster points and get bounding boxes
+        this->clusterPointsAndBBoxes(this->filteredDepthPoints_, this->dbBBoxes_, this->pcClustersVisual_, 
+                                     this->pcClusterCentersVisual_, this->pcClusterStdsVisual_);
     }
 
-    void dynamicDetector::yoloDetectionTo3D(){
-        std::vector<onboardDetector::box3D> yoloBBoxesTemp;
-        for (size_t i=0; i<this->yoloDetectionResults_.detections.size(); ++i){
-            onboardDetector::box3D bbox3D;
-            cv::Rect bboxVis;
-            this->getYolo3DBBox(this->yoloDetectionResults_.detections[i], bbox3D, bboxVis);
-            cv::rectangle(this->detectedAlignedDepthImg_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
-            yoloBBoxesTemp.push_back(bbox3D);
-        }
-        this->yoloBBoxes_ = yoloBBoxesTemp;    
-    }
 
     void dynamicDetector::lidarDetect(){
         if (this->lidarDetector_ == NULL){
             this->lidarDetector_.reset(new lidarDetector());
-            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_, this->groundHeight_, this->roofHeight_);
+            this->lidarDetector_->setParams(this->lidarDBEpsilon_, this->lidarDBMinPoints_);
         }
 
         if (this->lidarCloud_ != NULL){
             this->lidarDetector_->getPointcloud(this->lidarCloud_);
             this->lidarDetector_->lidarDBSCAN();
-            this->lidarClusters_ = this->lidarDetector_->getClusters();
-            this->lidarBBoxes_ = this->lidarDetector_->getBBoxes();
-            // std::cout << "Lidar box num: " << this->lidarBBoxes_.size() << std::endl;
-            // std::cout << "Lidar cluster num: " << this->lidarClusters_.size() << std::endl;
 
+            std::vector<onboardDetector::Cluster> lidarClustersRaw = this->lidarDetector_->getClusters();
+            std::vector<onboardDetector::Cluster> lidarClustersFiltered;
+            std::vector<onboardDetector::box3D> lidarBBoxesRaw = this->lidarDetector_->getBBoxes();
+            std::vector<onboardDetector::box3D> lidarBBoxesFiltered;
+            for (int i=0; i<int(lidarBBoxesRaw.size()); ++i){
+                onboardDetector::box3D lidarBBox = lidarBBoxesRaw[i];
+                // filter out lidar bounding boxes that are too large
+                if(lidarBBox.x_width > this->maxObjectSize_(0) || lidarBBox.y_width > this->maxObjectSize_(1) || lidarBBox.z_width > this->maxObjectSize_(2)){
+                    continue;
+                }
+                lidarBBoxesFiltered.push_back(lidarBBox);
+                lidarClustersFiltered.push_back(lidarClustersRaw[i]);            
+            }
+            this->lidarBBoxes_ = lidarBBoxesFiltered;
+            this->lidarClusters_ = lidarClustersFiltered;
         }
     }
-
-    void dynamicDetector::filterBBoxes(){
-        std::vector<onboardDetector::box3D> filteredBBoxesTemp;
-        std::vector<std::vector<Eigen::Vector3d>> filteredPcClustersTemp;
-        std::vector<Eigen::Vector3d> filteredPcClusterCentersTemp;
-        std::vector<Eigen::Vector3d> filteredPcClusterStdsTemp; 
-        // find best IOU match for both uv and dbscan. If they are best for each other, then add to filtered bbox and fuse.
-        for (size_t i=0 ; i<this->uvBBoxes_.size(); ++i){
-            onboardDetector::box3D uvBBox = this->uvBBoxes_[i];
-            double bestIOUForUVBBox, bestIOUForDBBBox;
-            int bestMatchForUVBBox = this->getBestOverlapBBox(uvBBox, this->dbBBoxes_, bestIOUForUVBBox);
-            if (bestMatchForUVBBox == -1) continue; // no match at all
-            onboardDetector::box3D matchedDBBBox = this->dbBBoxes_[bestMatchForUVBBox]; 
-            std::vector<Eigen::Vector3d> matchedPcCluster = this->pcClusters_[bestMatchForUVBBox];
-            Eigen::Vector3d matchedPcClusterCenter = this->pcClusterCenters_[bestMatchForUVBBox];
-            Eigen::Vector3d matchedPcClusterStd = this->pcClusterStds_[bestMatchForUVBBox];
-            int bestMatchForDBBBox = this->getBestOverlapBBox(matchedDBBBox, this->uvBBoxes_, bestIOUForDBBBox);
-
-            // if best match is each other and both the IOU is greater than the threshold
-            if (bestMatchForDBBBox == int(i) and bestIOUForUVBBox > this->boxIOUThresh_ and bestIOUForDBBBox > this->boxIOUThresh_){
-                onboardDetector::box3D bbox;
-                
-                // take concervative strategy
-                double xmax = std::max(uvBBox.x+uvBBox.x_width/2, matchedDBBBox.x+matchedDBBBox.x_width/2);
-                double xmin = std::min(uvBBox.x-uvBBox.x_width/2, matchedDBBBox.x-matchedDBBBox.x_width/2);
-                double ymax = std::max(uvBBox.y+uvBBox.y_width/2, matchedDBBBox.y+matchedDBBBox.y_width/2);
-                double ymin = std::min(uvBBox.y-uvBBox.y_width/2, matchedDBBBox.y-matchedDBBBox.y_width/2);
-                double zmax = std::max(uvBBox.z+uvBBox.z_width/2, matchedDBBBox.z+matchedDBBBox.z_width/2);
-                double zmin = std::min(uvBBox.z-uvBBox.z_width/2, matchedDBBBox.z-matchedDBBBox.z_width/2);
-                bbox.x = (xmin+xmax)/2;
-                bbox.y = (ymin+ymax)/2;
-                bbox.z = (zmin+zmax)/2;
-                bbox.x_width = xmax-xmin;
-                bbox.y_width = ymax-ymin;
-                bbox.z_width = zmax-zmin;
-                bbox.Vx = 0;
-                bbox.Vy = 0;
-
-                filteredBBoxesTemp.push_back(bbox);
-                filteredPcClustersTemp.push_back(matchedPcCluster);      
-                filteredPcClusterCentersTemp.push_back(matchedPcClusterCenter);
-                filteredPcClusterStdsTemp.push_back(matchedPcClusterStd);
-            }
-        }
-
-        // lidar bbox filter
-        for (size_t i = 0; i < this->lidarBBoxes_.size(); ++i) {
-            onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
-            
-
-            if(lidarBBox.x_width > this->targetObjectSizeThresh_[0] || lidarBBox.y_width > this->targetObjectSizeThresh_[1] || lidarBBox.z_width > this->targetObjectSizeThresh_[2]){
-                continue;
-            }
-            
-            filteredBBoxesTemp.push_back(lidarBBox);
-
-            // get corresponding point cloud cluster
-            onboardDetector::Cluster cluster = this->lidarClusters_[i];
-
-            std::vector<Eigen::Vector3d> pcCluster;
-            for (const auto& point : cluster.points->points) {
-                pcCluster.emplace_back(point.x, point.y, point.z);
-            }
-
-            // extract the cluster center
-            Eigen::Vector3d clusterCenter(cluster.centroid[0], cluster.centroid[1], cluster.centroid[2]);
-
-            // compute std
-            Eigen::Vector3d clusterStd = cluster.eigen_values.cwiseSqrt().cast<double>();
-
-            // Append to the filtered vectors
-            filteredPcClustersTemp.push_back(pcCluster);
-            filteredPcClusterCentersTemp.push_back(clusterCenter);
-            filteredPcClusterStdsTemp.push_back(clusterStd);
-        }
-
-        // Instead of using YOLO for ensembling, only use YOLO for dynamic object identification
-        // For each 2D YOLO detected bounding box, find the best match projected 2D bounding boxes
-        if (this->yoloDetectionResults_.detections.size() != 0){
-            // Project 2D bbox in color image plane from 3D
-            vision_msgs::Detection2DArray filteredDetectionResults;
-            for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
-                onboardDetector::box3D bbox = filteredBBoxesTemp[j];
-
-                // 1. transform the bounding boxes into the camera frame
-                Eigen::Vector3d centerWorld (bbox.x, bbox.y, bbox.z);
-                Eigen::Vector3d sizeWorld (bbox.x_width, bbox.y_width, bbox.z_width);
-                Eigen::Vector3d centerCam, sizeCam;
-                this->transformBBox(centerWorld, sizeWorld, -this->orientationColor_.inverse() * this->positionColor_, this->orientationColor_.inverse(), centerCam, sizeCam);
-
-
-                // 2. find the top left and bottom right corner 3D position of the transformed bbox
-                Eigen::Vector3d topleft (centerCam(0)-sizeCam(0)/2, centerCam(1)-sizeCam(1)/2, centerCam(2));
-                Eigen::Vector3d bottomright (centerCam(0)+sizeCam(0)/2, centerCam(1)+sizeCam(1)/2, centerCam(2));
-
-                // 3. project those two points into the camera image plane
-                int tlX = (this->fxC_ * topleft(0) + this->cxC_ * topleft(2)) / topleft(2);
-                int tlY = (this->fyC_ * topleft(1) + this->cyC_ * topleft(2)) / topleft(2);
-                int brX = (this->fxC_ * bottomright(0) + this->cxC_ * bottomright(2)) / bottomright(2);
-                int brY = (this->fyC_ * bottomright(1) + this->cyC_ * bottomright(2)) / bottomright(2);
-
-                vision_msgs::Detection2D result;
-                result.bbox.center.x = tlX;
-                result.bbox.center.y = tlY;
-                result.bbox.size_x = brX - tlX;
-                result.bbox.size_y = brY - tlY;
-                filteredDetectionResults.detections.push_back(result);
-
-                cv::Rect bboxVis;
-                bboxVis.x = tlX;
-                bboxVis.y = tlY;
-                bboxVis.height = brY - tlY;
-                bboxVis.width = brX - tlX;
-                cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
-            }
-
-
-            for (int i=0; i<int(this->yoloDetectionResults_.detections.size()); ++i){
-                int tlXTarget = int(this->yoloDetectionResults_.detections[i].bbox.center.x);
-                int tlYTarget = int(this->yoloDetectionResults_.detections[i].bbox.center.y);
-                int brXTarget = tlXTarget + int(this->yoloDetectionResults_.detections[i].bbox.size_x);
-                int brYTarget = tlYTarget + int(this->yoloDetectionResults_.detections[i].bbox.size_y);
-
-                cv::Rect bboxVis;
-                bboxVis.x = tlXTarget;
-                bboxVis.y = tlYTarget;
-                bboxVis.height = brYTarget - tlYTarget;
-                bboxVis.width = brXTarget - tlXTarget;
-                cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(255, 0, 0), 5, 8, 0);
-
-                // Define the text to be added
-                std::string text = "dynamic";
-
-                // Define the position for the text (above the bounding box)
-                int fontFace = cv::FONT_HERSHEY_SIMPLEX;
-                double fontScale = 1.0;
-                int thickness = 2;
-                int baseline;
-                cv::getTextSize(text, fontFace, fontScale, thickness, &baseline);
-                cv::Point textOrg(bboxVis.x, bboxVis.y - 10);  // 10 pixels above the bounding box
-
-                // Add the text to the image
-                cv::putText(this->detectedColorImage_, text, textOrg, fontFace, fontScale, cv::Scalar(255, 0, 0), thickness, 8);
-
-                double bestIOU = 0.0;
-                int bestIdx = -1;
-                for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
-                    int tlX = int(filteredDetectionResults.detections[j].bbox.center.x);
-                    int tlY = int(filteredDetectionResults.detections[j].bbox.center.y);
-                    int brX = tlX + int(filteredDetectionResults.detections[j].bbox.size_x);
-                    int brY = tlY + int(filteredDetectionResults.detections[j].bbox.size_y);
-                    
-
-                    // check the IOU between yolo and projected bbox
-                    double xOverlap = double(std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget)));
-                    double yOverlap = double(std::max(0, std::min(brY, brYTarget) - std::max(tlY, tlYTarget)));
-                    double intersection = xOverlap * yOverlap;
-
-                    // Calculate union area
-                    double areaBox = double((brX - tlX) * (brY - tlY));
-                    double areaBoxTarget = double((brXTarget - tlXTarget) * (brYTarget - tlYTarget));
-                    double unionArea = areaBox + areaBoxTarget - intersection;
-                    // cout << "box " << j << " unionarea: " << unionArea << " intersection: " << intersection << endl;
-                    double IOU = (unionArea == 0) ? 0 : intersection / unionArea;
-
-                    if (IOU > bestIOU){
-                        bestIOU = IOU;
-                        bestIdx = j;
-                    }
-                }
-
-                if (bestIOU > 0.5){
-                    filteredBBoxesTemp[bestIdx].is_dynamic = true;
-                    filteredBBoxesTemp[bestIdx].is_human = true;
-                }
-                // cout << "i: " << i << " best IOU: " << bestIOU << endl;
-            }
-        }
-
-        
-
-        // for (int i=0; i<int(filteredBBoxesTemp.size()); ++i){
-        //     cout << "filterd box i: " << i << " x y z d: " << filteredBBoxesTemp[i].x << " " << filteredBBoxesTemp[i].y 
-        //     << " " <<filteredBBoxesTemp[i].z << " " << filteredBBoxesTemp[i].is_human << endl;
-        // }
-        // cout << "---------------------------------------" << endl;
-
-
-        // // yolo bounding box filter
-        // if (this->yoloBBoxes_.size() != 0){ // if no detected or not using yolo, this will not triggered
-        //     std::vector<onboardDetector::box3D> filteredBBoxesTempCopy = filteredBBoxesTemp;
-        //     std::vector<std::vector<Eigen::Vector3d>> filteredPcClustersTempCopy = filteredPcClustersTemp;
-        //     std::vector<Eigen::Vector3d> filteredPcClusterCentersTempCopy = filteredPcClusterCentersTemp;
-        //     std::vector<Eigen::Vector3d> filteredPcClusterStdsTempCopy = filteredPcClusterStdsTemp;
-        //     std::vector<Eigen::Vector3d> emptyPoints {};
-        //     Eigen::Vector3d emptyPcFeat {0,0,0};
-        //     for (size_t i=0; i<this->yoloBBoxes_.size(); ++i){
-        //         onboardDetector::box3D yoloBBox = this->yoloBBoxes_[i]; yoloBBox.is_dynamic = true; yoloBBox.is_human = true; // dynamic obstacle detected by yolo
-        //         Eigen::Vector3d bboxPos (this->yoloBBoxes_[i].x, this->yoloBBoxes_[i].y, this->yoloBBoxes_[i].z);
-        //         double distanceToCamera = (bboxPos - this->position_).norm();
-        //         if (distanceToCamera >= this->raycastMaxLength_){
-        //             continue; // do not use unreliable YOLO resutls which are distance too far from camera
-        //         }
-        //         double bestIOUForYoloBBox, bestIOUForFilteredBBox;
-        //         int bestMatchForYoloBBox = this->getBestOverlapBBox(yoloBBox, filteredBBoxesTemp, bestIOUForYoloBBox);
-        //         if (bestMatchForYoloBBox == -1){ // no match for yolo bounding boxes with any filtered bbox. 2 reasons: a) distance too far, filtered boxes no detection, b) distance not far but cannot match. Probably Yolo error
-        //             if (distanceToCamera >= this->yoloOverwriteDistance_){ // a) distance too far, filtered boxes no detection. directly add results
-        //                 filteredBBoxesTempCopy.push_back(yoloBBox); // add yolo bbox because filtered bbox is not able to get detection results at far distance
-        //                 filteredPcClustersTempCopy.push_back(emptyPoints); // no pc need for yolo 
-        //                 filteredPcClusterCentersTempCopy.push_back(emptyPcFeat);
-        //                 filteredPcClusterStdsTempCopy.push_back(emptyPcFeat);
-        //             }
-        //             else{ // b) distance not far but cannot match. Probably Yolo error, ignore results
-        //                 continue;
-        //             }
-        //         }
-        //         else{ // find best match for yolo bbox
-        //             onboardDetector::box3D matchedFilteredBBox = filteredBBoxesTemp[bestMatchForYoloBBox];
-        //             int bestMatchForFilteredBBox = this->getBestOverlapBBox(matchedFilteredBBox, this->yoloBBoxes_, bestIOUForFilteredBBox);
-        //             // if best match is each other and both the IOU is greater than the threshold
-        //             if (bestMatchForFilteredBBox == int(i) and bestIOUForYoloBBox > this->boxIOUThresh_ and bestIOUForFilteredBBox > this->boxIOUThresh_){
-        //                 onboardDetector::box3D bbox; bbox.is_dynamic = true; bbox.is_human = true;
-                        
-        //                 // take concervative strategy
-        //                 double xmax = std::max(yoloBBox.x+yoloBBox.x_width/2, matchedFilteredBBox.x+matchedFilteredBBox.x_width/2);
-        //                 double xmin = std::min(yoloBBox.x-yoloBBox.x_width/2, matchedFilteredBBox.x-matchedFilteredBBox.x_width/2);
-        //                 double ymax = std::max(yoloBBox.y+yoloBBox.y_width/2, matchedFilteredBBox.y+matchedFilteredBBox.y_width/2);
-        //                 double ymin = std::min(yoloBBox.y-yoloBBox.y_width/2, matchedFilteredBBox.y-matchedFilteredBBox.y_width/2);
-        //                 double zmax = std::max(yoloBBox.z+yoloBBox.z_width/2, matchedFilteredBBox.z+matchedFilteredBBox.z_width/2);
-        //                 double zmin = std::min(yoloBBox.z-yoloBBox.z_width/2, matchedFilteredBBox.z-matchedFilteredBBox.z_width/2);
-        //                 bbox.x = (xmin+xmax)/2;
-        //                 bbox.y = (ymin+ymax)/2;
-        //                 bbox.z = (zmin+zmax)/2;
-        //                 bbox.x_width = xmax-xmin;
-        //                 bbox.y_width = ymax-ymin;
-        //                 bbox.z_width = zmax-zmin;
-        //                 bbox.Vx = 0;
-        //                 bbox.Vy = 0;
-                        
-        //                 filteredBBoxesTempCopy[bestMatchForYoloBBox] = bbox; // replace the filtered bbox with the new fused bounding box
-        //                 filteredPcClustersTempCopy[bestMatchForYoloBBox] = emptyPoints;      // since it is yolo based, we dont need pointcloud for classification                     
-        //                 filteredPcClusterCentersTempCopy[bestMatchForYoloBBox] = emptyPcFeat;
-        //                 filteredPcClusterStdsTempCopy[bestMatchForYoloBBox] = emptyPcFeat;
-        //             }
-        //         }
-        //     }
-        //     filteredBBoxesTemp = filteredBBoxesTempCopy;
-        //     filteredPcClustersTemp = filteredPcClustersTempCopy;
-        //     filteredPcClusterCentersTemp = filteredPcClusterCentersTempCopy;
-        //     filteredPcClusterStdsTemp = filteredPcClusterStdsTempCopy;
-        // }
-
-        // std::cout << "FilteredBBoxes:" << filteredBBoxesTemp.size() << std::endl;
-        this->filteredBBoxes_ = filteredBBoxesTemp;
-        this->filteredPcClusters_ = filteredPcClustersTemp;
-        this->filteredPcClusterCenters_ = filteredPcClusterCentersTemp;
-        this->filteredPcClusterStds_ = filteredPcClusterStdsTemp;
-    }
-
 
     void dynamicDetector::filterLVBBoxes(){
         std::vector<onboardDetector::box3D> filteredBBoxesTemp;
@@ -1491,6 +1113,7 @@ namespace onboardDetector{
         std::vector<Eigen::Vector3d> lidarPcClusterCentersTemp;
         std::vector<Eigen::Vector3d> lidarPcClusterStdsTemp; // store lidar output
 
+        // STEP 1: Get visual bboxes by fusing visual bounding boxes
         // find best IOU match for both uv and dbscan. If they are best for each other, then add to filtered bbox and fuse.
         for (size_t i=0 ; i<this->uvBBoxes_.size(); ++i){
             onboardDetector::box3D uvBBox = this->uvBBoxes_[i];
@@ -1498,9 +1121,9 @@ namespace onboardDetector{
             int bestMatchForUVBBox = this->getBestOverlapBBox(uvBBox, this->dbBBoxes_, bestIOUForUVBBox);
             if (bestMatchForUVBBox == -1) continue; // no match at all
             onboardDetector::box3D matchedDBBBox = this->dbBBoxes_[bestMatchForUVBBox]; 
-            std::vector<Eigen::Vector3d> matchedPcCluster = this->pcClusters_[bestMatchForUVBBox];
-            Eigen::Vector3d matchedPcClusterCenter = this->pcClusterCenters_[bestMatchForUVBBox];
-            Eigen::Vector3d matchedPcClusterStd = this->pcClusterStds_[bestMatchForUVBBox];
+            std::vector<Eigen::Vector3d> matchedPcCluster = this->pcClustersVisual_[bestMatchForUVBBox];
+            Eigen::Vector3d matchedPcClusterCenter = this->pcClusterCentersVisual_[bestMatchForUVBBox];
+            Eigen::Vector3d matchedPcClusterStd = this->pcClusterStdsVisual_[bestMatchForUVBBox];
             int bestMatchForDBBBox = this->getBestOverlapBBox(matchedDBBBox, this->uvBBoxes_, bestIOUForDBBBox);
 
             // if best match is each other and both the IOU is greater than the threshold
@@ -1529,24 +1152,18 @@ namespace onboardDetector{
                 visualPcClusterStdsTemp.push_back(matchedPcClusterStd);
             }
         }
+        this->visualBBoxes_ = visualBBoxesTemp; // for visualization
 
-        
+        // STEP 2: Get lidar bboxes and its corresponding clusters and features
         // lidar bbox filter
         for (size_t i = 0; i < this->lidarBBoxes_.size(); ++i) {
             onboardDetector::box3D lidarBBox = this->lidarBBoxes_[i];
             
-
-            if(lidarBBox.x_width > this->targetObjectSizeThresh_[0] || lidarBBox.y_width > this->targetObjectSizeThresh_[1] || lidarBBox.z_width > this->targetObjectSizeThresh_[2]){
-                continue;
-            }
-            
-            lidarBBoxesTemp.push_back(lidarBBox);
-
             // get corresponding point cloud cluster
             onboardDetector::Cluster cluster = this->lidarClusters_[i];
 
             std::vector<Eigen::Vector3d> pcCluster;
-            for (const auto& point : cluster.points->points) {
+            for (const pcl::PointXYZ& point : cluster.points->points) {
                 pcCluster.emplace_back(point.x, point.y, point.z);
             }
 
@@ -1556,71 +1173,93 @@ namespace onboardDetector{
             // compute std
             Eigen::Vector3d clusterStd = cluster.eigen_values.cwiseSqrt().cast<double>();
 
-
+            lidarBBoxesTemp.push_back(lidarBBox);
             lidarPcClustersTemp.push_back(pcCluster);
             lidarPcClusterCentersTemp.push_back(clusterCenter);
             lidarPcClusterStdsTemp.push_back(clusterStd);
         }
 
-
-        // TODO: fuse visual and lidar bounding boxes
+        // STEP 3: Fuse LiDAR and visual bounding boxes
         // init processed flags
-        std::vector<bool> processedLidarBoxes(lidarBBoxesTemp.size(), false);
-        std::vector<bool> processedVisualBoxes(visualBBoxesTemp.size(), false);
-
-        // set the threshold for box IOU
-        double boxIOUThresh = this->boxIOUThresh_; 
-
-        // **Case A: Multiple LiDAR boxes in one visual box
+        std::vector<bool> processedLidarBBoxes(lidarBBoxesTemp.size(), false);
+        std::vector<bool> processedVisualBBoxes(visualBBoxesTemp.size(), false);
         for (size_t i = 0; i < visualBBoxesTemp.size(); ++i) {
-            if (processedVisualBoxes[i]) continue; // skip processed visual boxes
+            if (processedVisualBBoxes[i]) continue; // skip processed visual boxes
             onboardDetector::box3D visualBBox = visualBBoxesTemp[i];
-            std::vector<int> overlappingLidarBoxes;
-
-            // get the bounding box of the visual box
-            double visualXMin = visualBBox.x - visualBBox.x_width / 2.0;
-            double visualXMax = visualBBox.x + visualBBox.x_width / 2.0;
-            double visualYMin = visualBBox.y - visualBBox.y_width / 2.0;
-            double visualYMax = visualBBox.y + visualBBox.y_width / 2.0;
-            double visualZMin = visualBBox.z - visualBBox.z_width / 2.0;
-            double visualZMax = visualBBox.z + visualBBox.z_width / 2.0;
+            std::vector<int> overlappingLidarBBoxes;
+            std::vector<int> overlappingVisualBBoxes;
 
             // loop through all LiDAR boxes
             for (size_t j = 0; j < lidarBBoxesTemp.size(); ++j) {
-                if (processedLidarBoxes[j]) continue; // skip processed LiDAR boxes
+                if (processedLidarBBoxes[j]) continue; // skip processed LiDAR boxes
                 onboardDetector::box3D lidarBBox = lidarBBoxesTemp[j];
 
-                // get center of the LiDAR box
-                double lidarCenterX = lidarBBox.x;
-                double lidarCenterY = lidarBBox.y;
-                double lidarCenterZ = lidarBBox.z;
-
-                // check overlap 
-                if (lidarCenterX >= visualXMin && lidarCenterX <= visualXMax &&
-                    lidarCenterY >= visualYMin && lidarCenterY <= visualYMax &&
-                    lidarCenterZ >= visualZMin && lidarCenterZ <= visualZMax) {
-                    overlappingLidarBoxes.push_back(j);
+                // find IOU between the visual bboxes and lidar bboxes
+                double lvIOU = this->calBoxIOU(visualBBox, lidarBBox, true);
+                if (lvIOU > this->boxIOUThresh_){
+                    overlappingLidarBBoxes.push_back(j);
+                    for (size_t k=0; k<visualBBoxesTemp.size(); ++k){
+                        if (processedVisualBBoxes[i] or i==k) continue;
+                        onboardDetector::box3D visualBBoxPotentialMatch = visualBBoxesTemp[k];
+                        double lvIOUPotentialMatch = this->calBoxIOU(visualBBoxPotentialMatch, lidarBBox, true);
+                        if (lvIOUPotentialMatch > this->boxIOUThresh_){
+                            overlappingVisualBBoxes.push_back(k);
+                        }
+                    }
                 }
             }
+
             // **Case 1: no overlapping LiDAR boxes
-            if (overlappingLidarBoxes.empty()) {
-                // no overlapping LiDAR boxes, keep the visu
+            if (overlappingLidarBBoxes.empty()) {
+                // no overlapping LiDAR boxes, keep the visual box
+                filteredBBoxesTemp.push_back(visualBBox);
                 filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
                 filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
                 filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
-                // mark the visual box as processed
-                processedVisualBoxes[i] = true;
-            // **Case 2: one LiDAR box overlaps with one visual box
-            } else if (overlappingLidarBoxes.size() == 1) {
-                int lidarIdx = overlappingLidarBoxes[0];
-                onboardDetector::box3D lidarBBox = lidarBBoxesTemp[lidarIdx];
+                processedVisualBBoxes[i] = true; // mark the visual box as processed
+            // **Case 2: multiple bounding boxes have overlapping
+            }else{
+                std::vector<onboardDetector::box3D> overlappingBBoxes {visualBBox};
+                std::vector<Eigen::Vector3d> overlappingPcCluster = visualPcClustersTemp[i];
+                // update size of fused bounding boxes
+                double xmax = visualBBox.x + visualBBox.x_width / 2;
+                double xmin = visualBBox.x - visualBBox.x_width / 2;
+                double ymax = visualBBox.y + visualBBox.y_width / 2;
+                double ymin = visualBBox.y - visualBBox.y_width / 2;
+                double zmax = visualBBox.z + visualBBox.z_width / 2;
+                double zmin = visualBBox.z - visualBBox.z_width / 2;
 
-                double xmax = std::max(visualBBox.x + visualBBox.x_width / 2, lidarBBox.x + lidarBBox.x_width / 2);
-                double xmin = std::min(visualBBox.x - visualBBox.x_width / 2, lidarBBox.x - lidarBBox.x_width / 2);
-                double ymax = std::max(visualBBox.y + visualBBox.y_width / 2, lidarBBox.y + lidarBBox.y_width / 2);
-                double ymin = std::min(visualBBox.y - visualBBox.y_width / 2, lidarBBox.y - lidarBBox.y_width / 2);
-                double zmax = std::max(visualBBox.z + visualBBox.z_width / 2, lidarBBox.z + lidarBBox.z_width / 2);
-                double zmin = std::min(visualBBox.z - visualBBox.z_width / 2, lidarBBox.z - lidarBBox.z_width / 2);
+                // get all potential bounding boxes that can merge
+                for (int lidarIdx : overlappingLidarBBoxes){
+                    overlappingBBoxes.push_back(lidarBBoxesTemp[lidarIdx]);
+                    xmax = std::max(xmax, lidarBBoxesTemp[lidarIdx].x + lidarBBoxesTemp[lidarIdx].x_width / 2);
+                    xmin = std::min(xmin, lidarBBoxesTemp[lidarIdx].x - lidarBBoxesTemp[lidarIdx].x_width / 2);
+                    ymax = std::max(ymax, lidarBBoxesTemp[lidarIdx].y + lidarBBoxesTemp[lidarIdx].y_width / 2);
+                    ymin = std::min(ymin, lidarBBoxesTemp[lidarIdx].y - lidarBBoxesTemp[lidarIdx].y_width / 2);
+                    zmax = std::max(zmax, lidarBBoxesTemp[lidarIdx].z + lidarBBoxesTemp[lidarIdx].z_width / 2);
+                    zmin = std::min(zmin, lidarBBoxesTemp[lidarIdx].z - lidarBBoxesTemp[lidarIdx].z_width / 2);
+                    for (Eigen::Vector3d lidarPoints : lidarPcClustersTemp[lidarIdx]){
+                        overlappingPcCluster.push_back(lidarPoints);
+                    }
+                    processedLidarBBoxes[lidarIdx] = true;
+                }
+                for (int visualIdx : overlappingVisualBBoxes){
+                    overlappingBBoxes.push_back(visualBBoxesTemp[visualIdx]);
+                    xmax = std::max(xmax, visualBBoxesTemp[visualIdx].x + visualBBoxesTemp[visualIdx].x_width / 2);
+                    xmin = std::min(xmin, visualBBoxesTemp[visualIdx].x - visualBBoxesTemp[visualIdx].x_width / 2);
+                    ymax = std::max(ymax, visualBBoxesTemp[visualIdx].y + visualBBoxesTemp[visualIdx].y_width / 2);
+                    ymin = std::min(ymin, visualBBoxesTemp[visualIdx].y - visualBBoxesTemp[visualIdx].y_width / 2);
+                    zmax = std::max(zmax, visualBBoxesTemp[visualIdx].z + visualBBoxesTemp[visualIdx].z_width / 2);
+                    zmin = std::min(zmin, visualBBoxesTemp[visualIdx].z - visualBBoxesTemp[visualIdx].z_width / 2);
+                    for (Eigen::Vector3d visualPoints : visualPcClustersTemp[visualIdx]){
+                        overlappingPcCluster.push_back(visualPoints);
+                    }
+                    processedVisualBBoxes[visualIdx] = true;
+                }
+
+                std::vector<Eigen::Vector3d>& fusedPcCluster = overlappingPcCluster;
+                Eigen::Vector3d fusedPcClusterCenter, fusedPcClusterStd;
+                this->calcPcFeat(fusedPcCluster, fusedPcClusterCenter, fusedPcClusterStd);
 
                 onboardDetector::box3D fusedBBox;
                 fusedBBox.x = (xmin + xmax) / 2;
@@ -1633,290 +1272,32 @@ namespace onboardDetector{
                 fusedBBox.Vy = 0;
 
                 filteredBBoxesTemp.push_back(fusedBBox);
-                filteredPcClustersTemp.push_back(visualPcClustersTemp[i]); 
-                filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
-                filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
-
-                // mark the visual box and LiDAR box as processed
-                processedVisualBoxes[i] = true;
-                processedLidarBoxes[lidarIdx] = true;
-            // **Case 3: multiple LiDAR boxes overlap with one visual box
-            } else { // overlappingLidarBoxes.size() > 1
-                // check if all LiDAR boxes are mutually overlapping
-                bool allMutuallyOverlap = true;
-                for (size_t m = 0; m < overlappingLidarBoxes.size(); ++m) {
-                    for (size_t n = m + 1; n < overlappingLidarBoxes.size(); ++n) {
-                        int idx1 = overlappingLidarBoxes[m];
-                        int idx2 = overlappingLidarBoxes[n];
-                        double iouLidar = this->calBoxIOU(lidarBBoxesTemp[idx1], lidarBBoxesTemp[idx2]);
-                        if (iouLidar <= boxIOUThresh) {
-                            allMutuallyOverlap = false;
-                            break;
-                        }
-                    }
-                    if (!allMutuallyOverlap) break;
-                }
-                // **Case 3.1: all LiDAR boxes mutually overlap
-                if (allMutuallyOverlap) {
-                    // fuse all LiDAR boxes with one visual box
-                    double xVmin = visualBBox.x - visualBBox.x_width / 2;
-                    double xVmax = visualBBox.x + visualBBox.x_width / 2;
-                    double yVmin = visualBBox.y - visualBBox.y_width / 2;
-                    double yVmax = visualBBox.y + visualBBox.y_width / 2;
-                    double zVmin = visualBBox.z - visualBBox.z_width / 2;
-                    double zVmax = visualBBox.z + visualBBox.z_width / 2;
-
-                    double xFmin = xVmin;
-                    double xFmax = xVmax;
-                    double yFmin = yVmin;
-                    double yFmax = yVmax;
-                    double zFmin = zVmin;
-                    double zFmax = zVmax;
-
-                    for (int idx : overlappingLidarBoxes) {
-                        onboardDetector::box3D lidarBBox = lidarBBoxesTemp[idx];
-                        double xLmin = lidarBBox.x - lidarBBox.x_width / 2;
-                        double xLmax = lidarBBox.x + lidarBBox.x_width / 2;
-                        double yLmin = lidarBBox.y - lidarBBox.y_width / 2;
-                        double yLmax = lidarBBox.y + lidarBBox.y_width / 2;
-                        double zLmin = lidarBBox.z - lidarBBox.z_width / 2;
-                        double zLmax = lidarBBox.z + lidarBBox.z_width / 2;
-
-                        xFmin = std::min(xFmin, xLmin);
-                        xFmax = std::max(xFmax, xLmax);
-                        yFmin = std::min(yFmin, yLmin);
-                        yFmax = std::max(yFmax, yLmax);
-                        zFmin = std::min(zFmin, zLmin);
-                        zFmax = std::max(zFmax, zLmax);
-
-                        // mark the LiDAR box as processed
-                        processedLidarBoxes[idx] = true;
-                    }
-
-                    onboardDetector::box3D fusedBBox;
-                    fusedBBox.x = (xFmin + xFmax) / 2;
-                    fusedBBox.y = (yFmin + yFmax) / 2;
-                    fusedBBox.z = (zFmin + zFmax) / 2;
-                    fusedBBox.x_width = xFmax - xFmin;
-                    fusedBBox.y_width = yFmax - yFmin;
-                    fusedBBox.z_width = zFmax - zFmin;
-                    fusedBBox.Vx = 0;
-                    fusedBBox.Vy = 0;
-
-                    filteredBBoxesTemp.push_back(fusedBBox);
-                    filteredPcClustersTemp.push_back(visualPcClustersTemp[i]); 
-                    filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
-                    filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
-
-                    // mark the visual box as processed
-                    processedVisualBoxes[i] = true;
-                // **Case 3.2: multiple LiDAR boxes do not mutually overlap
-                } else {
-                    // exist multiple LiDAR boxes that do not mutually overlap
-                    // keep only the LiDAR boxes
-                    for (int idx : overlappingLidarBoxes) {
-                        onboardDetector::box3D lidarBBox = lidarBBoxesTemp[idx];
-                        filteredBBoxesTemp.push_back(lidarBBox);
-                        filteredPcClustersTemp.push_back(lidarPcClustersTemp[idx]);
-                        filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[idx]);
-                        filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[idx]);
-                        // mark the LiDAR box as processed
-                        processedLidarBoxes[idx] = true;
-                    }
-                    // mark the visual box as processed
-                    processedVisualBoxes[i] = true;
-                }
+                filteredPcClustersTemp.push_back(fusedPcCluster); 
+                filteredPcClusterCentersTemp.push_back(fusedPcClusterCenter);
+                filteredPcClusterStdsTemp.push_back(fusedPcClusterStd);
+                processedVisualBBoxes[i] = true;
             }
         }
 
-        // **Case B: Multiple visual boxes in one LiDAR box
+        // STEP 4: Add rest of LiDAR detection 
         for (size_t i = 0; i < lidarBBoxesTemp.size(); ++i) {
-            if (processedLidarBoxes[i]) continue; // skip processed LiDAR boxes
+            if (processedLidarBBoxes[i]) continue; // skip processed LiDAR boxes
             onboardDetector::box3D lidarBBox = lidarBBoxesTemp[i];
-            std::vector<int> overlappingVisualBoxes;
 
-            // get the bounding box of the LiDAR box
-            double lidarXMin = lidarBBox.x - lidarBBox.x_width / 2.0;
-            double lidarXMax = lidarBBox.x + lidarBBox.x_width / 2.0;
-            double lidarYMin = lidarBBox.y - lidarBBox.y_width / 2.0;
-            double lidarYMax = lidarBBox.y + lidarBBox.y_width / 2.0;
-            double lidarZMin = lidarBBox.z - lidarBBox.z_width / 2.0;
-            double lidarZMax = lidarBBox.z + lidarBBox.z_width / 2.0;
-
-            // loop through all visual boxes
-            for (size_t j = 0; j < visualBBoxesTemp.size(); ++j) {
-                if (processedVisualBoxes[j]) continue; // skip processed visual boxes
-                onboardDetector::box3D visualBBox = visualBBoxesTemp[j];
-
-                // get center of the visual box
-                double visualCenterX = visualBBox.x;
-                double visualCenterY = visualBBox.y;
-                double visualCenterZ = visualBBox.z;
-
-                // check overlap 
-                if (visualCenterX >= lidarXMin && visualCenterX <= lidarXMax &&
-                    visualCenterY >= lidarYMin && visualCenterY <= lidarYMax &&
-                    visualCenterZ >= lidarZMin && visualCenterZ <= lidarZMax) {
-                    overlappingVisualBoxes.push_back(j);
-                }
-            }
-            // **Case 1: no overlapping visual boxes
-            if (overlappingVisualBoxes.empty()) {
-                filteredBBoxesTemp.push_back(lidarBBox);
-                filteredPcClustersTemp.push_back(lidarPcClustersTemp[i]);
-                filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[i]);
-                filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
-                // mark the LiDAR box as processed
-                processedLidarBoxes[i] = true;
-            // **Case 2: one visual box overlaps with one LiDAR box
-            } else if (overlappingVisualBoxes.size() == 1) {
-                int visualIdx = overlappingVisualBoxes[0];
-                onboardDetector::box3D visualBBox = visualBBoxesTemp[visualIdx];
-
-                double xmax = std::max(visualBBox.x + visualBBox.x_width / 2, lidarBBox.x + lidarBBox.x_width / 2);
-                double xmin = std::min(visualBBox.x - visualBBox.x_width / 2, lidarBBox.x - lidarBBox.x_width / 2);
-                double ymax = std::max(visualBBox.y + visualBBox.y_width / 2, lidarBBox.y + lidarBBox.y_width / 2);
-                double ymin = std::min(visualBBox.y - visualBBox.y_width / 2, lidarBBox.y - lidarBBox.y_width / 2);
-                double zmax = std::max(visualBBox.z + visualBBox.z_width / 2, lidarBBox.z + lidarBBox.z_width / 2);
-                double zmin = std::min(visualBBox.z - visualBBox.z_width / 2, lidarBBox.z - lidarBBox.z_width / 2);
-
-                onboardDetector::box3D fusedBBox;
-                fusedBBox.x = (xmin + xmax) / 2;
-                fusedBBox.y = (ymin + ymax) / 2;
-                fusedBBox.z = (zmin + zmax) / 2;
-                fusedBBox.x_width = xmax - xmin;
-                fusedBBox.y_width = ymax - ymin;
-                fusedBBox.z_width = zmax - zmin;
-                fusedBBox.Vx = 0;
-                fusedBBox.Vy = 0;
-
-                filteredBBoxesTemp.push_back(fusedBBox);
-                filteredPcClustersTemp.push_back(lidarPcClustersTemp[i]); 
-                filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[i]);
-                filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
-
-                // mark the visual box and LiDAR box as processed
-                processedLidarBoxes[i] = true;
-                processedVisualBoxes[visualIdx] = true;
-            // **Case 3: multiple visual boxes overlap with one LiDAR box
-            } else { // overlappingVisualBoxes.size() > 1
-                // check if all visual boxes are mutually overlapping
-                bool allMutuallyOverlap = true;
-                for (size_t m = 0; m < overlappingVisualBoxes.size(); ++m) {
-                    for (size_t n = m + 1; n < overlappingVisualBoxes.size(); ++n) {
-                        int idx1 = overlappingVisualBoxes[m];
-                        int idx2 = overlappingVisualBoxes[n];
-                        double iouVisual = this->calBoxIOU(visualBBoxesTemp[idx1], visualBBoxesTemp[idx2]);
-                        if (iouVisual <= boxIOUThresh) {
-                            allMutuallyOverlap = false;
-                            break;
-                        }
-                    }
-                    if (!allMutuallyOverlap) break;
-                }
-
-                // **Case 3.1: all visual boxes mutually overlap
-                if (allMutuallyOverlap) {
-                    // fuse all visual boxes with one LiDAR box
-                    double xLmin = lidarBBox.x - lidarBBox.x_width / 2;
-                    double xLmax = lidarBBox.x + lidarBBox.x_width / 2;
-                    double yLmin = lidarBBox.y - lidarBBox.y_width / 2;
-                    double yLmax = lidarBBox.y + lidarBBox.y_width / 2;
-                    double zLmin = lidarBBox.z - lidarBBox.z_width / 2;
-                    double zLmax = lidarBBox.z + lidarBBox.z_width / 2;
-
-                    double xFmin = xLmin;
-                    double xFmax = xLmax;
-                    double yFmin = yLmin;
-                    double yFmax = yLmax;
-                    double zFmin = zLmin;
-                    double zFmax = zLmax;
-
-                    for (int idx : overlappingVisualBoxes) {
-                        onboardDetector::box3D visualBBox = visualBBoxesTemp[idx];
-                        double xVmin = visualBBox.x - visualBBox.x_width / 2;
-                        double xVmax = visualBBox.x + visualBBox.x_width / 2;
-                        double yVmin = visualBBox.y - visualBBox.y_width / 2;
-                        double yVmax = visualBBox.y + visualBBox.y_width / 2;
-                        double zVmin = visualBBox.z - visualBBox.z_width / 2;
-                        double zVmax = visualBBox.z + visualBBox.z_width / 2;
-
-                        xFmin = std::min(xFmin, xVmin);
-                        xFmax = std::max(xFmax, xVmax);
-                        yFmin = std::min(yFmin, yVmin);
-                        yFmax = std::max(yFmax, yVmax);
-                        zFmin = std::min(zFmin, zVmin);
-                        zFmax = std::max(zFmax, zVmax);
-
-                        // mark the visual box as processed
-                        processedVisualBoxes[idx] = true;
-                    }
-
-                    onboardDetector::box3D fusedBBox;
-                    fusedBBox.x = (xFmin + xFmax) / 2;
-                    fusedBBox.y = (yFmin + yFmax) / 2;
-                    fusedBBox.z = (zFmin + zFmax) / 2;
-                    fusedBBox.x_width = xFmax - xFmin;
-                    fusedBBox.y_width = yFmax - yFmin;
-                    fusedBBox.z_width = zFmax - zFmin;
-                    fusedBBox.Vx = 0;
-                    fusedBBox.Vy = 0;
-
-                    filteredBBoxesTemp.push_back(fusedBBox);
-                    filteredPcClustersTemp.push_back(lidarPcClustersTemp[i]); 
-                    filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[i]);
-                    filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
-
-                    // mark the LiDAR box as processed
-                    processedLidarBoxes[i] = true;
-            }
-            // **Case 3.2: multiple visual boxes do not mutually overlap
-            else {
-                // exist multiple visual boxes that do not mutually overlap
-                // keep only the visual boxes
-                for (int idx : overlappingVisualBoxes) {
-                    onboardDetector::box3D visualBBox = visualBBoxesTemp[idx];
-                    filteredBBoxesTemp.push_back(visualBBox);
-                    filteredPcClustersTemp.push_back(visualPcClustersTemp[idx]);
-                    filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[idx]);
-                    filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[idx]);
-                    // mark the visual box as processed
-                    processedVisualBoxes[idx] = true;
-                }
-                // mark the LiDAR box as processed
-                processedLidarBoxes[i] = true;
-            }
+            // put the rest lidar bbox into the filtered bboxes
+            filteredBBoxesTemp.push_back(lidarBBox);
+            filteredPcClustersTemp.push_back(lidarPcClustersTemp[i]);
+            filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[i]);
+            filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
+            processedLidarBBoxes[i] = true;
         }
+        this->filteredBBoxesBeforeYolo_ = filteredBBoxesTemp; // for visualization
 
-        // process any remaining visual boxes
-        for (size_t i = 0; i < visualBBoxesTemp.size(); ++i) {
-            if (!processedVisualBoxes[i]) {
-                // keep the visual box
-                filteredBBoxesTemp.push_back(visualBBoxesTemp[i]);
-                filteredPcClustersTemp.push_back(visualPcClustersTemp[i]);
-                filteredPcClusterCentersTemp.push_back(visualPcClusterCentersTemp[i]);
-                filteredPcClusterStdsTemp.push_back(visualPcClusterStdsTemp[i]);
-                // mark the visual box as processed
-                processedVisualBoxes[i] = true;
-            }
-        }
 
-        // process any remaining LiDAR boxes
-        for (size_t i = 0; i < lidarBBoxesTemp.size(); ++i) {
-            if (!processedLidarBoxes[i]) {
-                // keep the LiDAR box
-                filteredBBoxesTemp.push_back(lidarBBoxesTemp[i]);
-                filteredPcClustersTemp.push_back(lidarPcClustersTemp[i]);
-                filteredPcClusterCentersTemp.push_back(lidarPcClusterCentersTemp[i]);
-                filteredPcClusterStdsTemp.push_back(lidarPcClusterStdsTemp[i]);
-                // mark the LiDAR box as processed
-                processedLidarBoxes[i] = true;
-            }
-        }
-
-        std::vector<int> best3DBBoxForYOLO(this->yoloDetectionResults_.detections.size(), -1);
-
+        // STEP 5: If YOLO detection results are available, improve the classification and splitting potential incorrect bboxes
         if (this->yoloDetectionResults_.detections.size() != 0){
+            std::vector<int> best3DBBoxForYOLO(this->yoloDetectionResults_.detections.size(), -1);
+
             // Project 2D bbox in color image plane from 3D
             vision_msgs::Detection2DArray filteredDetectionResults;
             for (int j=0; j<int(filteredBBoxesTemp.size()); ++j){
@@ -1927,7 +1308,6 @@ namespace onboardDetector{
                 Eigen::Vector3d sizeWorld (bbox.x_width, bbox.y_width, bbox.z_width);
                 Eigen::Vector3d centerCam, sizeCam;
                 this->transformBBox(centerWorld, sizeWorld, -this->orientationColor_.inverse() * this->positionColor_, this->orientationColor_.inverse(), centerCam, sizeCam);
-
 
                 // 2. find the top left and bottom right corner 3D position of the transformed bbox
                 Eigen::Vector3d topleft (centerCam(0)-sizeCam(0)/2, centerCam(1)-sizeCam(1)/2, centerCam(2));
@@ -1953,7 +1333,6 @@ namespace onboardDetector{
                 bboxVis.width = brX - tlX;
                 cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
             }
-
 
             for (int i=0; i<int(this->yoloDetectionResults_.detections.size()); ++i){
                 int tlXTarget = int(this->yoloDetectionResults_.detections[i].bbox.center.x);
@@ -1982,25 +1361,13 @@ namespace onboardDetector{
                 // Add the text to the image
                 cv::putText(this->detectedColorImage_, text, textOrg, fontFace, fontScale, cv::Scalar(255, 0, 0), thickness, 8);
 
-                double yoloBoxArea = double((brXTarget - tlXTarget) * (brYTarget - tlYTarget));
-
                 double bestIOU = 0.0;
                 int bestIdx = -1;
-                double bestCoverageRatio = 0.0; // the ratio of the area of the yolo bbox that is covered by the 3D bbox
-
-                // Calculate the center of the YOLO 2D box
-                double yoloCenterX = (tlXTarget + brXTarget) / 2.0;
-                double yoloCenterY = (tlYTarget + brYTarget) / 2.0;
-
                 for (int j = 0; j < int(filteredBBoxesTemp.size()); ++j) {
                     int tlX = int(filteredDetectionResults.detections[j].bbox.center.x);
                     int tlY = int(filteredDetectionResults.detections[j].bbox.center.y);
                     int brX = tlX + int(filteredDetectionResults.detections[j].bbox.size_x);
                     int brY = tlY + int(filteredDetectionResults.detections[j].bbox.size_y);
-
-                    // Check if the YOLO center is inside the 3D bounding box
-                    bool isCenterInside = (yoloCenterX >= tlX && yoloCenterX <= brX &&
-                                        yoloCenterY >= tlY && yoloCenterY <= brY);
 
                     // check the IOU between yolo and projected bbox
                     double xOverlap = double(std::max(0, std::min(brX, brXTarget) - std::max(tlX, tlXTarget)));
@@ -2013,23 +1380,17 @@ namespace onboardDetector{
                     double unionArea = areaBox + areaBoxTarget - intersection;
 
                     double IOU = (unionArea == 0) ? 0 : intersection / unionArea;
-                    double coverageRatio = (yoloBoxArea > 0) ? (intersection / yoloBoxArea) : 0.0;
-
-                    // Update best match only if center is inside and criteria are met
-                    if (isCenterInside &&
-                        (IOU > bestIOU || (fabs(IOU - bestIOU) < 1e-6 && coverageRatio > bestCoverageRatio))) {
+                    if (IOU > bestIOU){
                         bestIOU = IOU;
-                        bestCoverageRatio = coverageRatio;
                         bestIdx = j;
                     }
                 }
 
-                if (bestIOU > 0.4 || bestCoverageRatio > 0.5) {
+                if (bestIOU > 0.0){
                     best3DBBoxForYOLO[i] = bestIdx;
                 }
             }
 
-            
             std::map<int, std::vector<int>> box3DToYolo;
             for (int i = 0; i < int(best3DBBoxForYOLO.size()); ++i) {
                 int idx3D = best3DBBoxForYOLO[i];
@@ -2042,9 +1403,10 @@ namespace onboardDetector{
             std::vector<std::vector<Eigen::Vector3d>> newFilteredPcClusters;
             std::vector<Eigen::Vector3d> newFilteredPcClusterCenters;
             std::vector<Eigen::Vector3d> newFilteredPcClusterStds;
-            // *Case 1: No corresponding yolo box
+            
             for (int idx3D = 0; idx3D < int(filteredBBoxesTemp.size()); ++idx3D) {
                 auto it = box3DToYolo.find(idx3D);
+                // *Case 1: No corresponding yolo box
                 if (it == box3DToYolo.end()) {
                     newFilteredBBoxes.push_back(filteredBBoxesTemp[idx3D]);
                     newFilteredPcClusters.push_back(filteredPcClustersTemp[idx3D]);
@@ -2062,54 +1424,78 @@ namespace onboardDetector{
                     newFilteredPcClusters.push_back(filteredPcClustersTemp[idx3D]);
                     newFilteredPcClusterCenters.push_back(filteredPcClusterCentersTemp[idx3D]);
                     newFilteredPcClusterStds.push_back(filteredPcClusterStdsTemp[idx3D]);
+                // *Case 3: multiple yolo boxes correspond to one 3D box
                 } else {
-                    // *Case 3: multiple yolo boxes correspond to one 3D box
-                    if(filteredPcClustersTemp[idx3D].size() == 0){
-                        continue;
+                    std::vector<Eigen::Vector3d> cloudCluster = filteredPcClustersTemp[idx3D];
+
+                    // iterate to assign all points
+                    int allowMargin = 0; // pixel 
+                    std::vector<int> assignment(cloudCluster.size(), -1);
+                    for (size_t i = 0; i < cloudCluster.size(); ++i){
+                        Eigen::Vector3d ptWorld = cloudCluster[i];
+                        Eigen::Vector3d ptCam = this->orientationColor_.inverse() * (ptWorld - this->positionColor_);
+
+                        int u = (this->fxC_ * ptCam(0) + this->cxC_ * ptCam(2)) / ptCam(2);
+                        int v = (this->fyC_ * ptCam(1) + this->cyC_ * ptCam(2)) / ptCam(2);
+
+                        int closestDist = std::numeric_limits<int>::max();
+                        for (int yidx : yoloIndices){
+                            int XTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.x);
+                            int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
+                            int XTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_x);
+                            int YTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_y);
+                            int xMin = XTarget;
+                            int xMax = XTarget + XTargetWid;
+                            int yMin = YTarget;
+                            int yMax = YTarget + YTargetWid;
+
+                            if (u >= xMin-allowMargin && u <= xMax+allowMargin && v >= yMin-allowMargin && v <= yMax+allowMargin) {
+                                // Horizontal signed distance
+                                int horizontalDistance = 0;
+                                if (u < xMin) {
+                                    horizontalDistance = xMin - u; // Outside on the left
+                                } else if (u > xMax) {
+                                    horizontalDistance = u - xMax; // Outside on the right
+                                } else {
+                                    horizontalDistance = std::max(xMin - u, u - xMax); // Inside horizontally
+                                }
+
+                                // Compute signed distance to the closest edge
+                                int signedDistance;
+                                if (u < xMin || u > xMax || v < yMin || v > yMax) {
+                                    // Outside: Take the larger of horizontal or vertical distance
+                                    signedDistance = horizontalDistance;
+                                } else {
+                                    // Inside: Take the negative of the minimum distance to any edge
+                                    signedDistance = horizontalDistance;
+                                }
+          
+                                int distance = signedDistance;
+                                if (distance < closestDist){
+                                    assignment[i] = yidx;
+                                    closestDist = distance;
+                                }
+                            }
+                        }
                     }
-                    auto &cloudCluster = filteredPcClustersTemp[idx3D];
 
-                    // Initialize flag array for cloudCluster
                     std::vector<bool> flag(cloudCluster.size(), false);
-                    // ROS_INFO("Looping through yolo indices");
-                    for (int yidx : yoloIndices) {
-                        int XTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.x);
-                        int YTarget = int(this->yoloDetectionResults_.detections[yidx].bbox.center.y);
-                        int XTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_x);
-                        int YTargetWid = int(this->yoloDetectionResults_.detections[yidx].bbox.size_y);
-
-                        int xMin = XTarget - XTargetWid / 2;
-                        int xMax = XTarget + XTargetWid / 2;
-                        int yMin = YTarget - YTargetWid / 2;
-                        int yMax = YTarget + YTargetWid / 2;
-
+                    for (int yidx : yoloIndices){
                         std::vector<Eigen::Vector3d> subCloud;
-
-                        for (size_t i = 0; i < cloudCluster.size(); ++i) {
-                            // Skip if the point has been assigned to a subcloud
-                            if (flag[i]) {
-                                continue; 
+                        for (size_t i = 0; i < cloudCluster.size(); ++i){
+                            if (flag[i]){
+                                continue;
                             }
 
-                            auto &pt = cloudCluster[i];
-                            Eigen::Vector3d ptWorld(pt.x(), pt.y(), pt.z());
-                            Eigen::Vector3d ptCam = this->orientationColor_.inverse() * (ptWorld - this->positionColor_);
-
-                            int u = int((ptCam(0) * this->fxC_ / ptCam(2)) + this->cxC_);
-                            int v = int((ptCam(1) * this->fyC_ / ptCam(2)) + this->cyC_);
-                            if (u >= xMin && u <= xMax && v >= yMin && v <= yMax) {
-                                subCloud.push_back(pt);
+                            if (assignment[i] == yidx){
+                                subCloud.push_back(cloudCluster[i]);
                                 flag[i] = true;
                             }
                         }
-
-                        if (!subCloud.empty()) {
+                        if (subCloud.size() != 0){
                             onboardDetector::box3D newBox;
                             Eigen::Vector3d center, stddev;
                             center = computeCenter(subCloud);
-                            newBox.x = center(0);
-                            newBox.y = center(1);
-                            newBox.z = center(2);
 
                             double xMin = std::numeric_limits<double>::max(), xMax = std::numeric_limits<double>::lowest();
                             double yMin = std::numeric_limits<double>::max(), yMax = std::numeric_limits<double>::lowest();
@@ -2124,17 +1510,20 @@ namespace onboardDetector{
                                 zMax = std::max(zMax, pt.z());
                             }
                             // create a new bounding box
+                            newBox.x = (xMin + xMax) / 2.;
+                            newBox.y = (yMin + yMax) / 2.;
+                            newBox.z = (zMin + zMax) / 2.;
                             newBox.x_width = xMax - xMin;
                             newBox.y_width = yMax - yMin;
                             newBox.z_width = zMax - zMin;
-                            newBox.x = (xMin + xMax) / 2;
-                            newBox.y = (yMin + yMax) / 2;
-                            newBox.z = (zMin + zMax) / 2;
+                            if (newBox.x_width <= 0 or newBox.y_width <= 0 or newBox.x_width <= 0){
+                                continue;
+                            }
+
                             newBox.is_dynamic = true;
                             newBox.is_human = true;
 
                             stddev = computeStd(subCloud, center);
-
                             newFilteredBBoxes.push_back(newBox);
                             newFilteredPcClusters.push_back(subCloud);
                             newFilteredPcClusterCenters.push_back(center);
@@ -2143,21 +1532,10 @@ namespace onboardDetector{
                     }
                 }
             }
-            filteredBBoxesTemp.clear();
-            filteredPcClustersTemp.clear();
-            filteredPcClusterCentersTemp.clear();
-            filteredPcClusterStdsTemp.clear();
-
             filteredBBoxesTemp = newFilteredBBoxes;
             filteredPcClustersTemp = newFilteredPcClusters;
             filteredPcClusterCentersTemp = newFilteredPcClusterCenters;
             filteredPcClusterStdsTemp = newFilteredPcClusterStds;
-
-            newFilteredBBoxes.clear();
-            newFilteredPcClusters.clear();
-            newFilteredPcClusterCenters.clear();
-            newFilteredPcClusterStds.clear();
-        }
         }
         this->filteredBBoxes_ = filteredBBoxesTemp;
         this->filteredPcClusters_ = filteredPcClustersTemp;
@@ -2180,7 +1558,7 @@ namespace onboardDetector{
             Eigen::Vector3d size (xWidth, yWidth, zWidth);
             Eigen::Vector3d newCenter, newSize;
 
-            this->transformBBox(center, size, this->position_, this->orientation_, newCenter, newSize);
+            this->transformBBox(center, size, this->positionDepth_, this->orientationDepth_, newCenter, newSize);
 
             // assign values to bounding boxes in the map frame
             bbox.x = newCenter(0);
@@ -2225,7 +1603,7 @@ namespace onboardDetector{
                 currPointCam(0) = (u - this->cx_) * depth * inv_fx;
                 currPointCam(1) = (v - this->cy_) * depth * inv_fy;
                 currPointCam(2) = depth;
-                currPointMap = this->orientation_ * currPointCam + this->position_; // transform to map coordinate
+                currPointMap = this->orientationDepth_ * currPointCam + this->positionDepth_; // transform to map coordinate
 
                 this->projPoints_[this->projPointsNum_] = currPointMap;
                 this->pointsDepth_[this->projPointsNum_] = depth;
@@ -2266,14 +1644,54 @@ namespace onboardDetector{
             }
         }
 
-        pcClusters.clear();
-        pcClusters.resize(clusterNum);
+        
+        // pcClusters.resize(clusterNum);
+        std::vector<std::vector<Eigen::Vector3d>> pcClustersTemp;
+        pcClustersTemp.resize(clusterNum);
         for (size_t i=0; i<this->dbCluster_->m_points.size(); ++i){
             onboardDetector::Point pDB = this->dbCluster_->m_points[i];
             if (pDB.clusterID > 0){
                 Eigen::Vector3d p = this->dbPointToEigen(pDB);
-                pcClusters[pDB.clusterID-1].push_back(p);
+                pcClustersTemp[pDB.clusterID-1].push_back(p);
             }            
+        }
+
+        // calculate the bounding boxes and clusters
+        pcClusters.clear();
+        bboxes.clear();
+        // bboxes.resize(clusterNum);
+        for (size_t i=0; i<pcClustersTemp.size(); ++i){
+            onboardDetector::box3D box;
+
+            double xmin = pcClustersTemp[i][0](0);
+            double ymin = pcClustersTemp[i][0](1);
+            double zmin = pcClustersTemp[i][0](2);
+            double xmax = pcClustersTemp[i][0](0);
+            double ymax = pcClustersTemp[i][0](1);
+            double zmax = pcClustersTemp[i][0](2);
+            for (size_t j=0; j<pcClustersTemp[i].size(); ++j){
+                xmin = (pcClustersTemp[i][j](0)<xmin)?pcClustersTemp[i][j](0):xmin;
+                ymin = (pcClustersTemp[i][j](1)<ymin)?pcClustersTemp[i][j](1):ymin;
+                zmin = (pcClustersTemp[i][j](2)<zmin)?pcClustersTemp[i][j](2):zmin;
+                xmax = (pcClustersTemp[i][j](0)>xmax)?pcClustersTemp[i][j](0):xmax;
+                ymax = (pcClustersTemp[i][j](1)>ymax)?pcClustersTemp[i][j](1):ymax;
+                zmax = (pcClustersTemp[i][j](2)>zmax)?pcClustersTemp[i][j](2):zmax;
+            }
+            box.id = i;
+
+            box.x = (xmax + xmin)/2.0;
+            box.y = (ymax + ymin)/2.0;
+            box.z = (zmax + zmin)/2.0;
+            box.x_width = (xmax - xmin)>0.1?(xmax-xmin):0.1;
+            box.y_width = (ymax - ymin)>0.1?(ymax-ymin):0.1;
+            box.z_width = (zmax - zmin);
+
+            // filter out bounding boxes that are too large
+            if(box.x_width > this->maxObjectSize_(0) || box.y_width > this->maxObjectSize_(1) || box.z_width > this->maxObjectSize_(2)){
+                continue;
+            }
+            bboxes.push_back(box);
+            pcClusters.push_back(pcClustersTemp[i]);
         }
 
         for (size_t i=0 ; i<pcClusters.size() ; ++i){
@@ -2284,36 +1702,6 @@ namespace onboardDetector{
             pcClusterStds.push_back(pcClusterStd);
         }
 
-        // calculate the bounding boxes based on the clusters
-        bboxes.clear();
-        // bboxes.resize(clusterNum);
-        for (size_t i=0; i<pcClusters.size(); ++i){
-            onboardDetector::box3D box;
-
-            double xmin = pcClusters[i][0](0);
-            double ymin = pcClusters[i][0](1);
-            double zmin = pcClusters[i][0](2);
-            double xmax = pcClusters[i][0](0);
-            double ymax = pcClusters[i][0](1);
-            double zmax = pcClusters[i][0](2);
-            for (size_t j=0; j<pcClusters[i].size(); ++j){
-                xmin = (pcClusters[i][j](0)<xmin)?pcClusters[i][j](0):xmin;
-                ymin = (pcClusters[i][j](1)<ymin)?pcClusters[i][j](1):ymin;
-                zmin = (pcClusters[i][j](2)<zmin)?pcClusters[i][j](2):zmin;
-                xmax = (pcClusters[i][j](0)>xmax)?pcClusters[i][j](0):xmax;
-                ymax = (pcClusters[i][j](1)>ymax)?pcClusters[i][j](1):ymax;
-                zmax = (pcClusters[i][j](2)>zmax)?pcClusters[i][j](2):zmax;
-            }
-            box.id = i;
-
-            box.x = (xmax + xmin)/2.0;
-            box.y = (ymax + ymin)/2.0;
-            box.z = (zmax + zmin)/2.0;
-            box.x_width = (xmax - xmin)>0.1?(xmax-xmin):0.1;
-            box.y_width = (ymax - ymin)>0.1?(ymax-ymin):0.1;
-            box.z_width = (zmax - zmin);
-            bboxes.push_back(box);
-        }
     }
 
     void dynamicDetector::voxelFilter(const std::vector<Eigen::Vector3d>& points, std::vector<Eigen::Vector3d>& filteredPoints){
@@ -2368,22 +1756,29 @@ namespace onboardDetector{
     }
 
 
-    double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2){
+    double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2, bool ignoreZmin){
         double box1Volume = box1.x_width * box1.y_width * box1.z_width;
         double box2Volume = box2.x_width * box2.y_width * box2.z_width;
 
-        // std::cout << "box1:" << box1.x << " "<< box1.y << " "<< box1.z << std::endl;
-        // std::cout << "box2:" << box2.x << " "<< box2.y << " "<< box2.z << std::endl;
-        // std::cout << "box1:" << box1.x_width/2 << " "<< box1.y_width/2 << " "<< box1.z_width/2 << std::endl;
-        // std::cout << "box2:" << box2.x_width/2 << " "<<box2.y_width/2 << " "<< box2.z_width/2 << std::endl;
+        double l1Y = box1.y+box1.y_width/2.-(box2.y-box2.y_width/2.);
+        double l2Y = box2.y+box2.y_width/2.-(box1.y-box1.y_width/2.);
+        double l1X = box1.x+box1.x_width/2.-(box2.x-box2.x_width/2.);
+        double l2X = box2.x+box2.x_width/2.-(box1.x-box1.x_width/2.);
+        double l1Z = box1.z+box1.z_width/2.-(box2.z-box2.z_width/2.);
+        double l2Z = box2.z+box2.z_width/2.-(box1.z-box1.z_width/2.);
+        
+        if (ignoreZmin){
+            // modify box1 and box2 volumn based on the maximum lower z of two
+            double zmin = std::max(box1.z - box1.z_width/2., box2.z - box2.z_width/2.);
+            double zWidth1 = box1.z_width/2. + (box1.z - zmin);
+            double zWidth2 = box2.z_width/2. + (box2.z - zmin);
+            box1Volume = box1.x_width * box1.y_width * zWidth1;
+            box2Volume = box2.x_width * box2.y_width * zWidth2;
 
-
-        double l1Y = box1.y+box1.y_width/2-(box2.y-box2.y_width/2);
-        double l2Y = box2.y+box2.y_width/2-(box1.y-box1.y_width/2);
-        double l1X = box1.x+box1.x_width/2-(box2.x-box2.x_width/2);
-        double l2X = box2.x+box2.x_width/2-(box1.x-box1.x_width/2);
-        double l1Z = box1.z+box1.z_width/2-(box2.z-box2.z_width/2);
-        double l2Z = box2.z+box2.z_width/2-(box1.z-box1.z_width/2);
+            l1Z = box1.z+box1.z_width/2. - zmin;
+            l2Z = box2.z+box2.z_width/2. - zmin;
+        }
+        
         double overlapX = std::min( l1X , l2X );
         double overlapY = std::min( l1Y , l2Y );
         double overlapZ = std::min( l1Z , l2Z );
@@ -2398,10 +1793,6 @@ namespace onboardDetector{
             overlapZ = std::min(box1.z_width, box2.z_width);
         }
 
-        // std::cout<< "overlapX:" << overlapX;
-        // std::cout << "overlapY:" << overlapY;
-        // std::cout << "overlapZ:" << overlapZ << std::endl;
-
 
         double overlapVolume = overlapX * overlapY *  overlapZ;
         double IOU = overlapVolume / (box1Volume+box2Volume-overlapVolume);
@@ -2413,192 +1804,18 @@ namespace onboardDetector{
         return IOU;
     }
 
-    // double dynamicDetector::calBoxIOU(const onboardDetector::box3D& box1, const onboardDetector::box3D& box2) {
-    //     // Volumes
-    //     double box1Volume = box1.x_width * box1.y_width * box1.z_width;
-    //     double box2Volume = box2.x_width * box2.y_width * box2.z_width;
-
-    //     // Box 1 min and max coordinates
-    //     double minX1 = box1.x - box1.x_width / 2.0;
-    //     double maxX1 = box1.x + box1.x_width / 2.0;
-    //     double minY1 = box1.y - box1.y_width / 2.0;
-    //     double maxY1 = box1.y + box1.y_width / 2.0;
-    //     double minZ1 = box1.z - box1.z_width / 2.0;
-    //     double maxZ1 = box1.z + box1.z_width / 2.0;
-
-    //     // Box 2 min and max coordinates
-    //     double minX2 = box2.x - box2.x_width / 2.0;
-    //     double maxX2 = box2.x + box2.x_width / 2.0;
-    //     double minY2 = box2.y - box2.y_width / 2.0;
-    //     double maxY2 = box2.y + box2.y_width / 2.0;
-    //     double minZ2 = box2.z - box2.z_width / 2.0;
-    //     double maxZ2 = box2.z + box2.z_width / 2.0;
-
-    //     // Overlaps
-    //     double overlapX = std::min(maxX1, maxX2) - std::max(minX1, minX2);
-    //     double overlapY = std::min(maxY1, maxY2) - std::max(minY1, minY2);
-    //     double overlapZ = std::min(maxZ1, maxZ2) - std::max(minZ1, minZ2);
-    //     double Xratio = overlapX / std::max(box1.x_width, box2.x_width);
-    //     double Yratio = overlapY / std::max(box1.y_width, box2.y_width);
-    //     double Zratio = overlapZ / std::max(box1.z_width, box2.z_width);
-
-    //     double IOU = Xratio + Yratio + Zratio;
-    //     std::cout << "Raw IOU:" << IOU << std::endl;
-    //     if(IOU > 0){
-    //         IOU = 1;
-    //     }
-    //     else {
-    //         IOU = 0;
-    //     }
-    //     return IOU;
-    // }
-
-
-    void dynamicDetector::getYolo3DBBox(const vision_msgs::Detection2D& detection, onboardDetector::box3D& bbox3D, cv::Rect& bboxVis){
-        if (this->alignedDepthImage_.empty()){
-            return;
-        }
-
-        const Eigen::Vector3d humanSize (0.5, 0.5, 1.8);
-
-        // 1. retrive 2D detection result
-        int topX = int(detection.bbox.center.x); 
-        int topY = int(detection.bbox.center.y); 
-        int xWidth = int(detection.bbox.size_x); 
-        int yWidth = int(detection.bbox.size_y); 
-        bboxVis.x = topX;
-        bboxVis.y = topY;
-        bboxVis.height = yWidth;
-        bboxVis.width = xWidth;
-
-        // 2. get thickness estimation (double MAD: double Median Absolute Deviation)
-        uint16_t* rowPtr;
-        double depth;
-        const double inv_factor = 1.0 / this->depthScale_;
-        int vMin = std::min(topY, this->depthFilterMargin_);
-        int uMin = std::min(topX, this->depthFilterMargin_);
-        int vMax = std::min(topY+yWidth, this->imgRows_-this->depthFilterMargin_);
-        int uMax = std::min(topX+xWidth, this->imgCols_-this->depthFilterMargin_);
-        std::vector<double> depthValues;
-
-
-        // record the depth values in the potential regions
-        for (int v=vMin; v<vMax; ++v){ // row
-            rowPtr = this->alignedDepthImage_.ptr<uint16_t>(v);
-            for (int u=uMin; u<uMax; ++u){ // column
-                depth = (*rowPtr) * inv_factor;
-                if (depth >= this->depthMinValue_ and depth <= this->depthMaxValue_){
-                    depthValues.push_back(depth);
-                }
-                ++rowPtr;
-            }
-        }
-        if (depthValues.size() == 0){ // in case of out of range
-            return;
-        }
-
-        // double MAD calculation
-        double depthMedian, MAD;
-        this->calculateMAD(depthValues, depthMedian, MAD);
-        // cout << "MAD: " << MAD << endl;
-
-        double depthMin = 10.0; double depthMax = -10.0;
-        // find min max depth value
-        for (int v=vMin; v<vMax; ++v){ // row
-            rowPtr = this->alignedDepthImage_.ptr<uint16_t>(v);
-            for (int u=uMin; u<uMax; ++u){ // column
-                depth = (*rowPtr) * inv_factor;
-                if (depth >= this->depthMinValue_ and depth <= this->depthMaxValue_){
-                    if ((depth < depthMin) and (depth >= depthMedian - 1.5 * MAD)){
-                        depthMin = depth;
-                    }
-
-                    if ((depth > depthMax) and (depth <= depthMedian + 1.5 * MAD)){
-                        depthMax = depth;
-                    }
-                }
-                ++rowPtr;
-            }
-        }
-        
-        if (depthMin == 10.0 or depthMax == -10.0){ // in case the depth value is not available
-            return;
-        }
-
-        // 3. project points into 3D in the camera frame
-        Eigen::Vector3d pUL, pBR, center;
-        pUL(0) = (topX - this->cxC_) * depthMedian / this->fxC_;
-        pUL(1) = (topY - this->cyC_) * depthMedian / this->fyC_;
-        pUL(2) = depthMedian;
-
-        pBR(0) = (topX + xWidth - this->cxC_) * depthMedian / this->fxC_;
-        pBR(1) = (topY + yWidth- this->cyC_) * depthMedian / this->fyC_;
-        pBR(2) = depthMedian;
-
-        center(0) = (pUL(0) + pBR(0))/2.0;
-        center(1) = (pUL(1) + pBR(1))/2.0;
-        center(2) = depthMedian;
-
-        double xWidth3D = std::abs(pBR(0) - pUL(0));
-        double yWidth3D = std::abs(pBR(1) - pUL(1));
-        double zWidth3D = depthMax - depthMin; 
-        if ((zWidth3D/humanSize(2)>=2.0) or (zWidth3D/humanSize(2) <= 0.5)){ // error is too large, then use the predefined size
-            zWidth3D = humanSize(2);
-        }       
-        Eigen::Vector3d size (xWidth3D, yWidth3D, zWidth3D);
-
-        // 4. transform 3D points into world frame
-        Eigen::Vector3d newCenter, newSize;
-        this->transformBBox(center, size, this->positionColor_, this->orientationColor_, newCenter, newSize);
-        bbox3D.x = newCenter(0);
-        bbox3D.y = newCenter(1);
-        bbox3D.z = newCenter(2);
-
-        bbox3D.x_width = newSize(0);
-        bbox3D.y_width = newSize(1);
-        bbox3D.z_width = newSize(2);
-
-        // 5. check the bounding box size. If the bounding box size is too different from the predefined size, overwrite the size
-        if ((bbox3D.x_width/humanSize(0)>=2.0) or (bbox3D.x_width/humanSize(0)<=0.5)){
-            bbox3D.x_width = humanSize(0);
-        }
-
-        if ((bbox3D.y_width/humanSize(1)>=2.0) or (bbox3D.y_width/humanSize(1)<=0.5)){
-            bbox3D.y_width = humanSize(1);
-        }
-
-        if ((bbox3D.z_width/humanSize(2)>=2.0) or (bbox3D.z_width/humanSize(2)<=0.5)){
-            bbox3D.z = humanSize(2)/2.;
-            bbox3D.z_width = humanSize(2);
-        }
-    }
-
-
-    void dynamicDetector::calculateMAD(std::vector<double>& depthValues, double& depthMedian, double& MAD){
-        std::sort(depthValues.begin(), depthValues.end());
-        int medianIdx = int(depthValues.size()/2);
-        depthMedian = depthValues[medianIdx]; // median of all data
-
-        std::vector<double> deviations;
-        for (size_t i=0; i<depthValues.size(); ++i){
-            deviations.push_back(std::abs(depthValues[i] - depthMedian));
-        }
-        std::sort(deviations.begin(), deviations.end());
-        MAD = deviations[int(deviations.size()/2)];
-    }
-
-
-    void dynamicDetector::boxAssociation(std::vector<int>& bestMatch, std::vector<int> &boxOOR){
-        int numObjs = int(this->filteredBBoxes_.size());
-        
+    void dynamicDetector::boxAssociation(std::vector<int>& bestMatch){
+        int numObjs = int(this->filteredBBoxes_.size()); // current detected bboxes
         if (this->boxHist_.size() == 0){ // initialize new bounding box history if no history exists
             this->boxHist_.resize(numObjs);
             this->pcHist_.resize(numObjs);
+            this->pcCenterHist_.resize(numObjs);
             bestMatch.resize(this->filteredBBoxes_.size(), -1); // first detection no match
             for (int i=0 ; i<numObjs ; ++i){
                 // initialize history for bbox, pc and KF
                 this->boxHist_[i].push_back(this->filteredBBoxes_[i]);
                 this->pcHist_[i].push_back(this->filteredPcClusters_[i]);
+                this->pcCenterHist_[i].push_back(this->filteredPcClusterCenters_[i]);
                 MatrixXd states, A, B, H, P, Q, R;       
                 this->kalmanFilterMatrixAcc(this->filteredBBoxes_[i], states, A, B, H, P, Q, R);
                 onboardDetector::kalman_filter newFilter;
@@ -2609,109 +1826,59 @@ namespace onboardDetector{
         else{
             // start association only if a new detection is available
             if (this->newDetectFlag_){
-                this->boxAssociationHelper(bestMatch, boxOOR);
+                this->boxAssociationHelper(bestMatch);
             }
         }
 
         this->newDetectFlag_ = false; // the most recent detection has been associated
-        this->bestMatchHist_ = bestMatch;
     }
 
-    void dynamicDetector::boxAssociationHelper(std::vector<int>& bestMatch, std::vector<int> &boxOOR){
+    void dynamicDetector::boxAssociationHelper(std::vector<int>& bestMatch){
         int numObjs = int(this->filteredBBoxes_.size());
-        std::vector<onboardDetector::box3D> propedBoxes;
-        std::vector<Eigen::VectorXd> propedBoxesFeat;
-        std::vector<Eigen::VectorXd> currBoxesFeat;
+        std::vector<onboardDetector::box3D> prevBBoxes;
+        std::vector<Eigen::Vector3d> prevPcCenters;
+        std::vector<Eigen::VectorXd> prevBBoxesFeat;
+        std::vector<onboardDetector::box3D> propedBBoxes;
+        std::vector<Eigen::Vector3d> propedPcCenters;
+        std::vector<Eigen::VectorXd> propedBBoxesFeat;
+        std::vector<Eigen::VectorXd> currBBoxesFeat;
+        currBBoxesFeat.resize(numObjs);
         bestMatch.resize(numObjs);
-        std::deque<std::deque<onboardDetector::box3D>> boxHistTemp; 
 
-        // linear propagation: prediction of previous box in current frame
-        this->linearProp(propedBoxes);
+        // Features for current detected bboxes
+        this->genFeatHelper(this->filteredBBoxes_, this->filteredPcClusterCenters_, currBBoxesFeat);
 
-        // generate feature
-        this->genFeat(propedBoxes, numObjs, propedBoxesFeat, currBoxesFeat);
+        // Features for previous time step bboxes
+        this->getPrevBBoxes(prevBBoxes, prevPcCenters);
+        this->genFeatHelper(prevBBoxes, prevPcCenters, prevBBoxesFeat);
+
+        // Features for propogated bboxes
+        this->linearProp(propedBBoxes, propedPcCenters);
+        this->genFeatHelper(propedBBoxes, propedPcCenters, propedBBoxesFeat);
 
         // calculate association: find best match
-        this->findBestMatch(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch);  
-        if (this->boxHist_.size()){
-            this->getBoxOutofRange(boxOOR, bestMatch);
-            int numOORBox = 0;
-            for (int i=0; i<int(boxOOR.size());i++){
-                if (boxOOR[i]){
-                    numOORBox++;
-                }
-            }
-            if (numOORBox){
-                this->findBestMatchEstimate(propedBoxesFeat, currBoxesFeat, propedBoxes, bestMatch, boxOOR);
-            }
-        }
-    
+        this->findBestMatch(prevBBoxes, prevBBoxesFeat, propedBBoxes, propedBBoxesFeat, currBBoxesFeat, bestMatch);      
     }
 
-    void dynamicDetector::genFeat(const std::vector<onboardDetector::box3D>& propedBoxes, int numObjs, std::vector<Eigen::VectorXd>& propedBoxesFeat, std::vector<Eigen::VectorXd>& currBoxesFeat){
-        propedBoxesFeat.resize(propedBoxes.size());
-        currBoxesFeat.resize(numObjs);
-        this->genFeatHelper(propedBoxesFeat, propedBoxes);
-        this->genFeatHelper(currBoxesFeat, this->filteredBBoxes_);
-
-        // std::cout << "PosZ:" << this->position_(2) << std::endl;
-
-        // for(size_t i=0; i<propedBoxesFeat.size(); ++i){
-        //     std::cout << "Proped Box " << i << ": " << propedBoxesFeat[i].transpose() << std::endl;
-        //     std::cout << "Prop Z:" << propedBoxes[i].z << std::endl;
-        // }
-
-        // for(size_t i=0; i<currBoxesFeat.size(); ++i){
-        //     std::cout << "Curr Box " << i << ": " << currBoxesFeat[i].transpose() << std::endl;
-        //     std::cout << "Curr Z:" << this->filteredBBoxes_[i].z << std::endl;
-        // }
-    }
-
-    // void dynamicDetector::genFeatHelper(std::vector<Eigen::VectorXd>& features, const std::vector<onboardDetector::box3D>& boxes){ 
-    //     Eigen::VectorXd featureWeights(10); // 3pos + 3size + 1 pc length + 3 pc std
-    //     featureWeights << 2, 2, 2, 1, 1, 1, 0.5, 0.5, 0.5, 0.5;
-    //     for (size_t i=0 ; i<boxes.size() ; i++){
-    //         Eigen::VectorXd feature(10);
-    //         features[i] = feature;
-    //         features[i](0) = (boxes[i].x - this->position_(0)) * featureWeights(0) ;
-    //         features[i](1) = (boxes[i].y - this->position_(1)) * featureWeights(1);
-    //         features[i](2) = (boxes[i].z - this->position_(2)) * featureWeights(2);
-    //         features[i](3) = boxes[i].x_width * featureWeights(3);
-    //         features[i](4) = boxes[i].y_width * featureWeights(4);
-    //         features[i](5) = boxes[i].z_width * featureWeights(5);
-    //         features[i](6) = this->filteredPcClusters_[i].size() * featureWeights(6);
-    //         features[i](7) = this->filteredPcClusterStds_[i](0) * featureWeights(7);
-    //         features[i](8) = this->filteredPcClusterStds_[i](1) * featureWeights(8);
-    //         features[i](9) = this->filteredPcClusterStds_[i](2) * featureWeights(9);
-    //     }
-    // }
-
-    void dynamicDetector::genFeatHelper(
-        std::vector<Eigen::VectorXd>& features, 
-        const std::vector<onboardDetector::box3D>& boxes
-        ) { 
-        Eigen::VectorXd featureWeights = Eigen::VectorXd::Zero(10); // 3pos + 3size + 1 pc length + 3 pc std
-        // featureWeights << 10, 10, 10, 1, 1, 1, 5, 0.5, 0.5, 0.5;
+    void dynamicDetector::genFeatHelper( 
+        const std::vector<onboardDetector::box3D>& boxes,
+        const std::vector<Eigen::Vector3d>& pcCenters,
+        std::vector<Eigen::VectorXd>& features){ 
+        Eigen::VectorXd featureWeights = Eigen::VectorXd::Zero(9); // 3 pos + 3 size + 3 pc centers
         featureWeights = this->featureWeights_;
-
         features.resize(boxes.size());
-
         for (size_t i = 0; i < boxes.size(); ++i) {
             Eigen::VectorXd feature = Eigen::VectorXd::Zero(10);
-            
-            feature(0) = (boxes[i].x - position_(0)) * featureWeights(0);
-            feature(1) = (boxes[i].y - position_(1)) * featureWeights(1);
-            feature(2) = (boxes[i].z - position_(2)) * featureWeights(2);
+            feature(0) = (boxes[i].x - this->position_(0)) * featureWeights(0);
+            feature(1) = (boxes[i].y - this->position_(1)) * featureWeights(1);
+            feature(2) = (boxes[i].z - this->position_(2)) * featureWeights(2);
             feature(3) = boxes[i].x_width * featureWeights(3);
             feature(4) = boxes[i].y_width * featureWeights(4);
             feature(5) = boxes[i].z_width * featureWeights(5);
-            feature(6) = this->filteredPcClusters_[i].size() * featureWeights(6);
-            // feature(7) = this->filteredPcClusterStds_[i](0) * featureWeights(7);
-            // feature(8) = this->filteredPcClusterStds_[i](1) * featureWeights(8);
-            // feature(9) = this->filteredPcClusterStds_[i](2) * featureWeights(9);
-            feature(7) = 0;
-            feature(8) = 0;
-            feature(9) = 0;
+            feature(6) = pcCenters[i](0) * featureWeights(6);
+            feature(7) = pcCenters[i](1) * featureWeights(7);
+            feature(8) = pcCenters[i](2) * featureWeights(8);
+
             // fix nan problem
             for(int j = 0; j < feature.size(); ++j) {
                 if (std::isnan(feature(j)) || std::isinf(feature(j))) {
@@ -2722,174 +1889,81 @@ namespace onboardDetector{
         }
     }
 
-      
-    void dynamicDetector::linearProp(std::vector<onboardDetector::box3D>& propedBoxes){
-        onboardDetector::box3D propedBox;
+    void dynamicDetector::getPrevBBoxes(std::vector<onboardDetector::box3D>& prevBoxes, std::vector<Eigen::Vector3d>& prevPcCenters){
+        onboardDetector::box3D prevBox;
         for (size_t i=0 ; i<this->boxHist_.size() ; i++){
-            propedBox = this->boxHist_[i][0];
-            propedBox.is_estimated = this->boxHist_[i][0].is_estimated;
-            propedBox.x += propedBox.Vx*this->dt_;
-            propedBox.y += propedBox.Vy*this->dt_;
-            propedBoxes.push_back(propedBox);
+            prevBox = this->boxHist_[i][0];
+            prevBoxes.push_back(prevBox);
+
+            Eigen::Vector3d prevPcCenter = this->pcCenterHist_[i][0];
+            prevPcCenters.push_back(prevPcCenter);
         }
-        this->propedBoxes_ = propedBoxes;
+    }
+      
+    void dynamicDetector::linearProp(std::vector<onboardDetector::box3D>& propedBBoxes, std::vector<Eigen::Vector3d>& propedPcCenters){
+        onboardDetector::box3D propedBBox;
+        for (size_t i=0 ; i<this->boxHist_.size() ; i++){
+            propedBBox = this->boxHist_[i][0];
+            propedBBox.x += propedBBox.Vx*this->dt_;
+            propedBBox.y += propedBBox.Vy*this->dt_;
+            propedBBoxes.push_back(propedBBox);
+
+            Eigen::Vector3d propedPcCenter = this->pcCenterHist_[i][0];
+            propedPcCenter(0) += propedBBox.Vx*this->dt_;
+            propedPcCenter(1) += propedBBox.Vy*this->dt_;
+            propedPcCenters.push_back(propedPcCenter);
+        }
     }
 
-    void dynamicDetector::findBestMatch(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch){
-        // ROS_INFO("FindBestMatch");
+    void dynamicDetector::findBestMatch(const std::vector<onboardDetector::box3D>& prevBBoxes, const std::vector<Eigen::VectorXd>& prevBBoxesFeat, 
+                                        const std::vector<onboardDetector::box3D>& propedBBoxes, const std::vector<Eigen::VectorXd>& propedBBoxesFeat, 
+                                        const std::vector<Eigen::VectorXd>& currBBoxesFeat, std::vector<int>& bestMatch){
         int numObjs = this->filteredBBoxes_.size();
         std::vector<double> bestSims; // best similarity
-        bestSims.resize(numObjs);
+        bestSims.resize(numObjs, 0);
 
         for (int i=0 ; i<numObjs ; i++){
             double bestSim = -1.;
             int bestMatchInd = -1;
-            for (size_t j=0 ; j<propedBoxes.size() ; j++){
-                double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
-                if (sim >= bestSim){
-                    bestSim = sim;
-                    bestSims[i] = sim;
-                    bestMatchInd = j;
-                }
-            }
-
-            double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
-            // std::cout << "SimScore: " << bestSims[i] << " IOU: " << iou << std::endl;
-            if(!(bestSims[i]>this->simThresh_ && iou)){
-                bestSims[i] = 0;
-                bestMatch[i] = -1;
-            }
-            else {
-                bestMatch[i] = bestMatchInd;
-            }
-        }
-    }
-
-    void dynamicDetector::findBestMatchEstimate(const std::vector<Eigen::VectorXd>& propedBoxesFeat, const std::vector<Eigen::VectorXd>& currBoxesFeat, const std::vector<onboardDetector::box3D>& propedBoxes, std::vector<int>& bestMatch, std::vector<int>& boxOOR){
-        // ROS_INFO("Match Estimate");
-        int numObjs = int(this->filteredBBoxes_.size());
-        std::vector<double> bestSims; // best similarity
-        bestSims.resize(numObjs);
-
-        for (int i=0 ; i<numObjs ; i++){
-            if (bestMatch[i] < 0){
-                double bestSim = -1.;
-                int bestMatchInd = -1;
-                for (size_t j=0 ; j<propedBoxes.size() ; j++){
-                    if (propedBoxes[j].is_estimated and boxOOR[j]){
-                        double sim = propedBoxesFeat[j].dot(currBoxesFeat[i])/(propedBoxesFeat[j].norm()*currBoxesFeat[i].norm());
-                        if (sim >= bestSim){
+            onboardDetector::box3D currBBox = this->filteredBBoxes_[i];
+            
+            for (size_t j=0 ; j<propedBBoxes.size() ; j++){
+                onboardDetector::box3D propedBBox = propedBBoxes[j];
+                double propedWidth = std::max(propedBBox.x_width, propedBBox.y_width);
+                double currWidth = std::max(currBBox.x_width, currBBox.y_width);
+                if (std::abs(propedWidth - currWidth) < this->maxMatchSizeRange_){
+                    if (pow(pow(propedBBox.x - currBBox.x, 2) + pow(propedBBox.y - currBBox.y, 2), 0.5) < this->maxMatchRange_){
+                        // calculate the velocity feature based on propedBBox and currBBox
+                        double simPrev = prevBBoxesFeat[j].dot(currBBoxesFeat[i])/(prevBBoxesFeat[j].norm()*currBBoxesFeat[i].norm());
+                        double simProped = propedBBoxesFeat[j].dot(currBBoxesFeat[i])/(propedBBoxesFeat[j].norm()*currBBoxesFeat[i].norm());
+                        double sim = simPrev + simProped;
+                        if (sim > bestSim){
                             bestSim = sim;
-                            bestSims[i] = sim;
                             bestMatchInd = j;
                         }
                     }
-                }
-                if(bestMatchInd != -1){
-                    double iou = this->calBoxIOU(this->filteredBBoxes_[i], propedBoxes[bestMatchInd]);
-                    if(!(bestSims[i]>this->simThreshRetrack_ && iou)){
-                    bestSims[i] = 0;
-                    bestMatch[i] = -1;
-                }
-                else {
-                    boxOOR[bestMatchInd] = 0;
-                    bestMatch[i] = bestMatchInd;
-                    // cout<<"retrack"<<endl;
-                }
-                }
-                else {
-                    bestSims[i] = 0;
-                    bestMatch[i] = -1;
-                }
-            }
-        }  
-    }  
 
-    void dynamicDetector::getBoxOutofRange(std::vector<int>& boxOOR, const std::vector<int>&bestMatch){
-        if (int(this->boxHist_.size())>0){
-            boxOOR.resize(this->boxHist_.size(), 1);
-            for (int i=0; i<int(bestMatch.size()); i++){
-                if (bestMatch[i]>=0){
-                    boxOOR[bestMatch[i]] = 0;
                 }
             }
-
-            for (int i=0; i<int(boxOOR.size()); i++){
-                if (boxOOR[i] and this->boxHist_[i][0].is_dynamic){
-                    // cout<<"dynamic obstacle out of range"<<endl;
-                }
-                else{
-                    boxOOR[i] = 0;
-                }
-            }
+            bestSims[i] = bestSim;
+            bestMatch[i] = bestMatchInd;
         }
     }
 
-    int dynamicDetector::getEstimateFrameNum(const std::deque<onboardDetector::box3D> &boxHist){
-        int frameNum = 0;
-        if (boxHist.size()){
-            for (int i=0; i<int(boxHist.size()); i++){
-                if (boxHist[i].is_estimated){
-                    frameNum++;
-                }
-                else{
-                    break;
-                }
-            }
-        }
-        return frameNum;
-    }
-
-    void dynamicDetector::getEstimateBox(const std::deque<onboardDetector::box3D> &boxHist, onboardDetector::box3D &estimatedBBox){
-        onboardDetector::box3D lastDetect; lastDetect.x = 0; lastDetect.y = 0;
-        for (int i=0; i<int(boxHist.size()); i++){
-            if (not boxHist[i].is_estimated){
-                lastDetect = boxHist[i];
-                break;
-            }
-        }
-        estimatedBBox.x = boxHist[0].x - (boxHist[0].x-lastDetect.x)/2;
-        estimatedBBox.y = boxHist[0].y - (boxHist[0].y-lastDetect.y)/2;
-        estimatedBBox.z = boxHist[0].z;
-        estimatedBBox.x_width = std::min(std::abs(boxHist[0].x-lastDetect.x) + boxHist[0].x_width, 1.5 * boxHist[0].x_width);
-        estimatedBBox.y_width = std::min(std::abs(boxHist[0].y-lastDetect.y) + boxHist[0].y_width, 1.5 * boxHist[0].y_width);
-        estimatedBBox.z_width = boxHist[0].z_width;
-        estimatedBBox.is_estimated = true;
-    }
-
-    void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch, const std::vector<int> &boxOOR){
-        // ROS_INFO("Kalman: Filteredbox size: %ld, BestMatch size: %ld, boxOOR size: %ld", this->filteredBBoxes_.size(), bestMatch.size(), boxOOR.size());
-
-        // std::cout << "BestMatch Data: ";
-        // for(size_t i=0; i<bestMatch.size(); i++){
-        //     if(i != bestMatch.size() - 1){
-        //         std::cout << bestMatch[i] << " ";
-        //     }
-        //     else{
-        //         std::cout << bestMatch[i] << std::endl;
-        //     }
-        // }
-
-        // std::cout << "BoxOOR Data: ";
-        // for(size_t i=0; i<boxOOR.size(); i++){
-        //     if(i != boxOOR.size() - 1){
-        //         std::cout << boxOOR[i] << " ";
-        //     }
-        //     else{
-        //         std::cout << boxOOR[i] << std::endl;
-        //     }
-        // }
-
+    void dynamicDetector::kalmanFilterAndUpdateHist(const std::vector<int>& bestMatch){
         std::vector<std::deque<onboardDetector::box3D>> boxHistTemp; 
         std::vector<std::deque<std::vector<Eigen::Vector3d>>> pcHistTemp;
+        std::vector<std::deque<Eigen::Vector3d>> pcCenterHistTemp;
         std::vector<onboardDetector::kalman_filter> filtersTemp;
         std::deque<onboardDetector::box3D> newSingleBoxHist;
         std::deque<std::vector<Eigen::Vector3d>> newSinglePcHist; 
+        std::deque<Eigen::Vector3d> newSinglePcCenterHist; 
         onboardDetector::kalman_filter newFilter;
         std::vector<onboardDetector::box3D> trackedBBoxesTemp;
 
         newSingleBoxHist.resize(0);
         newSinglePcHist.resize(0);
+        newSinglePcCenterHist.resize(0);
         int numObjs = this->filteredBBoxes_.size();
 
         for (int i=0 ; i<numObjs ; i++){
@@ -2899,6 +1973,7 @@ namespace onboardDetector{
             if (bestMatch[i]>=0){
                 boxHistTemp.push_back(this->boxHist_[bestMatch[i]]);
                 pcHistTemp.push_back(this->pcHist_[bestMatch[i]]);
+                pcCenterHistTemp.push_back(this->pcCenterHist_[bestMatch[i]]);
                 filtersTemp.push_back(this->filters_[bestMatch[i]]);
 
                 // kalman filter to get new state estimation
@@ -2923,11 +1998,11 @@ namespace onboardDetector{
                 newEstimatedBBox.z_width = currDetectedBBox.z_width;
                 newEstimatedBBox.is_dynamic = currDetectedBBox.is_dynamic;
                 newEstimatedBBox.is_human = currDetectedBBox.is_human;
-                newEstimatedBBox.is_estimated = false;
             }
             else{
                 boxHistTemp.push_back(newSingleBoxHist);
                 pcHistTemp.push_back(newSinglePcHist);
+                pcCenterHistTemp.push_back(newSinglePcCenterHist);
 
                 // create new kalman filter for this object
                 onboardDetector::box3D currDetectedBBox = this->filteredBBoxes_[i];
@@ -2944,79 +2019,33 @@ namespace onboardDetector{
             if (int(boxHistTemp[i].size()) == this->histSize_){
                 boxHistTemp[i].pop_back();
                 pcHistTemp[i].pop_back();
+                pcCenterHistTemp[i].pop_back();
             }
 
             // push new data into history
             boxHistTemp[i].push_front(newEstimatedBBox); 
             pcHistTemp[i].push_front(this->filteredPcClusters_[i]);
+            pcCenterHistTemp[i].push_front(this->filteredPcClusterCenters_[i]);
 
             // update new tracked bounding boxes
             trackedBBoxesTemp.push_back(newEstimatedBBox);
         }
-        if (boxOOR.size()){
-            for (int i=0; i<int(boxOOR.size()); i++){
-                onboardDetector::box3D newEstimatedBBox; // from kalman filter 
-                if (boxOOR[i] and this->getEstimateFrameNum(this->boxHist_[i]) < min(this->predSize_,this->histSize_-1)){
-                    onboardDetector::box3D currDetectedBBox;
-                    currDetectedBBox = this->boxHist_[i][0];
-                    currDetectedBBox.x += this->dt_* currDetectedBBox.Vx;
-                    currDetectedBBox.y += this->dt_* currDetectedBBox.Vy;
-
-                    boxHistTemp.push_back(this->boxHist_[i]);
-                    pcHistTemp.push_back(this->pcHist_[i]);
-                    filtersTemp.push_back(this->filters_[i]);
-
-                    Eigen::MatrixXd Z;
-                    this->getKalmanObservationAcc(currDetectedBBox, i, Z);
-                    filtersTemp.back().estimate(Z, MatrixXd::Zero(6,1));
-                    
-                    newEstimatedBBox.x = filtersTemp.back().output(0);
-                    newEstimatedBBox.y = filtersTemp.back().output(1);
-                    newEstimatedBBox.z = currDetectedBBox.z;
-                    newEstimatedBBox.Vx = filtersTemp.back().output(2);
-                    newEstimatedBBox.Vy = filtersTemp.back().output(3);
-                    newEstimatedBBox.Ax = filtersTemp.back().output(4);
-                    newEstimatedBBox.Ay = filtersTemp.back().output(5);   
-                            
-                    
-                    newEstimatedBBox.x_width = currDetectedBBox.x_width;
-                    newEstimatedBBox.y_width = currDetectedBBox.y_width;
-                    newEstimatedBBox.z_width = currDetectedBBox.z_width;
-                    newEstimatedBBox.is_dynamic = true;
-                    newEstimatedBBox.is_human = currDetectedBBox.is_human;
-                    newEstimatedBBox.is_estimated = true;
-                    newEstimatedBBox.is_dynamic_candidate = true;
-
-                    // pop old data if len of hist > size limit
-                    if (int(boxHistTemp.back().size()) == this->histSize_){
-                        boxHistTemp.back().pop_back();
-                        pcHistTemp.back().pop_back();
-                    }
-
-                    // push new data into history
-                    boxHistTemp.back().push_front(newEstimatedBBox);
-                    pcHistTemp.back().push_front(this->pcHist_[i][0]);
-                    trackedBBoxesTemp.push_back(newEstimatedBBox);
-                }
-            }
-        }
+  
 
         if (boxHistTemp.size()){
             for (size_t i=0; i<trackedBBoxesTemp.size(); ++i){ 
-                if (not boxHistTemp[i][0].is_estimated){
-                    if (int(boxHistTemp[i].size()) >= this->fixSizeHistThresh_){
-                        if ((abs(trackedBBoxesTemp[i].x_width-boxHistTemp[i][1].x_width)/boxHistTemp[i][1].x_width) <= this->fixSizeDimThresh_ &&
-                            (abs(trackedBBoxesTemp[i].y_width-boxHistTemp[i][1].y_width)/boxHistTemp[i][1].y_width) <= this->fixSizeDimThresh_&&
-                            (abs(trackedBBoxesTemp[i].z_width-boxHistTemp[i][1].z_width)/boxHistTemp[i][1].z_width) <= this->fixSizeDimThresh_){
-                            trackedBBoxesTemp[i].x_width = boxHistTemp[i][1].x_width;
-                            trackedBBoxesTemp[i].y_width = boxHistTemp[i][1].y_width;
-                            trackedBBoxesTemp[i].z_width = boxHistTemp[i][1].z_width;
-                            boxHistTemp[i][0].x_width = trackedBBoxesTemp[i].x_width;
-                            boxHistTemp[i][0].y_width = trackedBBoxesTemp[i].y_width;
-                            boxHistTemp[i][0].z_width = trackedBBoxesTemp[i].z_width;
-                        }
-
+                if (int(boxHistTemp[i].size()) >= this->fixSizeHistThresh_){
+                    if ((abs(trackedBBoxesTemp[i].x_width-boxHistTemp[i][1].x_width)/boxHistTemp[i][1].x_width) <= this->fixSizeDimThresh_ &&
+                        (abs(trackedBBoxesTemp[i].y_width-boxHistTemp[i][1].y_width)/boxHistTemp[i][1].y_width) <= this->fixSizeDimThresh_&&
+                        (abs(trackedBBoxesTemp[i].z_width-boxHistTemp[i][1].z_width)/boxHistTemp[i][1].z_width) <= this->fixSizeDimThresh_){
+                        trackedBBoxesTemp[i].x_width = boxHistTemp[i][1].x_width;
+                        trackedBBoxesTemp[i].y_width = boxHistTemp[i][1].y_width;
+                        trackedBBoxesTemp[i].z_width = boxHistTemp[i][1].z_width;
+                        boxHistTemp[i][0].x_width = trackedBBoxesTemp[i].x_width;
+                        boxHistTemp[i][0].y_width = trackedBBoxesTemp[i].y_width;
+                        boxHistTemp[i][0].z_width = trackedBBoxesTemp[i].z_width;
                     }
+
                 }
             }
         }
@@ -3024,6 +2053,7 @@ namespace onboardDetector{
         // update history member variable
         this->boxHist_ = boxHistTemp;
         this->pcHist_ = pcHistTemp;
+        this->pcCenterHist_ = pcCenterHistTemp;
         this->filters_ = filtersTemp;
 
         // update tracked bounding boxes
@@ -3122,32 +2152,32 @@ namespace onboardDetector{
  
     void dynamicDetector::getDynamicPc(std::vector<Eigen::Vector3d>& dynamicPc){
         Eigen::Vector3d curPoint;
-        for (size_t i=0 ; i<this->filteredPoints_.size() ; ++i){
-            curPoint = this->filteredPoints_[i];
-            for (size_t j=0; j<this->dynamicBBoxes_.size() ; ++j){
-                if (abs(curPoint(0)-this->dynamicBBoxes_[j].x)<=this->dynamicBBoxes_[j].x_width/2 and 
-                    abs(curPoint(1)-this->dynamicBBoxes_[j].y)<=this->dynamicBBoxes_[j].y_width/2 and 
-                    abs(curPoint(2)-this->dynamicBBoxes_[j].z)<=this->dynamicBBoxes_[j].z_width/2) {
+        for (size_t i=0; i<this->filteredPcClusters_.size(); ++i){
+            for (size_t j=0; j<this->filteredPcClusters_[i].size(); ++j){
+                curPoint = this->filteredPcClusters_[i][j];
+                for (size_t k=0; k<this->dynamicBBoxes_.size(); ++k){
+                    if (abs(curPoint(0)-this->dynamicBBoxes_[k].x)<=this->dynamicBBoxes_[k].x_width/2 and 
+                        abs(curPoint(1)-this->dynamicBBoxes_[k].y)<=this->dynamicBBoxes_[k].y_width/2 and 
+                        abs(curPoint(2)-this->dynamicBBoxes_[k].z)<=this->dynamicBBoxes_[k].z_width/2) {
                         dynamicPc.push_back(curPoint);
                         break;
                     }
+                }
             }
         }
     } 
     
     void dynamicDetector::publishUVImages(){
-        sensor_msgs::ImagePtr depthBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->depth_show).toImageMsg();
-        sensor_msgs::ImagePtr UmapBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->U_map_show).toImageMsg();
-        sensor_msgs::ImagePtr birdBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->bird_view).toImageMsg();  
-        this->uvDepthMapPub_.publish(depthBoxMsg);
-        this->uDepthMapPub_.publish(UmapBoxMsg); 
-        this->uvBirdViewPub_.publish(birdBoxMsg);     
+        if (this->uvDetector_ != NULL){
+            sensor_msgs::ImagePtr depthBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->depth_show).toImageMsg();
+            sensor_msgs::ImagePtr UmapBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->U_map_show).toImageMsg();
+            sensor_msgs::ImagePtr birdBoxMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->uvDetector_->bird_view).toImageMsg();  
+            this->uvDepthMapPub_.publish(depthBoxMsg);
+            this->uDepthMapPub_.publish(UmapBoxMsg); 
+            this->uvBirdViewPub_.publish(birdBoxMsg);
+        }     
     }
 
-    void dynamicDetector::publishYoloImages(){
-        sensor_msgs::ImagePtr detectedAlignedImgMsg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", this->detectedAlignedDepthImg_).toImageMsg();
-        this->detectedAlignedDepthImgPub_.publish(detectedAlignedImgMsg);
-    }
 
     void dynamicDetector::publishColorImages(){
         sensor_msgs::ImagePtr detectedColorImgMsg = cv_bridge::CvImage(std_msgs::Header(), "rgb8", this->detectedColorImage_).toImageMsg();
@@ -3187,19 +2217,14 @@ namespace onboardDetector{
         line.color.g = g;
         line.color.b = b;
         line.color.a = 1.0;
-        line.lifetime = ros::Duration(0.1);
+        line.lifetime = ros::Duration(0.05);
+        line.pose.orientation.w = 1.0;
+        line.pose.orientation.w = 0.0;
+        line.pose.orientation.w = 0.0;
+        line.pose.orientation.w = 0.0;
         
         for(size_t i = 0; i < boxes.size(); i++){
-            // for estimated bbox, using a different color
-            if (boxes[i].is_estimated){
-                 line.color.r = 0.8;
-                 line.color.g = 0.2;
-                 line.color.b = 0.0;
-                 line.color.a = 1.0;
-            }
-
             // visualization msgs
-            line.text = " Vx " + std::to_string(boxes[i].Vx) + " Vy " + std::to_string(boxes[i].Vy);
             double x = boxes[i].x; 
             double y = boxes[i].y; 
             double z = (boxes[i].z+boxes[i].z_width/2)/2; 
@@ -3274,223 +2299,41 @@ namespace onboardDetector{
         publisher.publish(lines);
     }
 
-    void dynamicDetector::publish3dBoxWithID(
-        const std::vector<box3D>& boxes,
-        const ros::Publisher& publisher,
-        double r, double g, double b) {
-        
-        // Initialize MarkerArray to hold all markers (lines and text)
-        visualization_msgs::MarkerArray marker_array;
-
-        // Define a base ID for line markers
-        int line_id_base = 0;
-
-        // Define a base ID for text markers (offset to avoid ID collision with line markers)
-        int text_id_base = boxes.size();
-
-        for(size_t i = 0; i < boxes.size(); i++) {
-            const box3D& box = boxes[i];
-
-            // Retrieve the match ID for the current box
-            int match_id = -1;
-            if (i < this->bestMatchHist_.size()) {
-                match_id = this->bestMatchHist_[i];
-            }
-
-            // Create a line marker for the current box
-            visualization_msgs::Marker line;
-            line.header.frame_id = "map";
-            line.header.stamp = ros::Time::now(); // Ensure the timestamp is current
-            line.type = visualization_msgs::Marker::LINE_LIST;
-            line.action = visualization_msgs::Marker::ADD;
-            line.ns = "box3D_lines";  
-            line.id = line_id_base++; // Unique ID for each line marker
-            line.scale.x = 0.06;
-
-            // Set color for the bounding box lines
-            if (match_id >= 0 && static_cast<int>(i) != match_id) {
-                // If box ID does not match match_id, set color to black
-                line.color.r = 0.0;
-                line.color.g = 0.0;
-                line.color.b = 0.0;
-                line.color.a = 1.0;
-            } else if (box.is_estimated){
-                // If the box is estimated, set line color to red
-                line.color.r = 1.0;
-                line.color.g = 0.0;
-                line.color.b = 0.0;
-                line.color.a = 1.0;
-            } else if (box.is_dynamic) {
-                // If the box is dynamic, set line color to blue
-                line.color.r = 0.0;
-                line.color.g = 0.0;
-                line.color.b = 1.0;
-                line.color.a = 1.0;
-            } else {
-                // Default color
-                line.color.r = r;
-                line.color.g = g;
-                line.color.b = b;
-                line.color.a = 1.0;
-            }
-            line.lifetime = ros::Duration(0.1);
-
-            // Log box information
-            // ROS_INFO("Box %zu: is_dynamic=%s, is_estimated=%s, x=%.2f, y=%.2f, z=%.2f", 
-            //     i, 
-            //     box.is_dynamic ? "true" : "false", 
-            //     box.is_estimated ? "true" : "false",
-            //     box.x, box.y, box.z);
-
-            // Prepare vertices for the bounding box
-            double x = box.x; 
-            double y = box.y; 
-            double z = (box.z + box.z_width / 2.0) / 2.0; 
-
-            double x_width = box.x_width;
-            double y_width = box.y_width;
-            double z_width = 2.0 * z;
-
-            std::vector<geometry_msgs::Point> verts(8);
-            // Define all 8 vertices of the box
-            verts[0].x = x - x_width / 2.0; verts[0].y = y - y_width / 2.0; verts[0].z = z - z_width / 2.0;
-            verts[1].x = x - x_width / 2.0; verts[1].y = y + y_width / 2.0; verts[1].z = z - z_width / 2.0;
-            verts[2].x = x + x_width / 2.0; verts[2].y = y + y_width / 2.0; verts[2].z = z - z_width / 2.0;
-            verts[3].x = x + x_width / 2.0; verts[3].y = y - y_width / 2.0; verts[3].z = z - z_width / 2.0;
-            verts[4].x = x - x_width / 2.0; verts[4].y = y - y_width / 2.0; verts[4].z = z + z_width / 2.0;
-            verts[5].x = x - x_width / 2.0; verts[5].y = y + y_width / 2.0; verts[5].z = z + z_width / 2.0;
-            verts[6].x = x + x_width / 2.0; verts[6].y = y + y_width / 2.0; verts[6].z = z + z_width / 2.0;
-            verts[7].x = x + x_width / 2.0; verts[7].y = y - y_width / 2.0; verts[7].z = z + z_width / 2.0;
-
-            // Define the 12 edges of the box by connecting vertices
-            int vert_idx[12][2] = {
-                {0,1}, {1,2}, {2,3}, {3,0}, // Bottom edges
-                {4,5}, {5,6}, {6,7}, {7,4}, // Top edges
-                {0,4}, {1,5}, {2,6}, {3,7}  // Side edges
-            };
-
-            // Add the edges to the line marker
-            for (int j = 0; j < 12; j++) {
-                line.points.push_back(verts[vert_idx[j][0]]);
-                line.points.push_back(verts[vert_idx[j][1]]);
-            }
-
-            // Add the line marker to the MarkerArray
-            marker_array.markers.push_back(line);
-
-            // Create a text marker for the box ID and bestMatch ID
-            visualization_msgs::Marker text_marker;
-            text_marker.header.frame_id = "map";
-            text_marker.header.stamp = ros::Time::now(); // Ensure the timestamp is current
-            text_marker.ns = "box3D_text";  
-            text_marker.id = text_id_base++; // Unique ID for each text marker
-            text_marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
-            text_marker.action = visualization_msgs::Marker::ADD;
-            
-            // Prepare the text to display
-            std::string text;
-            if (box.is_estimated) {
-                text = "ID_Estimated: " + std::to_string(i);
-            } else {
-                text = "ID: " + std::to_string(i);
-            }
-
-            // Include bestMatch information if available
-            if (match_id >= 0) {
-                text += ", Match: " + std::to_string(match_id);
-            } else {
-                text += ", Match: None";
-            }
-            text_marker.text = text;
-
-            // Position the text marker
-            text_marker.pose.position.x = x;
-            text_marker.pose.position.y = y;
-
-            if (box.is_estimated) {
-                // Place text below the box for estimated boxes
-                text_marker.pose.position.z = z - z_width / 2.0 - 0.5; // Slightly below the box
-            } else {
-                // Place text above the box for other boxes
-                text_marker.pose.position.z = z + z_width / 2.0 + 0.5; // Slightly above the box
-            }
-
-            // Orientation (no rotation needed for text)
-            text_marker.pose.orientation.x = 0.0;
-            text_marker.pose.orientation.y = 0.0;
-            text_marker.pose.orientation.z = 0.0;
-            text_marker.pose.orientation.w = 1.0;
-
-            // Set the scale of the text (only z is used for size)
-            text_marker.scale.z = 0.5;
-
-            // Set text color based on box properties
-            if (match_id >= 0 && static_cast<int>(i) != match_id) {
-                // If box ID does not match match_id, set text color to black
-                text_marker.color.r = 0.0;
-                text_marker.color.g = 0.0;
-                text_marker.color.b = 0.0;
-                text_marker.color.a = 1.0;
-            } else if (box.is_estimated) {
-                // If the box is estimated, set text color to red
-                text_marker.color.r = 1.0;
-                text_marker.color.g = 0.0;
-                text_marker.color.b = 0.0;
-                text_marker.color.a = 0.0;
-            } else if (box.is_dynamic) {
-                // If the box is dynamic, set text color to blue
-                text_marker.color.r = 0.0;
-                text_marker.color.g = 0.0;
-                text_marker.color.b = 1.0;
-                text_marker.color.a = 0.0;
-            } else {
-                // Default text color (white)
-                text_marker.color.r = 1.0;
-                text_marker.color.g = 1.0;
-                text_marker.color.b = 1.0;
-                text_marker.color.a = 0.0;
-            }
-
-            text_marker.lifetime = ros::Duration(0.1); // Same lifetime as lines
-
-            // Add the text marker to the MarkerArray
-            marker_array.markers.push_back(text_marker);
-        }
-
-        // Publish all markers at once
-        publisher.publish(marker_array);
-    }
-
-
     void dynamicDetector::publishHistoryTraj(){
         visualization_msgs::MarkerArray trajMsg;
         int countMarker = 0;
         for (size_t i=0; i<this->boxHist_.size(); ++i){
-            visualization_msgs::Marker traj;
-            traj.header.frame_id = "map";
-            traj.header.stamp = ros::Time::now();
-            traj.ns = "dynamic_detector";
-            traj.id = countMarker;
-            traj.type = visualization_msgs::Marker::LINE_LIST;
-            traj.scale.x = 0.03;
-            traj.scale.y = 0.03;
-            traj.scale.z = 0.03;
-            traj.color.a = 1.0; // Don't forget to set the alpha!
-            traj.color.r = 0.0;
-            traj.color.g = 1.0;
-            traj.color.b = 0.0;
-            for (size_t j=0; j<this->boxHist_[i].size()-1; ++j){
-                geometry_msgs::Point p1, p2;
-                onboardDetector::box3D box1 = this->boxHist_[i][j];
-                onboardDetector::box3D box2 = this->boxHist_[i][j+1];
-                p1.x = box1.x; p1.y = box1.y; p1.z = box1.z;
-                p2.x = box2.x; p2.y = box2.y; p2.z = box2.z;
-                traj.points.push_back(p1);
-                traj.points.push_back(p2);
-            }
+            if (this->boxHist_[i].size() > 1){
+                visualization_msgs::Marker traj;
+                traj.header.frame_id = "map";
+                traj.header.stamp = ros::Time::now();
+                traj.ns = "dynamic_detector";
+                traj.id = countMarker;
+                traj.type = visualization_msgs::Marker::LINE_LIST;
+                traj.scale.x = 0.03;
+                traj.scale.y = 0.03;
+                traj.scale.z = 0.03;
+                traj.color.a = 1.0; // Don't forget to set the alpha!
+                traj.color.r = 0.0;
+                traj.color.g = 1.0;
+                traj.color.b = 0.0;
+                traj.pose.orientation.w = 1.0;
+                traj.pose.orientation.x = 0.0;
+                traj.pose.orientation.y = 0.0;
+                traj.pose.orientation.z = 0.0;
+                for (size_t j=0; j<this->boxHist_[i].size()-1; ++j){
+                    geometry_msgs::Point p1, p2;
+                    onboardDetector::box3D box1 = this->boxHist_[i][j];
+                    onboardDetector::box3D box2 = this->boxHist_[i][j+1];
+                    p1.x = box1.x; p1.y = box1.y; p1.z = box1.z;
+                    p2.x = box2.x; p2.y = box2.y; p2.z = box2.z;
+                    traj.points.push_back(p1);
+                    traj.points.push_back(p2);
+                }
 
-            ++countMarker;
-            trajMsg.markers.push_back(traj);
+                ++countMarker;
+                trajMsg.markers.push_back(traj);
+            }
         }
         this->historyTrajPub_.publish(trajMsg);
     }
@@ -3535,13 +2378,13 @@ namespace onboardDetector{
 
             std_msgs::ColorRGBA color;
             srand(cluster.cluster_id);
-            // color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-            // color.g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-            // color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-            color.r = 0.5;
-            color.g = 0.5;
-            color.b = 0.5;
-            color.a = 1.0;
+            color.r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            color.b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            // color.r = 0.5;
+            // color.g = 0.5;
+            // color.b = 0.5;
+            // color.a = 1.0;
 
             for (size_t j=0; j<cluster.points->size(); ++j){
                 pcl::PointXYZRGB point;
@@ -3559,6 +2402,33 @@ namespace onboardDetector{
         lidarClustersMsg.header.frame_id = "map";
         lidarClustersMsg.header.stamp = ros::Time::now();
         this->lidarClustersPub_.publish(lidarClustersMsg);
+    }
+
+    void dynamicDetector::publishFilteredPoints(){
+        sensor_msgs::PointCloud2 filteredPointsMsg;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+        for (size_t i=0; i<this->filteredPcClusters_.size(); ++i){
+            std_msgs::ColorRGBA color;
+            color.r = 0.5;
+            color.g = 0.5;
+            color.b = 0.5;
+            color.a = 1.0;
+
+            for (size_t j=0; j<this->filteredPcClusters_[i].size(); ++j){
+                pcl::PointXYZRGB point;
+                point.x = this->filteredPcClusters_[i][j](0);
+                point.y = this->filteredPcClusters_[i][j](1);
+                point.z = this->filteredPcClusters_[i][j](2);
+                point.r = color.r * 255;
+                point.g = color.g * 255;
+                point.b = color.b * 255;
+                colored_cloud->push_back(point);
+            }
+        }
+        pcl::toROSMsg(*colored_cloud, filteredPointsMsg);
+        filteredPointsMsg.header.frame_id = "map";
+        filteredPointsMsg.header.stamp = ros::Time::now();
+        this->filteredPointsPub_.publish(filteredPointsMsg);
     }
 
     void dynamicDetector::transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,
@@ -3611,27 +2481,6 @@ namespace onboardDetector{
         newSize(2) = zmax - zmin;
     }
 
-    bool dynamicDetector::isInFov(const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation, Eigen::Vector3d& point){
-        Eigen::Vector3d worldRay = point - position;
-        Eigen::Vector3d camUnitX(1,0,0);
-        Eigen::Vector3d camUnitY(0,1,0);
-        Eigen::Vector3d camUnitZ(0,0,1);
-        Eigen::Vector3d camRay;
-        Eigen::Vector3d displacement; 
-    
-        // z is in depth direction in camera coord
-        camRay = orientation.inverse()*worldRay;
-        double camRayX = abs(camRay.dot(camUnitX));
-        double camRayY = abs(camRay.dot(camUnitY));
-        double camRayZ = abs(camRay.dot(camUnitZ));
-
-        double htan = camRayX/camRayZ;
-        double vtan = camRayY/camRayZ;
-        
-        double pi = 3.1415926;
-        return htan<tan(42*pi/180) && vtan<tan(28*pi/180) && camRayZ<this->depthMaxValue_;
-    }
-    
     int dynamicDetector::getBestOverlapBBox(const onboardDetector::box3D& currBBox, const std::vector<onboardDetector::box3D>& targetBBoxes, double& bestIOU){
         bestIOU = 0.0;
         int bestIOUIdx = -1; // no match
@@ -3699,19 +2548,4 @@ namespace onboardDetector{
             }
         }
 	}
-
-    void dynamicDetector::updatePoseHist(){
-        if (int(this->positionHist_.size()) == this->skipFrame_){
-            this->positionHist_.pop_back();
-        }
-        else{
-            this->positionHist_.push_front(this->position_);
-        }
-        if (int(this->orientationHist_.size()) == this->skipFrame_){
-            this->orientationHist_.pop_back();
-        }
-        else{
-            this->orientationHist_.push_front(this->orientation_);
-        }
-    }
 }

@@ -20,8 +20,8 @@ namespace onboardDetector{
         double x, y, z;
         double x_width, y_width, z_width;
         double id;
-        double Vx, Vy, Vz;
-        double Ax, Ay, Az;
+        double Vx=0, Vy=0, Vz=0;
+        double Ax=0, Ay=0, Az=0;
         bool is_human=false; // false: not detected by yolo as dynamic, true: detected by yolo
         bool is_dynamic=false; // false: not detected as dynamic(either yolo or classificationCB), true: detected as dynamic
         bool fix_size=false; // flag to force future boxes to fix size

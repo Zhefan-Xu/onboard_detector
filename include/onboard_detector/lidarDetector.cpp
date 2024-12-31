@@ -11,11 +11,9 @@ namespace onboardDetector{
         this->cloud_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
     }
 
-    void lidarDetector::setParams(double eps, int minPts, double groundHeight, double roofHeight){
+    void lidarDetector::setParams(double eps, int minPts){
         this->eps_ = eps;
         this->minPts_ = minPts;
-        this->groundHeight_ = groundHeight;
-        this->roofHeight_ = roofHeight;
     }
 
     void lidarDetector::getPointcloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud){
@@ -51,9 +49,9 @@ namespace onboardDetector{
             }
         }
 
-        this->clusters_.clear();
-        this->clusters_.resize(clusterNum);
-        this->bboxes_.clear();
+
+        std::vector<onboardDetector::Cluster> clustersTemp;
+        clustersTemp.resize(clusterNum);
         
         for(size_t i=0; i<dbscan.m_points.size(); ++i){
             if (dbscan.m_points[i].clusterID > 0){
@@ -61,11 +59,13 @@ namespace onboardDetector{
                 point.x = dbscan.m_points[i].x;
                 point.y = dbscan.m_points[i].y;
                 point.z = dbscan.m_points[i].z;
-                this->clusters_[dbscan.m_points[i].clusterID-1].points->push_back(point);
-                this->clusters_[dbscan.m_points[i].clusterID-1].cluster_id = dbscan.m_points[i].clusterID;
+                clustersTemp[dbscan.m_points[i].clusterID-1].points->push_back(point);
+                clustersTemp[dbscan.m_points[i].clusterID-1].cluster_id = dbscan.m_points[i].clusterID;
             }
         }
+        this->clusters_ = clustersTemp;
 
+        std::vector<onboardDetector::box3D> bboxesTemp;
         for(auto& cluster : this->clusters_){
             Eigen::Vector4f centroid;
             pcl::compute3DCentroid(*cluster.points, centroid);
@@ -81,8 +81,9 @@ namespace onboardDetector{
             bbox.x_width = maxPt.x - minPt.x;
             bbox.y_width = maxPt.y - minPt.y;
             bbox.z_width = maxPt.z - minPt.z;
-            this->bboxes_.push_back(bbox);
+            bboxesTemp.push_back(bbox);
         }
+        this->bboxes_ = bboxesTemp;
     }
 
     std::vector<onboardDetector::Cluster>& lidarDetector::getClusters(){

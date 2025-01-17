@@ -520,6 +520,15 @@ namespace onboardDetector{
             }
             std::cout << "]." << std::endl;
         }
+
+        // gaussian downsample rate
+        if (not this->nh_.getParam(this->ns_ + "/gaussian_downsample_rate", this->gaussianDownSampleRate_)){
+            this->gaussianDownSampleRate_ = 10;
+            std::cout << this->hint_ << ": No gaussian downsample rate parameter found. Use default: 2." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Gaussian downsample rate is set to: " << this->gaussianDownSampleRate_ << std::endl;
+        }
     }
 
     void dynamicDetector::registerPub(){
@@ -577,6 +586,8 @@ namespace onboardDetector{
 
         // velocity visualization pub
         this->velVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/velocity_visualizaton", 10);
+
+        this->downSamplePointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/downsampled_point_cloud", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -788,6 +799,47 @@ namespace onboardDetector{
                 pass.setFilterLimits(-this->localLidarRange_.y(), this->localLidarRange_.y());
                 pass.filter(*filteredCloud);
 
+                int sigma = this->gaussianDownSampleRate_;
+    
+                pcl::PointCloud<pcl::PointXYZ>::Ptr preTransformCloud(new pcl::PointCloud<pcl::PointXYZ>());
+                preTransformCloud->reserve(filteredCloud->size());
+
+                for (auto &pt : filteredCloud->points) {
+                    float manhattanDist = std::fabs(pt.x) + std::fabs(pt.y);
+                    float p = std::exp(-(manhattanDist * manhattanDist) / (2 * sigma * sigma));
+
+                    float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+                    if (r < p) {
+                        preTransformCloud->push_back(pt);
+                    }
+                }
+                ROS_INFO("Gaussian downsample rate: %f", float(preTransformCloud->size()) / float(filteredCloud->size()));
+
+                // for (auto &pt : filteredCloud->points) {
+                //     // still compute probability p based on XY distance
+                //     float manhattanDist = std::fabs(pt.x) + std::fabs(pt.y);
+                //     float p = std::exp(- (manhattanDist * manhattanDist) / (2 * sigma * sigma));
+
+                //     // quantize X,Y only; skip Z
+                //     int x_q = static_cast<int>(std::round(pt.x * 10));
+                //     int y_q = static_cast<int>(std::round(pt.y * 10));
+
+                //     // hash only X,Y
+                //     size_t hashValue = 1469598103934665603ULL; // FNV64 offset basis
+                //     auto hash_combine = [&](int v) {
+                //         hashValue ^= std::hash<int>()(v) + 0x9e3779b97f4a7c15ULL + (hashValue << 6) + (hashValue >> 2);
+                //     };
+                //     hash_combine(x_q);
+                //     hash_combine(y_q);
+
+                //     // map hashValue to [0,1)
+                //     double r = double(hashValue % 1000000ULL) / 1000000.0;
+
+                //     if (r < p) {
+                //         preTransformCloud->push_back(pt);
+                //     }
+                // }
+
                 // transform
                 Eigen::Affine3d transform = Eigen::Affine3d::Identity();
                 transform.linear() = this->orientationLidar_;
@@ -798,7 +850,7 @@ namespace onboardDetector{
                 pcl::PointCloud<pcl::PointXYZ>::Ptr transformedCloud (new pcl::PointCloud<pcl::PointXYZ>());
 
                 // Apply the transformation
-                pcl::transformPointCloud(*filteredCloud, *transformedCloud, transform);
+                pcl::transformPointCloud(*preTransformCloud, *transformedCloud, transform);
 
                 // filter roof and ground 
                 pcl::PointCloud<pcl::PointXYZ>::Ptr groundRoofFilterCloud (new pcl::PointCloud<pcl::PointXYZ>());
@@ -824,6 +876,11 @@ namespace onboardDetector{
                 }
 
                 this->lidarCloud_ = downsampledCloud;
+                sensor_msgs::PointCloud2 outputCloud;
+                pcl::toROSMsg(*this->lidarCloud_, outputCloud); // Convert to ROS message
+                outputCloud.header.frame_id = "map";    // Set appropriate frame ID
+                this->downSamplePointsPub_.publish(outputCloud);
+                ROS_INFO("Downsampled Size: %d", int(downsampledCloud->size()));
             }
         }
         catch (const pcl::PCLException& e) {

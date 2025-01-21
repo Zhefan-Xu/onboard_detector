@@ -48,7 +48,7 @@ dbscan_search_range_epsilon: 0.05 # searching range radius
 lidar_DBSCAN_min_points: 8
 lidar_DBSCAN_epsilon: 0.05
 downsample_threshold: 3000 # threshold for downsampling
-gaussian_downsample_rate: 7
+gaussian_downsample_rate: 6
 
 # LiDAR Visual Filtering
 filtering_BBox_IOU_threshold: 0.2

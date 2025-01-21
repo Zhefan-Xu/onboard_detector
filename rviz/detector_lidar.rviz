@@ -173,8 +173,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -9999
-        Min Value: 9999
+        Max Value: 0.5345050096511841
+        Min Value: 0.5345050096511841
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -244,6 +244,7 @@ Visualization Manager:
       Name: MarkerArray
       Namespaces:
         GT osbtacles0: true
+        GT osbtacles1: true
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -310,17 +311,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 7.158191204071045
-        Y: -2.44143009185791
-        Z: 1.8872191905975342
+        X: 3.3277270793914795
+        Y: -1.7245450019836426
+        Z: 1.0706909894943237
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6547960042953491
+      Pitch: 0.5597960352897644
       Target Frame: <Fixed Frame>
-      Yaw: 3.2154064178466797
+      Yaw: 3.1154072284698486
     Saved: ~
 Window Geometry:
   Detected Image:

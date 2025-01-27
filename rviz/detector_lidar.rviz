@@ -173,8 +173,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 0.5345050096511841
-        Min Value: 0.5345050096511841
+        Max Value: -9999
+        Min Value: 9999
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -243,8 +243,7 @@ Visualization Manager:
       Marker Topic: /onboard_detector/GT_obstacle_bbox
       Name: MarkerArray
       Namespaces:
-        GT osbtacles0: true
-        GT osbtacles1: true
+        {}
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -319,9 +318,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5597960352897644
+      Pitch: 0.7247959971427917
       Target Frame: <Fixed Frame>
-      Yaw: 3.1154072284698486
+      Yaw: 4.660406112670898
     Saved: ~
 Window Geometry:
   Detected Image:

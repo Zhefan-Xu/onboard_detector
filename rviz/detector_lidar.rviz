@@ -3,7 +3,8 @@ Panels:
     Help Height: 0
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /Dynamic Obstacles BBoxes1
       Splitter Ratio: 0.5
     Tree Height: 1548
   - Class: rviz/Selection
@@ -173,8 +174,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -9999
-        Min Value: 9999
+        Max Value: 1.4872105121612549
+        Min Value: 0.8918412327766418
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -243,7 +244,8 @@ Visualization Manager:
       Marker Topic: /onboard_detector/GT_obstacle_bbox
       Name: MarkerArray
       Namespaces:
-        {}
+        GT osbtacles0: true
+        GT osbtacles1: true
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -274,6 +276,14 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /bbox_evaluator/center_markers
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 211; 215; 207
@@ -302,7 +312,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 33.20951843261719
+      Distance: 19.91559410095215
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -318,9 +328,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7247959971427917
+      Pitch: 1.179795742034912
       Target Frame: <Fixed Frame>
-      Yaw: 4.660406112670898
+      Yaw: 3.1104023456573486
     Saved: ~
 Window Geometry:
   Detected Image:

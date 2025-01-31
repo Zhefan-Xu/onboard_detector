@@ -2261,100 +2261,95 @@ namespace onboardDetector{
     }
 
 
-    void dynamicDetector::publish3dBox(const std::vector<box3D>& boxes, const ros::Publisher& publisher, double r, double g, double b) {
-        // visualization using bounding boxes 
-        visualization_msgs::Marker line;
-        visualization_msgs::MarkerArray lines;
-        line.header.frame_id = "map";
-        line.type = visualization_msgs::Marker::LINE_LIST;
-        line.action = visualization_msgs::Marker::ADD;
-        line.ns = "box3D";  
-        line.scale.x = 0.06;
-        line.color.r = r;
-        line.color.g = g;
-        line.color.b = b;
-        line.color.a = 1.0;
-        line.lifetime = ros::Duration(0.05);
-        line.pose.orientation.w = 1.0;
-        line.pose.orientation.w = 0.0;
-        line.pose.orientation.w = 0.0;
-        line.pose.orientation.w = 0.0;
-        
-        for(size_t i = 0; i < boxes.size(); i++){
-            // visualization msgs
-            double x = boxes[i].x; 
-            double y = boxes[i].y; 
-            double z = (boxes[i].z+boxes[i].z_width/2)/2; 
+    void dynamicDetector::publish3dBox(const std::vector<box3D>& boxes,
+                                   const ros::Publisher& publisher,
+                                   double r, double g, double b)
+    {
+        // 最终要发布的 MarkerArray
+        visualization_msgs::MarkerArray marker_array;
 
-            // double x_width = std::max(boxes[i].x_width,boxes[i].y_width);
-            // double y_width = std::max(boxes[i].x_width,boxes[i].y_width);
+        for (size_t i = 0; i < boxes.size(); i++)
+        {
+            // 每个方框对应一个独立的 Marker
+            visualization_msgs::Marker line;
+            line.header.frame_id = "map";
+            // 如果需要，可以设置时间戳，例如 line.header.stamp = ros::Time::now();
+            line.ns = "box3D";
+            line.id = i;  // 给每个 Marker 一个不同的 id
+
+            line.type = visualization_msgs::Marker::LINE_LIST;
+            line.action = visualization_msgs::Marker::ADD;
+
+            // 线条的粗细
+            line.scale.x = 0.06;
+
+            // 颜色
+            line.color.r = r;
+            line.color.g = g;
+            line.color.b = b;
+            line.color.a = 1.0;
+
+            // 生命周期，可根据需求修改
+            line.lifetime = ros::Duration(0.05);
+
+            // 设置姿态
+            // 这里的 orientation 设为单位四元数，表示无旋转
+            line.pose.orientation.x = 0.0;
+            line.pose.orientation.y = 0.0;
+            line.pose.orientation.z = 0.0;
+            line.pose.orientation.w = 1.0;
+
+            // =====================
+            //   设定方框中心坐标
+            // =====================
+            // 你原先的代码里，有一段对 z 做了 (z + z_width/2)/2 这样的处理，这里
+            // 可能并不是真正想要的中心值，下面示例直接用 boxes[i].z 作为中心，
+            // 或者你可以根据自己的需求来设定。
+            // 如果真正想把 “z + z_width/2 的一半” 当成中心，请自行改回。
+            line.pose.position.x = boxes[i].x;
+            line.pose.position.y = boxes[i].y;
+            line.pose.position.z = boxes[i].z; 
+
+            // 宽度
             double x_width = boxes[i].x_width;
             double y_width = boxes[i].y_width;
-            double z_width = 2*z;
+            double z_width = boxes[i].z_width;
 
-            // double z = 
-            
-            vector<geometry_msgs::Point> verts;
-            geometry_msgs::Point p;
-            // vertice 0
-            p.x = x-x_width / 2.; p.y = y-y_width / 2.; p.z = z-z_width / 2.;
-            verts.push_back(p);
+            // 在局部坐标系下，方框的 8 个角点
+            // （绕原点对称，以便 pose.position 就是方框中心）
+            geometry_msgs::Point corner[8];
+            corner[0].x = -x_width / 2.0; corner[0].y = -y_width / 2.0; corner[0].z = -z_width / 2.0;
+            corner[1].x = -x_width / 2.0; corner[1].y =  y_width / 2.0; corner[1].z = -z_width / 2.0;
+            corner[2].x =  x_width / 2.0; corner[2].y =  y_width / 2.0; corner[2].z = -z_width / 2.0;
+            corner[3].x =  x_width / 2.0; corner[3].y = -y_width / 2.0; corner[3].z = -z_width / 2.0;
 
-            // vertice 1
-            p.x = x-x_width / 2.; p.y = y+y_width / 2.; p.z = z-z_width / 2.;
-            verts.push_back(p);
+            corner[4].x = -x_width / 2.0; corner[4].y = -y_width / 2.0; corner[4].z =  z_width / 2.0;
+            corner[5].x = -x_width / 2.0; corner[5].y =  y_width / 2.0; corner[5].z =  z_width / 2.0;
+            corner[6].x =  x_width / 2.0; corner[6].y =  y_width / 2.0; corner[6].z =  z_width / 2.0;
+            corner[7].x =  x_width / 2.0; corner[7].y = -y_width / 2.0; corner[7].z =  z_width / 2.0;
 
-            // vertice 2
-            p.x = x+x_width / 2.; p.y = y+y_width / 2.; p.z = z-z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 3
-            p.x = x+x_width / 2.; p.y = y-y_width / 2.; p.z = z-z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 4
-            p.x = x-x_width / 2.; p.y = y-y_width / 2.; p.z = z+z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 5
-            p.x = x-x_width / 2.; p.y = y+y_width / 2.; p.z = z+z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 6
-            p.x = x+x_width / 2.; p.y = y+y_width / 2.; p.z = z+z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 7
-            p.x = x+x_width / 2.; p.y = y-y_width / 2.; p.z = z+z_width / 2.;
-            verts.push_back(p);
-            
-            int vert_idx[12][2] = {
-                {0,1},
-                {1,2},
-                {2,3},
-                {0,3},
-                {0,4},
-                {1,5},
-                {3,7},
-                {2,6},
-                {4,5},
-                {5,6},
-                {4,7},
-                {6,7}
+            // 12 条边对应的点对索引
+            int edge_idx[12][2] = {
+                {0,1}, {1,2}, {2,3}, {3,0},  // 下方矩形
+                {4,5}, {5,6}, {6,7}, {7,4},  // 上方矩形
+                {0,4}, {1,5}, {2,6}, {3,7}   // 立柱
             };
-            
-            for (size_t i=0;i<12;i++){
-                line.points.push_back(verts[vert_idx[i][0]]);
-                line.points.push_back(verts[vert_idx[i][1]]);
+
+            // 将每条边的两个端点 push_back 到 line.points
+            for (int e = 0; e < 12; e++)
+            {
+                line.points.push_back(corner[edge_idx[e][0]]);
+                line.points.push_back(corner[edge_idx[e][1]]);
             }
-            
-            lines.markers.push_back(line);
-            
-            line.id++;
+
+            // 最后，把这个 Marker 放入数组
+            marker_array.markers.push_back(line);
         }
-        // publish
-        publisher.publish(lines);
+
+        // 发布
+        publisher.publish(marker_array);
     }
+
 
     void dynamicDetector::publishHistoryTraj(){
         visualization_msgs::MarkerArray trajMsg;

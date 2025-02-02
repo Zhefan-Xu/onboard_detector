@@ -73,6 +73,7 @@ namespace onboardDetector{
         ros::Publisher dynamicPointsPub_;
         ros::Publisher historyTrajPub_;
         ros::Publisher velVisPub_;
+        ros::Publisher downSamplePointsPub_;
         ros::ServiceServer getDynamicObstacleServer_;
     
         // DETECTOR
@@ -121,6 +122,7 @@ namespace onboardDetector{
         // DBSCAN LiDAR param
         int lidarDBMinPoints_;
         double lidarDBEpsilon_;
+        int gaussianDownSampleRate_;
         int downSampleThresh_;
 
         // LiDAR Visual Filtering

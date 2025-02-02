@@ -3,7 +3,7 @@ localization_mode: 0 # 0: pose (default) 1: odom
 # ROS Topics
 depth_image_topic: /camera/depth/image_rect_raw
 color_image_topic: /camera/color/image_raw
-lidar_pointcloud_topic: /livox_pcl0
+lidar_pointcloud_topic: /pointcloud
 pose_topic: /mavros/local_position/pose
 odom_topic: /mavros/local_position/odom
 
@@ -42,12 +42,13 @@ roof_height: 2.0 # relative height of roof to remove roof points
 # DBSCAN visual param
 voxel_occupied_thresh: 5 # min num of points for a voxel to be occupied in voxel filter
 dbscan_min_points_cluster: 50 # 20: 4.0m range; 30: 3.5m range 40: 3.0m range
-dbscan_search_range_epsilon: 0.1 # searching range radius
+dbscan_search_range_epsilon: 0.05 # searching range radius
 
 # DBSCAN LiDAR param
 lidar_DBSCAN_min_points: 8
 lidar_DBSCAN_epsilon: 0.05
-downsample_threshold: 3000 # threshold for downsampling
+downsample_threshold: 3500 # threshold for downsampling
+gaussian_downsample_rate: 6
 
 # LiDAR Visual Filtering
 filtering_BBox_IOU_threshold: 0.2
@@ -55,7 +56,7 @@ filtering_BBox_IOU_threshold: 0.2
 # Tracking and data association
 max_match_range: 0.5 # max match range between time steps in meters
 max_size_diff_range: 0.5 #  in meter
-feature_weight: [3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0] # weight for feagent 3pos + 3size + 1 pc length + 3 pc std
+feature_weight: [3.0, 3.0, 0.1, 0.5, 0.5, 0.05, 0, 0, 0] # weight for feagent 3pos + 3size +  3 pc centroid
 history_size: 100 # size of tracking history. history[0] is current detection
 fix_size_history_threshold: 10 # History threshold (num of frames) to fix box size
 fix_size_dimension_threshold: 0.4 # dimension threshold (size of proportional) to fix box size

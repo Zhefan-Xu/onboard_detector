@@ -305,6 +305,15 @@ namespace onboardDetector{
             cout << this->hint_ << ": Downsample threshold is set to: " << this->downSampleThresh_ << endl;
         }
 
+        // gaussian downsample rate
+        if (not this->nh_.getParam(this->ns_ + "/gaussian_downsample_rate", this->gaussianDownSampleRate_)){
+            this->gaussianDownSampleRate_ = 2;
+            std::cout << this->hint_ << ": No gaussian downsample rate parameter found. Use default: 2." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Gaussian downsample rate is set to: " << this->gaussianDownSampleRate_ << std::endl;
+        }
+
         // IOU threshold
         if (not this->nh_.getParam(this->ns_ + "/filtering_BBox_IOU_threshold", this->boxIOUThresh_)){
             this->boxIOUThresh_ = 0.5;
@@ -577,6 +586,9 @@ namespace onboardDetector{
 
         // velocity visualization pub
         this->velVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/velocity_visualizaton", 10);
+
+        // downsample points visualization pub
+        this->downSamplePointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/downsampled_point_cloud", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -622,7 +634,7 @@ namespace onboardDetector{
         this->visTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::visCB, this);
         
 		// get dynamic obstacle service
-		this->getDynamicObstacleServer_ = this->nh_.advertiseService("onboard_detector/getDynamicObstacles", &dynamicDetector::getDynamicObstacles, this);
+		this->getDynamicObstacleServer_ = this->nh_.advertiseService("onboard_detector/get_dynamic_obstacles", &dynamicDetector::getDynamicObstacles, this);
     }
 
     bool dynamicDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
@@ -788,6 +800,47 @@ namespace onboardDetector{
                 pass.setFilterLimits(-this->localLidarRange_.y(), this->localLidarRange_.y());
                 pass.filter(*filteredCloud);
 
+                int sigma = this->gaussianDownSampleRate_;
+    
+                pcl::PointCloud<pcl::PointXYZ>::Ptr preTransformCloud(new pcl::PointCloud<pcl::PointXYZ>());
+                preTransformCloud->reserve(filteredCloud->size());
+
+                for (pcl::PointXYZ &pt : filteredCloud->points) {
+                    double dist = pow(pow(pt.x, 2) + pow(pt.y, 2), 0.5);
+                    double p = std::exp(-(dist * dist) / (2 * sigma * sigma));
+
+                    double r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+                    if (r < p) {
+                        preTransformCloud->push_back(pt);
+                    }
+                }
+                ROS_INFO("Gaussian downsample rate: %f", float(preTransformCloud->size()) / float(filteredCloud->size()));
+
+                // for (auto &pt : filteredCloud->points) {
+                //     // still compute probability p based on XY distance
+                //     float manhattanDist = std::fabs(pt.x) + std::fabs(pt.y);
+                //     float p = std::exp(- (manhattanDist * manhattanDist) / (2 * sigma * sigma));
+
+                //     // quantize X,Y only; skip Z
+                //     int x_q = static_cast<int>(std::round(pt.x * 10));
+                //     int y_q = static_cast<int>(std::round(pt.y * 10));
+
+                //     // hash only X,Y
+                //     size_t hashValue = 1469598103934665603ULL; // FNV64 offset basis
+                //     auto hash_combine = [&](int v) {
+                //         hashValue ^= std::hash<int>()(v) + 0x9e3779b97f4a7c15ULL + (hashValue << 6) + (hashValue >> 2);
+                //     };
+                //     hash_combine(x_q);
+                //     hash_combine(y_q);
+
+                //     // map hashValue to [0,1)
+                //     double r = double(hashValue % 1000000ULL) / 1000000.0;
+
+                //     if (r < p) {
+                //         preTransformCloud->push_back(pt);
+                //     }
+                // }
+
                 // transform
                 Eigen::Affine3d transform = Eigen::Affine3d::Identity();
                 transform.linear() = this->orientationLidar_;
@@ -798,7 +851,7 @@ namespace onboardDetector{
                 pcl::PointCloud<pcl::PointXYZ>::Ptr transformedCloud (new pcl::PointCloud<pcl::PointXYZ>());
 
                 // Apply the transformation
-                pcl::transformPointCloud(*filteredCloud, *transformedCloud, transform);
+                pcl::transformPointCloud(*preTransformCloud, *transformedCloud, transform);
 
                 // filter roof and ground 
                 pcl::PointCloud<pcl::PointXYZ>::Ptr groundRoofFilterCloud (new pcl::PointCloud<pcl::PointXYZ>());
@@ -824,6 +877,11 @@ namespace onboardDetector{
                 }
 
                 this->lidarCloud_ = downsampledCloud;
+                sensor_msgs::PointCloud2 outputCloud;
+                pcl::toROSMsg(*this->lidarCloud_, outputCloud); // Convert to ROS message
+                outputCloud.header.frame_id = "map";    // Set appropriate frame ID
+                this->downSamplePointsPub_.publish(outputCloud);
+                ROS_INFO("Downsampled Size: %d", int(downsampledCloud->size()));
             }
         }
         catch (const pcl::PCLException& e) {
@@ -2204,100 +2262,66 @@ namespace onboardDetector{
     }
 
 
-    void dynamicDetector::publish3dBox(const std::vector<box3D>& boxes, const ros::Publisher& publisher, double r, double g, double b) {
-        // visualization using bounding boxes 
-        visualization_msgs::Marker line;
-        visualization_msgs::MarkerArray lines;
-        line.header.frame_id = "map";
-        line.type = visualization_msgs::Marker::LINE_LIST;
-        line.action = visualization_msgs::Marker::ADD;
-        line.ns = "box3D";  
-        line.scale.x = 0.06;
-        line.color.r = r;
-        line.color.g = g;
-        line.color.b = b;
-        line.color.a = 1.0;
-        line.lifetime = ros::Duration(0.05);
-        line.pose.orientation.w = 1.0;
-        line.pose.orientation.w = 0.0;
-        line.pose.orientation.w = 0.0;
-        line.pose.orientation.w = 0.0;
-        
-        for(size_t i = 0; i < boxes.size(); i++){
-            // visualization msgs
-            double x = boxes[i].x; 
-            double y = boxes[i].y; 
-            double z = (boxes[i].z+boxes[i].z_width/2)/2; 
+    void dynamicDetector::publish3dBox(const std::vector<box3D>& boxes,
+                                   const ros::Publisher& publisher,
+                                   double r, double g, double b){
+        visualization_msgs::MarkerArray markers;
 
-            // double x_width = std::max(boxes[i].x_width,boxes[i].y_width);
-            // double y_width = std::max(boxes[i].x_width,boxes[i].y_width);
+        for (size_t i = 0; i < boxes.size(); i++)
+        {
+            visualization_msgs::Marker line;
+            line.header.frame_id = "map";
+            line.ns = "box3D";
+            line.id = i;
+            line.type = visualization_msgs::Marker::LINE_LIST;
+            line.action = visualization_msgs::Marker::ADD;
+            line.scale.x = 0.06;
+            line.color.r = r;
+            line.color.g = g;
+            line.color.b = b;
+            line.color.a = 1.0;
+            line.lifetime = ros::Duration(0.05);
+            line.pose.orientation.x = 0.0;
+            line.pose.orientation.y = 0.0;
+            line.pose.orientation.z = 0.0;
+            line.pose.orientation.w = 1.0;
+            line.pose.position.x = boxes[i].x;
+            line.pose.position.y = boxes[i].y;
+            line.pose.position.z = boxes[i].z; 
+
             double x_width = boxes[i].x_width;
             double y_width = boxes[i].y_width;
-            double z_width = 2*z;
+            double z_width = boxes[i].z_width;
 
-            // double z = 
-            
-            vector<geometry_msgs::Point> verts;
-            geometry_msgs::Point p;
-            // vertice 0
-            p.x = x-x_width / 2.; p.y = y-y_width / 2.; p.z = z-z_width / 2.;
-            verts.push_back(p);
+            geometry_msgs::Point corner[8];
+            corner[0].x = -x_width / 2.0; corner[0].y = -y_width / 2.0; corner[0].z = -z_width / 2.0;
+            corner[1].x = -x_width / 2.0; corner[1].y =  y_width / 2.0; corner[1].z = -z_width / 2.0;
+            corner[2].x =  x_width / 2.0; corner[2].y =  y_width / 2.0; corner[2].z = -z_width / 2.0;
+            corner[3].x =  x_width / 2.0; corner[3].y = -y_width / 2.0; corner[3].z = -z_width / 2.0;
 
-            // vertice 1
-            p.x = x-x_width / 2.; p.y = y+y_width / 2.; p.z = z-z_width / 2.;
-            verts.push_back(p);
+            corner[4].x = -x_width / 2.0; corner[4].y = -y_width / 2.0; corner[4].z =  z_width / 2.0;
+            corner[5].x = -x_width / 2.0; corner[5].y =  y_width / 2.0; corner[5].z =  z_width / 2.0;
+            corner[6].x =  x_width / 2.0; corner[6].y =  y_width / 2.0; corner[6].z =  z_width / 2.0;
+            corner[7].x =  x_width / 2.0; corner[7].y = -y_width / 2.0; corner[7].z =  z_width / 2.0;
 
-            // vertice 2
-            p.x = x+x_width / 2.; p.y = y+y_width / 2.; p.z = z-z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 3
-            p.x = x+x_width / 2.; p.y = y-y_width / 2.; p.z = z-z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 4
-            p.x = x-x_width / 2.; p.y = y-y_width / 2.; p.z = z+z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 5
-            p.x = x-x_width / 2.; p.y = y+y_width / 2.; p.z = z+z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 6
-            p.x = x+x_width / 2.; p.y = y+y_width / 2.; p.z = z+z_width / 2.;
-            verts.push_back(p);
-
-            // vertice 7
-            p.x = x+x_width / 2.; p.y = y-y_width / 2.; p.z = z+z_width / 2.;
-            verts.push_back(p);
-            
-            int vert_idx[12][2] = {
-                {0,1},
-                {1,2},
-                {2,3},
-                {0,3},
-                {0,4},
-                {1,5},
-                {3,7},
-                {2,6},
-                {4,5},
-                {5,6},
-                {4,7},
-                {6,7}
+            int edgeIdx[12][2] = {
+                {0,1}, {1,2}, {2,3}, {3,0},  
+                {4,5}, {5,6}, {6,7}, {7,4},  
+                {0,4}, {1,5}, {2,6}, {3,7}   
             };
-            
-            for (size_t i=0;i<12;i++){
-                line.points.push_back(verts[vert_idx[i][0]]);
-                line.points.push_back(verts[vert_idx[i][1]]);
+
+            for (int e = 0; e < 12; e++)
+            {
+                line.points.push_back(corner[edgeIdx[e][0]]);
+                line.points.push_back(corner[edgeIdx[e][1]]);
             }
-            
-            lines.markers.push_back(line);
-            
-            line.id++;
+
+            markers.markers.push_back(line);
         }
-        // publish
-        publisher.publish(lines);
+
+        publisher.publish(markers);
     }
+
 
     void dynamicDetector::publishHistoryTraj(){
         visualization_msgs::MarkerArray trajMsg;

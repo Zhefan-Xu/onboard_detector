@@ -305,6 +305,15 @@ namespace onboardDetector{
             cout << this->hint_ << ": Downsample threshold is set to: " << this->downSampleThresh_ << endl;
         }
 
+        // gaussian downsample rate
+        if (not this->nh_.getParam(this->ns_ + "/gaussian_downsample_rate", this->gaussianDownSampleRate_)){
+            this->gaussianDownSampleRate_ = 2;
+            std::cout << this->hint_ << ": No gaussian downsample rate parameter found. Use default: 2." << std::endl;
+        }
+        else{
+            std::cout << this->hint_ << ": Gaussian downsample rate is set to: " << this->gaussianDownSampleRate_ << std::endl;
+        }
+
         // IOU threshold
         if (not this->nh_.getParam(this->ns_ + "/filtering_BBox_IOU_threshold", this->boxIOUThresh_)){
             this->boxIOUThresh_ = 0.5;
@@ -520,15 +529,6 @@ namespace onboardDetector{
             }
             std::cout << "]." << std::endl;
         }
-
-        // gaussian downsample rate
-        if (not this->nh_.getParam(this->ns_ + "/gaussian_downsample_rate", this->gaussianDownSampleRate_)){
-            this->gaussianDownSampleRate_ = 10;
-            std::cout << this->hint_ << ": No gaussian downsample rate parameter found. Use default: 2." << std::endl;
-        }
-        else{
-            std::cout << this->hint_ << ": Gaussian downsample rate is set to: " << this->gaussianDownSampleRate_ << std::endl;
-        }
     }
 
     void dynamicDetector::registerPub(){
@@ -587,6 +587,7 @@ namespace onboardDetector{
         // velocity visualization pub
         this->velVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/velocity_visualizaton", 10);
 
+        // downsample points visualization pub
         this->downSamplePointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/downsampled_point_cloud", 10);
     }   
 
@@ -633,7 +634,7 @@ namespace onboardDetector{
         this->visTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::visCB, this);
         
 		// get dynamic obstacle service
-		this->getDynamicObstacleServer_ = this->nh_.advertiseService("onboard_detector/getDynamicObstacles", &dynamicDetector::getDynamicObstacles, this);
+		this->getDynamicObstacleServer_ = this->nh_.advertiseService("onboard_detector/get_dynamic_obstacles", &dynamicDetector::getDynamicObstacles, this);
     }
 
     bool dynamicDetector::getDynamicObstacles(onboard_detector::GetDynamicObstacles::Request& req, 
@@ -804,11 +805,11 @@ namespace onboardDetector{
                 pcl::PointCloud<pcl::PointXYZ>::Ptr preTransformCloud(new pcl::PointCloud<pcl::PointXYZ>());
                 preTransformCloud->reserve(filteredCloud->size());
 
-                for (auto &pt : filteredCloud->points) {
-                    float manhattanDist = std::fabs(pt.x) + std::fabs(pt.y);
-                    float p = std::exp(-(manhattanDist * manhattanDist) / (2 * sigma * sigma));
+                for (pcl::PointXYZ &pt : filteredCloud->points) {
+                    double dist = pow(pow(pt.x, 2) + pow(pt.y, 2), 0.5);
+                    double p = std::exp(-(dist * dist) / (2 * sigma * sigma));
 
-                    float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+                    double r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
                     if (r < p) {
                         preTransformCloud->push_back(pt);
                     }
@@ -2263,9 +2264,8 @@ namespace onboardDetector{
 
     void dynamicDetector::publish3dBox(const std::vector<box3D>& boxes,
                                    const ros::Publisher& publisher,
-                                   double r, double g, double b)
-    {
-        visualization_msgs::MarkerArray marker_array;
+                                   double r, double g, double b){
+        visualization_msgs::MarkerArray markers;
 
         for (size_t i = 0; i < boxes.size(); i++)
         {
@@ -2304,7 +2304,7 @@ namespace onboardDetector{
             corner[6].x =  x_width / 2.0; corner[6].y =  y_width / 2.0; corner[6].z =  z_width / 2.0;
             corner[7].x =  x_width / 2.0; corner[7].y = -y_width / 2.0; corner[7].z =  z_width / 2.0;
 
-            int edge_idx[12][2] = {
+            int edgeIdx[12][2] = {
                 {0,1}, {1,2}, {2,3}, {3,0},  
                 {4,5}, {5,6}, {6,7}, {7,4},  
                 {0,4}, {1,5}, {2,6}, {3,7}   
@@ -2312,14 +2312,14 @@ namespace onboardDetector{
 
             for (int e = 0; e < 12; e++)
             {
-                line.points.push_back(corner[edge_idx[e][0]]);
-                line.points.push_back(corner[edge_idx[e][1]]);
+                line.points.push_back(corner[edgeIdx[e][0]]);
+                line.points.push_back(corner[edgeIdx[e][1]]);
             }
 
-            marker_array.markers.push_back(line);
+            markers.markers.push_back(line);
         }
 
-        publisher.publish(marker_array);
+        publisher.publish(markers);
     }
 
 

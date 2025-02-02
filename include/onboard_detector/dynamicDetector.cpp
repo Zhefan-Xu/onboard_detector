@@ -2265,58 +2265,34 @@ namespace onboardDetector{
                                    const ros::Publisher& publisher,
                                    double r, double g, double b)
     {
-        // 最终要发布的 MarkerArray
         visualization_msgs::MarkerArray marker_array;
 
         for (size_t i = 0; i < boxes.size(); i++)
         {
-            // 每个方框对应一个独立的 Marker
             visualization_msgs::Marker line;
             line.header.frame_id = "map";
-            // 如果需要，可以设置时间戳，例如 line.header.stamp = ros::Time::now();
             line.ns = "box3D";
-            line.id = i;  // 给每个 Marker 一个不同的 id
-
+            line.id = i;
             line.type = visualization_msgs::Marker::LINE_LIST;
             line.action = visualization_msgs::Marker::ADD;
-
-            // 线条的粗细
             line.scale.x = 0.06;
-
-            // 颜色
             line.color.r = r;
             line.color.g = g;
             line.color.b = b;
             line.color.a = 1.0;
-
-            // 生命周期，可根据需求修改
             line.lifetime = ros::Duration(0.05);
-
-            // 设置姿态
-            // 这里的 orientation 设为单位四元数，表示无旋转
             line.pose.orientation.x = 0.0;
             line.pose.orientation.y = 0.0;
             line.pose.orientation.z = 0.0;
             line.pose.orientation.w = 1.0;
-
-            // =====================
-            //   设定方框中心坐标
-            // =====================
-            // 你原先的代码里，有一段对 z 做了 (z + z_width/2)/2 这样的处理，这里
-            // 可能并不是真正想要的中心值，下面示例直接用 boxes[i].z 作为中心，
-            // 或者你可以根据自己的需求来设定。
-            // 如果真正想把 “z + z_width/2 的一半” 当成中心，请自行改回。
             line.pose.position.x = boxes[i].x;
             line.pose.position.y = boxes[i].y;
             line.pose.position.z = boxes[i].z; 
 
-            // 宽度
             double x_width = boxes[i].x_width;
             double y_width = boxes[i].y_width;
             double z_width = boxes[i].z_width;
 
-            // 在局部坐标系下，方框的 8 个角点
-            // （绕原点对称，以便 pose.position 就是方框中心）
             geometry_msgs::Point corner[8];
             corner[0].x = -x_width / 2.0; corner[0].y = -y_width / 2.0; corner[0].z = -z_width / 2.0;
             corner[1].x = -x_width / 2.0; corner[1].y =  y_width / 2.0; corner[1].z = -z_width / 2.0;
@@ -2328,25 +2304,21 @@ namespace onboardDetector{
             corner[6].x =  x_width / 2.0; corner[6].y =  y_width / 2.0; corner[6].z =  z_width / 2.0;
             corner[7].x =  x_width / 2.0; corner[7].y = -y_width / 2.0; corner[7].z =  z_width / 2.0;
 
-            // 12 条边对应的点对索引
             int edge_idx[12][2] = {
-                {0,1}, {1,2}, {2,3}, {3,0},  // 下方矩形
-                {4,5}, {5,6}, {6,7}, {7,4},  // 上方矩形
-                {0,4}, {1,5}, {2,6}, {3,7}   // 立柱
+                {0,1}, {1,2}, {2,3}, {3,0},  
+                {4,5}, {5,6}, {6,7}, {7,4},  
+                {0,4}, {1,5}, {2,6}, {3,7}   
             };
 
-            // 将每条边的两个端点 push_back 到 line.points
             for (int e = 0; e < 12; e++)
             {
                 line.points.push_back(corner[edge_idx[e][0]]);
                 line.points.push_back(corner[edge_idx[e][1]]);
             }
 
-            // 最后，把这个 Marker 放入数组
             marker_array.markers.push_back(line);
         }
 
-        // 发布
         publisher.publish(marker_array);
     }
 

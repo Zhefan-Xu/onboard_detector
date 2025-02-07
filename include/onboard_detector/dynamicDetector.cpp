@@ -16,7 +16,6 @@ namespace onboardDetector{
         this->hint_ = "[onboardDetector]";
         this->nh_ = nh;
         this->initParam();
-        this->initSaveFolder();
         this->registerPub();
         this->registerCallback();
     }
@@ -28,32 +27,7 @@ namespace onboardDetector{
         this->registerCallback();
     }
 
-    void dynamicDetector::initSaveFolder(){
-        boost::filesystem::path base_dir(this->dataSaveFolder_);
-        if (!boost::filesystem::exists(base_dir))
-        {
-            if (!boost::filesystem::create_directory(base_dir))
-            {
-                ROS_ERROR_STREAM("Failed to create base directory: " << base_dir.string());
-                return;
-            }
-            else
-            {
-                ROS_INFO_STREAM("Created new root directory: " << base_dir.string());
-            }
-        }
-    }
-
     void dynamicDetector::initParam(){
-        // data save folder 
-        if (not this->nh_.getParam(this->ns_ + "/data_save_folder", this->dataSaveFolder_)){
-            this->dataSaveFolder_ = "/home/haoyu/label_data/eval_1";
-            cout << this->hint_ << ": No data save folder. Use default: /home/robotics/data" << endl;
-        }
-        else{
-            cout << this->hint_ << ": Data save folder: " << this->dataSaveFolder_ << endl;
-        }
-
         // localization mode
         if (not this->nh_.getParam(this->ns_ + "/localization_mode", this->localizationMode_)){
             this->localizationMode_ = 0;
@@ -658,8 +632,6 @@ namespace onboardDetector{
     
         // visualization timer
         this->visTimer_ = this->nh_.createTimer(ros::Duration(this->dt_), &dynamicDetector::visCB, this);
-
-        this->labelTimer_ = this->nh_.createTimer(ros::Duration(1.0), &dynamicDetector::labelCB, this);
         
 		// get dynamic obstacle service
 		this->getDynamicObstacleServer_ = this->nh_.advertiseService("onboard_detector/get_dynamic_obstacles", &dynamicDetector::getDynamicObstacles, this);
@@ -842,7 +814,32 @@ namespace onboardDetector{
                         preTransformCloud->push_back(pt);
                     }
                 }
-                // ROS_INFO("Gaussian downsample rate: %f", float(preTransformCloud->size()) / float(filteredCloud->size()));
+                ROS_INFO("Gaussian downsample rate: %f", float(preTransformCloud->size()) / float(filteredCloud->size()));
+
+                // for (auto &pt : filteredCloud->points) {
+                //     // still compute probability p based on XY distance
+                //     float manhattanDist = std::fabs(pt.x) + std::fabs(pt.y);
+                //     float p = std::exp(- (manhattanDist * manhattanDist) / (2 * sigma * sigma));
+
+                //     // quantize X,Y only; skip Z
+                //     int x_q = static_cast<int>(std::round(pt.x * 10));
+                //     int y_q = static_cast<int>(std::round(pt.y * 10));
+
+                //     // hash only X,Y
+                //     size_t hashValue = 1469598103934665603ULL; // FNV64 offset basis
+                //     auto hash_combine = [&](int v) {
+                //         hashValue ^= std::hash<int>()(v) + 0x9e3779b97f4a7c15ULL + (hashValue << 6) + (hashValue >> 2);
+                //     };
+                //     hash_combine(x_q);
+                //     hash_combine(y_q);
+
+                //     // map hashValue to [0,1)
+                //     double r = double(hashValue % 1000000ULL) / 1000000.0;
+
+                //     if (r < p) {
+                //         preTransformCloud->push_back(pt);
+                //     }
+                // }
 
                 // transform
                 Eigen::Affine3d transform = Eigen::Affine3d::Identity();
@@ -884,7 +881,7 @@ namespace onboardDetector{
                 pcl::toROSMsg(*this->lidarCloud_, outputCloud); // Convert to ROS message
                 outputCloud.header.frame_id = "map";    // Set appropriate frame ID
                 this->downSamplePointsPub_.publish(outputCloud);
-                // ROS_INFO("Downsampled Size: %d", int(downsampledCloud->size()));
+                ROS_INFO("Downsampled Size: %d", int(downsampledCloud->size()));
             }
         }
         catch (const pcl::PCLException& e) {
@@ -1086,102 +1083,6 @@ namespace onboardDetector{
 
         this->publishHistoryTraj();
         this->publishVelVis();
-    }
-
-    void dynamicDetector::labelCB(const ros::TimerEvent& event)
-    {
-        std::string time_str = std::to_string(ros::Time::now().toNSec());
-        boost::filesystem::path base_dir = boost::filesystem::path(this->dataSaveFolder_);
-        boost::filesystem::path json_folder_ = base_dir / "dyn_box";
-        boost::filesystem::path pcd_folder_ = base_dir / "lidar";
-
-        if (!boost::filesystem::exists(json_folder_))
-        {
-            if (!boost::filesystem::create_directory(json_folder_))
-            {
-                ROS_ERROR_STREAM("Failed to create CSV folder: " << json_folder_.string());
-                return;
-            }
-            else
-            {
-                ROS_INFO_STREAM("Created CSV folder: " << json_folder_.string());
-            }
-        }
-
-        if (!boost::filesystem::exists(pcd_folder_))
-        {
-            if (!boost::filesystem::create_directory(pcd_folder_))
-            {
-                ROS_ERROR_STREAM("Failed to create PCD folder: " << pcd_folder_.string());
-                return;
-            }
-            else
-            {
-                ROS_INFO_STREAM("Created PCD folder: " << pcd_folder_.string());
-            }
-        }
-
-        boost::filesystem::path pcd_file_path = pcd_folder_ / ("lidar_cloud_" + time_str + ".pcd");
-
-
-        boost::filesystem::path json_file_path = json_folder_ / ("boxes_json_" + time_str + ".json");
-    
-        std::ofstream json_file(json_file_path.string().c_str(), std::ios::out);
-        if (!json_file.is_open())
-        {
-            ROS_ERROR_STREAM("JSON file open error: " << json_file_path.string());
-        }
-        else{
-            json_file << "[\n";
-            for (size_t i = 0; i < dynamicBBoxes_.size(); ++i)
-            {
-                const box3D &box = dynamicBBoxes_[i];
-                json_file << "  {\n";
-                json_file << "    \"obj_id\": \"" << i << "\",\n";
-                json_file << "    \"obj_type\": \"Pedestrian\",\n";
-                json_file << "    \"psr\": {\n";
-                json_file << "      \"position\": {\n";
-                json_file << "        \"x\": " << box.x << ",\n";
-                json_file << "        \"y\": " << box.y << ",\n";
-                json_file << "        \"z\": " << box.z << "\n";
-                json_file << "      },\n";
-                json_file << "      \"rotation\": {\n";
-                json_file << "        \"x\": 0,\n";
-                json_file << "        \"y\": 0,\n";
-                json_file << "        \"z\": 0\n";
-                json_file << "      },\n";
-                json_file << "      \"scale\": {\n";
-                json_file << "        \"x\": " << box.x_width << ",\n";
-                json_file << "        \"y\": " << box.y_width << ",\n";
-                json_file << "        \"z\": " << box.z_width + box.z << "\n";
-                json_file << "      }\n";
-                json_file << "    }\n";
-                json_file << "  }";
-                if (i < dynamicBBoxes_.size() - 1)
-                    json_file << ",\n";
-                else
-                    json_file << "\n";
-            }
-            json_file << "]\n";
-            json_file.close();
-            ROS_INFO_STREAM("JSON saved: " << json_file_path.string());
-        }
-
-        if (lidarCloud_ && !lidarCloud_->empty())
-        {
-            if (pcl::io::savePCDFileBinary(pcd_file_path.string(), *lidarCloud_) == -1)
-            {
-                ROS_ERROR_STREAM("Save failed: " << pcd_file_path.string());
-            }
-            else
-            {
-                ROS_INFO_STREAM("Labeled PCL saved: " << pcd_file_path.string());
-            }
-        }
-        else
-        {
-            ROS_WARN("Empty pointcloud");
-        }
     }
 
     void dynamicDetector::uvDetect(){

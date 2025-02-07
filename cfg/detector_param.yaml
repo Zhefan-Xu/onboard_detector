@@ -1,5 +1,4 @@
 localization_mode: 0 # 0: pose (default) 1: odom
-data_save_folder: /home/haoyus/label_data/eval_3
 
 # ROS Topics
 depth_image_topic: /camera/depth/image_rect_raw

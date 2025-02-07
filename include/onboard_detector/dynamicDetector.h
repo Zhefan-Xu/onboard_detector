@@ -55,6 +55,7 @@ namespace onboardDetector{
         ros::Timer trackingTimer_;
         ros::Timer classificationTimer_;
         ros::Timer visTimer_;
+        ros::Timer labelTimer_;
         image_transport::Publisher uvDepthMapPub_;
         image_transport::Publisher uDepthMapPub_;
         image_transport::Publisher uvBirdViewPub_;
@@ -109,6 +110,7 @@ namespace onboardDetector{
 
         // System
         double dt_;
+        std::string dataSaveFolder_;
 
         // DBSCAN Common
         double groundHeight_;
@@ -212,6 +214,7 @@ namespace onboardDetector{
         void initDetector(const ros::NodeHandle& nh);
 
         void initParam();
+        void initSaveFolder();
         void registerPub();
         void registerCallback();
 
@@ -230,6 +233,7 @@ namespace onboardDetector{
         void trackingCB(const ros::TimerEvent&);
         void classificationCB(const ros::TimerEvent&);
         void visCB(const ros::TimerEvent&);
+        void labelCB(const ros::TimerEvent&);
 
         // detect function
         void uvDetect();

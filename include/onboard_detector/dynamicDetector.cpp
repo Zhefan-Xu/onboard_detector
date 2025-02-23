@@ -2287,22 +2287,23 @@ namespace onboardDetector{
             line.pose.orientation.w = 1.0;
             line.pose.position.x = boxes[i].x;
             line.pose.position.y = boxes[i].y;
-            line.pose.position.z = boxes[i].z; 
-
             double x_width = boxes[i].x_width;
             double y_width = boxes[i].y_width;
-            double z_width = boxes[i].z_width;
+
+            double top = boxes[i].z + boxes[i].z_width / 2.0;
+            double z_width = top / 2.0;
+            line.pose.position.z = z_width; 
 
             geometry_msgs::Point corner[8];
-            corner[0].x = -x_width / 2.0; corner[0].y = -y_width / 2.0; corner[0].z = -z_width / 2.0;
-            corner[1].x = -x_width / 2.0; corner[1].y =  y_width / 2.0; corner[1].z = -z_width / 2.0;
-            corner[2].x =  x_width / 2.0; corner[2].y =  y_width / 2.0; corner[2].z = -z_width / 2.0;
-            corner[3].x =  x_width / 2.0; corner[3].y = -y_width / 2.0; corner[3].z = -z_width / 2.0;
+            corner[0].x = -x_width / 2.0; corner[0].y = -y_width / 2.0; corner[0].z = -z_width;
+            corner[1].x = -x_width / 2.0; corner[1].y =  y_width / 2.0; corner[1].z = -z_width;
+            corner[2].x =  x_width / 2.0; corner[2].y =  y_width / 2.0; corner[2].z = -z_width;
+            corner[3].x =  x_width / 2.0; corner[3].y = -y_width / 2.0; corner[3].z = -z_width;
 
-            corner[4].x = -x_width / 2.0; corner[4].y = -y_width / 2.0; corner[4].z =  z_width / 2.0;
-            corner[5].x = -x_width / 2.0; corner[5].y =  y_width / 2.0; corner[5].z =  z_width / 2.0;
-            corner[6].x =  x_width / 2.0; corner[6].y =  y_width / 2.0; corner[6].z =  z_width / 2.0;
-            corner[7].x =  x_width / 2.0; corner[7].y = -y_width / 2.0; corner[7].z =  z_width / 2.0;
+            corner[4].x = -x_width / 2.0; corner[4].y = -y_width / 2.0; corner[4].z =  z_width;
+            corner[5].x = -x_width / 2.0; corner[5].y =  y_width / 2.0; corner[5].z =  z_width;
+            corner[6].x =  x_width / 2.0; corner[6].y =  y_width / 2.0; corner[6].z =  z_width;
+            corner[7].x =  x_width / 2.0; corner[7].y = -y_width / 2.0; corner[7].z =  z_width;
 
             int edgeIdx[12][2] = {
                 {0,1}, {1,2}, {2,3}, {3,0},  

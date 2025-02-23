@@ -71,9 +71,11 @@ namespace onboardDetector{
         ros::Publisher lidarClustersPub_;
         ros::Publisher filteredPointsPub_;
         ros::Publisher dynamicPointsPub_;
+        ros::Publisher rawDynamicPointsPub_;
+        ros::Publisher downSamplePointsPub_;
+        ros::Publisher rawLidarPointsPub_;
         ros::Publisher historyTrajPub_;
         ros::Publisher velVisPub_;
-        ros::Publisher downSamplePointsPub_;
         ros::ServiceServer getDynamicObstacleServer_;
     
         // DETECTOR
@@ -172,6 +174,7 @@ namespace onboardDetector{
         Eigen::Vector3d localLidarRange_ {10.0, 10.0, 5.0};
 
         //LIDAR DATA
+        sensor_msgs::PointCloud2ConstPtr latestCloud_;
         pcl::PointCloud<pcl::PointXYZ>::Ptr lidarCloud_ = NULL; 
         std::vector<onboardDetector::Cluster> lidarClusters_;
 
@@ -272,6 +275,7 @@ namespace onboardDetector{
         void publishVelVis();
         void publishLidarClusters();
         void publishFilteredPoints();
+        void publishRawDynamicPoints();
 
         // helper function
         void transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,

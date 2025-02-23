@@ -581,14 +581,20 @@ namespace onboardDetector{
         // dynamic pointcloud pub
         this->dynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/dynamic_point_cloud", 10);
 
+        // raw dynamic pointcloud pub
+        this->rawDynamicPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/raw_dynamic_point_cloud", 10);
+
+        // downsample points visualization pub
+        this->downSamplePointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/downsampled_point_cloud", 10);
+
+        // raw LiDAR points visualization pub
+        this->rawLidarPointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/raw_lidar_point_cloud", 10);
+
         // history trajectory pub
         this->historyTrajPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/history_trajectories", 10);
 
         // velocity visualization pub
         this->velVisPub_ = this->nh_.advertise<visualization_msgs::MarkerArray>(this->ns_ + "/velocity_visualizaton", 10);
-
-        // downsample points visualization pub
-        this->downSamplePointsPub_ = this->nh_.advertise<sensor_msgs::PointCloud2>(this->ns_ + "/downsampled_point_cloud", 10);
     }   
 
     void dynamicDetector::registerCallback(){
@@ -777,6 +783,9 @@ namespace onboardDetector{
     void dynamicDetector::lidarCloudCB(const sensor_msgs::PointCloud2ConstPtr& cloudMsg){
         try {
             if (this->hasSensorPose_){
+                // for visualization
+                this->latestCloud_ = cloudMsg;
+
                 // local cloud
                 pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud (new pcl::PointCloud<pcl::PointXYZ>());
                 pcl::fromROSMsg(*cloudMsg, *tempCloud);
@@ -814,7 +823,7 @@ namespace onboardDetector{
                         preTransformCloud->push_back(pt);
                     }
                 }
-                ROS_INFO("Gaussian downsample rate: %f", float(preTransformCloud->size()) / float(filteredCloud->size()));
+                // ROS_INFO("Gaussian downsample rate: %f", float(preTransformCloud->size()) / float(filteredCloud->size()));
 
                 // for (auto &pt : filteredCloud->points) {
                 //     // still compute probability p based on XY distance
@@ -881,7 +890,7 @@ namespace onboardDetector{
                 pcl::toROSMsg(*this->lidarCloud_, outputCloud); // Convert to ROS message
                 outputCloud.header.frame_id = "map";    // Set appropriate frame ID
                 this->downSamplePointsPub_.publish(outputCloud);
-                ROS_INFO("Downsampled Size: %d", int(downsampledCloud->size()));
+                // ROS_INFO("Downsampled Size: %d", int(downsampledCloud->size()));
             }
         }
         catch (const pcl::PCLException& e) {
@@ -1080,6 +1089,7 @@ namespace onboardDetector{
         this->getDynamicPc(dynamicPoints);
         this->publishPoints(dynamicPoints, this->dynamicPointsPub_);
         this->publishPoints(this->filteredDepthPoints_, this->filteredDepthPointsPub_);
+        this->publishRawDynamicPoints();
 
         this->publishHistoryTraj();
         this->publishVelVis();
@@ -2454,6 +2464,72 @@ namespace onboardDetector{
         filteredPointsMsg.header.frame_id = "map";
         filteredPointsMsg.header.stamp = ros::Time::now();
         this->filteredPointsPub_.publish(filteredPointsMsg);
+    }
+
+    void dynamicDetector::publishRawDynamicPoints(){
+        if (not this->latestCloud_){
+            return;
+        }
+        try {
+            pcl::PointCloud<pcl::PointXYZ>::Ptr globalCloud(new pcl::PointCloud<pcl::PointXYZ>);
+            if (this->hasSensorPose_) {
+                pcl::PointCloud<pcl::PointXYZ>::Ptr tempCloud(new pcl::PointCloud<pcl::PointXYZ>());
+                pcl::fromROSMsg(*this->latestCloud_, *tempCloud);
+                
+                Eigen::Affine3d transform = Eigen::Affine3d::Identity();
+                transform.linear() = this->orientationLidar_;
+                transform.translation() = this->positionLidar_;
+                
+                pcl::transformPointCloud(*tempCloud, *globalCloud, transform);
+                sensor_msgs::PointCloud2 cloudMsg;
+                pcl::toROSMsg(*globalCloud, cloudMsg);
+                cloudMsg.header.frame_id = "map";
+                cloudMsg.header.stamp = ros::Time::now();
+                this->rawLidarPointsPub_.publish(cloudMsg);
+            }
+            else {
+                pcl::fromROSMsg(*this->latestCloud_, *globalCloud);
+            }
+            
+            std::vector<Eigen::Vector3d> dynamicEigenPoints;
+            
+            for (const auto& box : this->dynamicBBoxes_) {
+                if (!box.is_dynamic)
+                    continue;
+                
+                double xmin = box.x - box.x_width / 2.0;
+                double xmax = box.x + box.x_width / 2.0;
+                double ymin = box.y - box.y_width / 2.0;
+                double ymax = box.y + box.y_width / 2.0;
+                double zmin = box.z - box.z_width / 2.0;
+                double zmax = box.z + box.z_width / 2.0;
+                
+                for (const auto& point : globalCloud->points) {
+                    if (point.x >= xmin && point.x <= xmax &&
+                        point.y >= ymin && point.y <= ymax &&
+                        point.z >= zmin && point.z <= zmax)
+                    {
+                        dynamicEigenPoints.push_back(Eigen::Vector3d(point.x, point.y, point.z));
+                    }
+                }
+            }
+            
+            if (dynamicEigenPoints.empty()) {
+                ROS_WARN("No dynamic points found in dynamic bounding boxes.");
+                return;
+            }
+            
+            this->publishPoints(dynamicEigenPoints, this->rawDynamicPointsPub_);
+        }
+        catch (const pcl::PCLException& e) {
+            ROS_ERROR("PCL Exception during dynamic point extraction: %s", e.what());
+        }
+        catch (const std::exception& e) {
+            ROS_ERROR("Standard Exception during dynamic point extraction: %s", e.what());
+        }
+        catch (...) {
+            ROS_ERROR("Unknown error during dynamic point extraction.");
+        }
     }
 
     void dynamicDetector::transformBBox(const Eigen::Vector3d& center, const Eigen::Vector3d& size, const Eigen::Vector3d& position, const Eigen::Matrix3d& orientation,

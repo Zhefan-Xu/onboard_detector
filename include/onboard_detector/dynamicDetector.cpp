@@ -1394,12 +1394,12 @@ namespace onboardDetector{
                 result.bbox.size_y = brY - tlY;
                 filteredDetectionResults.detections.push_back(result);
 
-                cv::Rect bboxVis;
-                bboxVis.x = tlX;
-                bboxVis.y = tlY;
-                bboxVis.height = brY - tlY;
-                bboxVis.width = brX - tlX;
-                cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
+                // cv::Rect bboxVis;
+                // bboxVis.x = tlX;
+                // bboxVis.y = tlY;
+                // bboxVis.height = brY - tlY;
+                // bboxVis.width = brX - tlX;
+                // cv::rectangle(this->detectedColorImage_, bboxVis, cv::Scalar(0, 255, 0), 5, 8, 0);
             }
 
             for (int i=0; i<int(this->yoloDetectionResults_.detections.size()); ++i){
@@ -2515,7 +2515,6 @@ namespace onboardDetector{
             }
             
             if (dynamicEigenPoints.empty()) {
-                ROS_WARN("No dynamic points found in dynamic bounding boxes.");
                 return;
             }
             

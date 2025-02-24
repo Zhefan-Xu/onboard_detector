@@ -5,5 +5,5 @@
     <!-- TO run yolo v11: pip install ultralytics -->
     <node pkg="onboard_detector" type="yolov11_detector_node.py" name="yolov11_detector_node" output="log" />
 	<!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find onboard_detector)/rviz/detector.rviz"/> -->
-	<node name="rviz" pkg="rviz" type="rviz" args="-d $(find onboard_detector)/rviz/detector_lidar.rviz"/>
+	<node name="rviz" pkg="rviz" type="rviz" args="-d $(find onboard_detector)/rviz/detector_lv.rviz"/>
 </launch>

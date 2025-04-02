@@ -1227,8 +1227,8 @@ namespace onboardDetector{
         uint16_t* rowPtr;
         double depth;
         const double inv_factor = 1.0 / this->depthScale_;
-        int vMin = std::min(topY, this->depthFilterMargin_);
-        int uMin = std::min(topX, this->depthFilterMargin_);
+        int vMin = std::max(topY, this->depthFilterMargin_);
+        int uMin = std::max(topX, this->depthFilterMargin_);
         int vMax = std::min(topY+yWidth, this->imgRows_-this->depthFilterMargin_);
         int uMax = std::min(topX+xWidth, this->imgCols_-this->depthFilterMargin_);
         std::vector<double> depthValues;
